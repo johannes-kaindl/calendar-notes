@@ -130,12 +130,32 @@ export function applyDelta(i: ApplyInput): ApplyResult {
     }
     state = removeObject(state, hp);
   }
-  // Objekt bleibt unveraendert im State (nicht per upsertObject aktualisiert): das Fenster wandert
-  // vorwaerts, der naechste sync-token-/etag-Diff liest den Stand aus `snapshot.etags`, nicht aus
-  // `state.objects[hp]` — hier wird nur archiviert, nicht der Delta-Quellwert nachgezogen.
+  // Objekt bleibt bei echtem "nur aus dem Fenster gewandert" unveraendert im State (nicht per
+  // upsertObject aktualisiert): das Fenster wandert vorwaerts, der naechste sync-token-/etag-Diff
+  // liest den Stand aus `snapshot.etags`, nicht aus `state.objects[hp]` — hier wird nur archiviert,
+  // nicht der Delta-Quellwert nachgezogen.
+  //
+  // ABER: unter der Kalender-Strategie (etag-diff MIT Fenster, s. `syncCollection` in
+  // `src/core/dav/sync.ts`) meldet `outOfWindow` per M1-Ruling JEDEN href, der in der gefensterten
+  // Server-Listing-Antwort fehlt — das trifft sowohl auf "aus dem Fenster gewandert" als auch auf
+  // "vom Server geloescht, waehrend das Objekt noch im Fenster liegt" zu. Nur der gespeicherte
+  // `raw`-Stand kann die beiden unterscheiden: liegt das zuletzt bekannte Ereignis noch im Fenster,
+  // war es eine echte Loeschung (Server haette es sonst weiterhin in der Listing-Antwort gezeigt) —
+  // dann gilt dieselbe Klassifikation wie `i.delta.deleted` oben (inkl. `byPath` undefined → Fehler).
   for (const href of i.delta.outOfWindow) {
-    const os = state.objects[hrefPath(href)];
+    const hp = hrefPath(href);
+    const os = state.objects[hp];
     if (!os) continue;
+    const stillInWindow = i.timeWindow !== undefined && (kind === "event" ? eventOccursWithin(os.raw, i.timeWindow.start, i.timeWindow.end) : true);
+    if (stillInWindow) {
+      for (const n of Object.values(os.notes)) {
+        const note = i.lookup.byPath(n.path);
+        if (note) push(planRemoval(i.profile, note, { hasBacklinks: i.lookup.hasBacklinks(n.path) }));
+        else { errors.push({ href, message: `Notiz nicht auffindbar: ${n.path}` }); counts.errors++; }
+      }
+      state = removeObject(state, hp);
+      continue;
+    }
     for (const n of Object.values(os.notes)) {
       const note = i.lookup.byPath(n.path);
       if (note) push(planArchive(i.profile, note));

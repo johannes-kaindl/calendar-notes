@@ -97,6 +97,10 @@ async function viaEtagDiff(t: Transport, col: DavCollection, prev: SyncSnapshot 
  * (b) PRECONDITION: `col.ctag`/`col.syncToken` müssen frisch gelesen sein (PROPFIND Depth 0),
  *     bevor diese Funktion aufgerufen wird — sonst meldet der ctag-Kurzschluss dauerhaft
  *     `unchanged`, weil der Vergleich gegen einen veralteten Stand läuft.
+ * (c) `outOfWindow` (etag-diff mit `timeRange`) meldet JEDEN href, der aus der gefensterten
+ *     Listing-Antwort fehlt — das deckt sowohl "aus dem Fenster gewandert" als auch "vom Server
+ *     geloescht" ab; die Unterscheidung anhand des gespeicherten `raw`-Stands trifft erst
+ *     `applyDelta` in `src/core/mirror/apply.ts`.
  */
 export async function syncCollection(t: Transport, col: DavCollection, prev: SyncSnapshot | undefined, opts: SyncOptions = {}): Promise<SyncDelta> {
   if (col.syncToken) {

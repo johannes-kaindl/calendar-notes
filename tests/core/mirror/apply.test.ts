@@ -109,11 +109,41 @@ describe("applyDelta — events", () => {
     const ovPlan = r.plans.find((x) => x.path.includes("verschoben"));
     expect(ovPlan && ovPlan.op === "create" ? ovPlan.frontmatter["dav_recurrence_id"] : null).toBe("2026-09-03T07:00:00Z");
   });
-  it("outOfWindow hrefs archive their notes but stay in state", () => {
+  it("outOfWindow hrefs archive their notes but stay in state (kein timeWindow im Input → alte Auswahl-Regel)", () => {
     const st = upsertObject(emptyState("acc/kal"), "/c/s.ics", { uid: "simple-1@test", etag: '"3"', raw: "x", written: {}, hash: "h", notePath: "Events/S.md", at: "t" });
     const r = applyDelta({ profile: p, source: "acc/kal", now: NOW, state: st, lookup: lookupOf([{ path: "Events/S.md", frontmatter: { dav_uid: "simple-1@test", dav_source: "acc/kal" }, body: "" }]), delta: delta({ outOfWindow: ["https://s/c/s.ics"] }) });
     expect(r.plans).toEqual([{ op: "archive", path: "Events/S.md", uid: "simple-1@test", set: { dav_state: "archived" } }]);
     expect(r.state.objects["/c/s.ics"]).toBeDefined();
+  });
+  it("outOfWindow href, dessen gespeichertes raw NOCH im Fenster liegt → echte Loeschung (delete:trash), Objekt raus aus dem State", () => {
+    const win = { start: new Date("2026-09-01T00:00:00Z"), end: new Date("2026-09-30T00:00:00Z") };
+    const st = upsertObject(emptyState("acc/kal"), "/c/s.ics", { uid: "simple-1@test", etag: '"3"', raw: fx("ical", "simple.ics"), written: {}, hash: "h", notePath: "Events/S.md", at: "t" });
+    const r = applyDelta({
+      profile: p,
+      source: "acc/kal",
+      now: NOW,
+      state: st,
+      timeWindow: win,
+      lookup: lookupOf([{ path: "Events/S.md", frontmatter: { dav_uid: "simple-1@test", dav_source: "acc/kal", dav_state: "live" }, body: "" }]),
+      delta: delta({ outOfWindow: ["https://s/c/s.ics"] }),
+    });
+    expect(r.plans).toEqual([{ op: "delete", path: "Events/S.md", uid: "simple-1@test", mode: "trash" }]);
+    expect(r.state.objects["/c/s.ics"]).toBeUndefined();
+  });
+  it("outOfWindow href, dessen gespeichertes raw AUSSERHALB des Fensters liegt → weiterhin archive, Objekt bleibt im State", () => {
+    const win = { start: new Date("2026-09-01T00:00:00Z"), end: new Date("2026-09-30T00:00:00Z") };
+    const st = upsertObject(emptyState("acc/kal"), "/c/x.ics", { uid: "allday-1@test", etag: '"2"', raw: fx("ical", "allday.ics"), written: {}, hash: "h", notePath: "Events/X.md", at: "t" });
+    const r = applyDelta({
+      profile: p,
+      source: "acc/kal",
+      now: NOW,
+      state: st,
+      timeWindow: win,
+      lookup: lookupOf([{ path: "Events/X.md", frontmatter: { dav_uid: "allday-1@test", dav_source: "acc/kal", dav_state: "live" }, body: "" }]),
+      delta: delta({ outOfWindow: ["https://s/c/x.ics"] }),
+    });
+    expect(r.plans).toEqual([{ op: "archive", path: "Events/X.md", uid: "allday-1@test", set: { dav_state: "archived" } }]);
+    expect(r.state.objects["/c/x.ics"]).toBeDefined();
   });
   it("attendees resolved through resolver", () => {
     const r = applyDelta({
