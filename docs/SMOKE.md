@@ -51,7 +51,7 @@ ausgewählt wird; mehrere offene Vault-Fenster erzwingen eine eindeutige Auswahl
 |---|---|---|
 | P1 | Laden | `Object.keys(app.commands.commands)` → 5 `calendar-notes:*`-Kommandos; `app.setting.pluginTabs.find(id).getSettingDefinitions()` → 5 Gruppen (Konten/Sammlungen/Profile/Synchronisation/Aktionen) |
 | P2 | Konto + Discovery | Konto anlegen, Secret setzen, `plugin.discoverAccount(account)` + `plugin.settingTab.mergeDiscoveredCollections(...)` → 2 Sammlungen, 0 Warnungen. Läuft in **beiden** Sektionen — `generic` mit den Standard-Profilen (`default-contact`/`default-event`), `pallas` mit aus Pallas-Notizen abgeleiteten Profilen (`plugin.createProfileFromNote(kind, file)`) |
-| P3 | Adoption (nur `--section pallas`) | `plugin.startAdoption(collectionId)` öffnet die echte AdoptionModal (vorbelegt: sure/likely → link, weak → skip, `defaultAction` in `adoption-modal.ts`); der Treiber klickt nur den vorbelegten „Verknüpfen“-Button (`.modal-container .mod-cta`), ohne Dropdowns zu ändern. Danach `plugin.service.runAll()` — verknüpfte Notizen werden aktualisiert statt neu angelegt, freier Body bleibt erhalten. **Siehe Befund unten — bei diesem Fixture-Stand rot, s. Baseline.** |
+| P3 | Adoption (nur `--section pallas`) | `plugin.startAdoption(collectionId)` öffnet die echte AdoptionModal (vorbelegt: sure/likely → link, weak → skip, `defaultAction` in `adoption-modal.ts`); der Treiber klickt nur den vorbelegten „Verknüpfen“-Button (`.modal-container .mod-cta`), ohne Dropdowns zu ändern. Danach `plugin.service.runAll()` — verknüpfte Notizen werden aktualisiert statt neu angelegt, freier Body bleibt erhalten. |
 | P4 | Trockenlauf + Sync (`generic`) | `plugin.service.runAll({dryRun:true})` → 5 creates (3 Termine + 2 Kontakte); echter Lauf → Dateien unter `Events/`/`Contacts/` mit `dav_uid`/`dav_source`/`dav_etag`-Frontmatter |
 | P5 | Update-Pfad (`generic`) | Server-PUT auf `simple-1.ics` (Zeit + Beschreibung geändert) über echtes HTTP/Basic-Auth gegen Radicale, dann `plugin.runAll()` → `dav_etag` neu, Body enthält die neue Beschreibung, `handEdited` leer |
 | P6 | Löschung (`generic`) | Server-DELETE auf `allday-1.ics`, Trockenlauf-Plan enthält `{op:"delete", mode:"trash"}`, echter Lauf → Datei aus `Events/` verschwunden (Papierkorb) |
@@ -64,35 +64,24 @@ private TS-Methoden (`startAdoption`, `confirmAdoption`, `discoverAccount`,
 `createProfileFromNote`) sind zur Laufzeit ganz normale Objekteigenschaften (TS `private`
 ist ein Compile-Zeit-Konzept) und darüber ohne Änderung an `main.ts` erreichbar.
 
-## Bekannter Befund: P3 ist mit dem aktuellen Fixture-Stand strukturell rot
+## Behobener Befund (2026-08-22, Commit 14e4506)
 
-Der Treiber deckt zwei reale Diskrepanzen zwischen der Fixture-Spezifikation
-(`docs/superpowers/plans/2026-08-22-m3-adoption-smoke.md`) und dem, was `matchItems`/
-`candidateNotes` tatsächlich damit tun, auf — **kein Treiberfehler**, s. Baseline-Protokoll
-für die vollständige Diagnose:
-
-1. **Alex Aguado.md trägt laut Plan-Vorgabe bereits `vcard_uid: a4843c7a6d3005dd`** (ein
-   Platzhalter, der NICHT der echten `c4.vcf`-UID entspricht). Ein aus dieser Notiz
-   abgeleitetes Profil (`createProfileFromNote`) übernimmt `vcard_uid` als `uidField`
-   (`UID_KEYS`-Erkennung in `profile-from-note.ts`) — und `candidateNotes()` schließt jede
-   Notiz mit bereits belegtem `uidField` aus dem Kandidatenpool aus. Die Notiz, aus der das
-   Profil abgeleitet wird, kann sich damit per Konstruktion nie selbst als Adoptions-Ziel
-   qualifizieren.
-2. **Der Datums-Präfix im Dateinamen** (`2026-09-01 Zahnärztin.md`) senkt die
-   Titel-Ähnlichkeit (`bestTitleSim`, Jaccard/Dice über normalisierte Tokens) unter die
-   0.6-Schwelle für `likely` — der Server-Titel „Zahnärztin Dr. Müller“ vs. Notiz-Tokens
-   `["2026","09","01","zahnärztin"]` ergibt ca. 0.2, nicht `likely` sondern `weak`
-   (Default-Aktion `skip`, nicht `link`).
-
-Ergebnis: 0 Verknüpfungen in beiden Pallas-Sammlungen. Empfehlung an den Plan-Owner: entweder
-`vcard_uid` aus dem Fixture entfernen (Alex wird dann über Telefon `sure` matchbar) und die
-`likely`-Erwartung für Zahnärztin auf `weak` korrigieren — oder den Titel-Schwellenwert/die
-Namens-Kandidaten (`bestTitleSim`) um den Dateinamen-Präfix bereinigen. Nicht im Scope
-dieses Treibers behoben (Fixture-Änderung wäre ein Eingriff außerhalb der zugewiesenen
-Dateien).
+Der erste Lauf (Lauf 1, s. Baseline) fand P3 strukturell rot: `candidateNotes()` schloss
+Alex Aguado.md wegen eines vorbelegten `vcard_uid` aus dem eigenen abgeleiteten Profil aus,
+und der Datums-Präfix im Dateinamen `2026-09-01 Zahnärztin.md` drückte die Titel-Ähnlichkeit
+unter die `likely`-Schwelle. Commit `14e4506` („Review-Runde 2 — Kandidaten-Regel &
+Termin-Titelvergleich (aus Live-Smoke)“) behebt beides — Kandidaten werden seither nur noch
+über `dav_source` ausgeschlossen (nicht über ein beliebiges vorbelegtes `uidField`), und der
+Datums-Präfix wird vor dem Titelvergleich von der Basename entfernt. Lauf 2 (s. Baseline)
+bestätigt: P3/P3b jetzt grün, kein Regressions-Effekt in `--section generic`.
 
 ## Läufe
 
-- **2026-08-22** — Obsidian 1.13.7, macOS. `--setup` + `--section generic` (8/8) +
-  `--section pallas` (2/4, s. Befund oben). Vollständiges Protokoll:
-  `docs/smoke/baseline-2026-08-22.md`.
+- **2026-08-22, Lauf 1** — Obsidian 1.13.7, macOS, Commit `bbd9fe0`. `--setup` +
+  `--section generic` (8/8) + `--section pallas` (2/4 — P3/P3b rot, Fixture/Matcher-Befund
+  oben, seither behoben).
+- **2026-08-22, Lauf 2** — Obsidian 1.13.7, macOS, Commit `14e4506` (Matcher-Fix,
+  Plugin per `disablePlugin`/`enablePlugin` neu geladen, keine Vault-Neuinstallation).
+  `--section pallas` (4/4) + `--section generic` erneut (8/8, keine Regression).
+
+Vollständiges Protokoll beider Läufe: `docs/smoke/baseline-2026-08-22.md`.
