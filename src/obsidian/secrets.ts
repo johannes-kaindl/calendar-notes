@@ -1,10 +1,7 @@
 import type { App } from "obsidian";
+import type { SecretStore } from "../core/sync/types";
 
-export interface SecretStore {
-  get(id: string): string | null;
-  set(id: string, value: string): void; // wirft, wenn Ruecklesen fehlschlaegt
-  has(id: string): boolean;
-}
+export type { SecretStore };
 
 /** In-Memory-Fallback fuer Tests und fuer eine Obsidian-Version ohne `secretStorage`. */
 export class MemorySecretStore implements SecretStore {

@@ -1,4 +1,7 @@
 import { emptyState, parseState, type CollectionState } from "../core/state/collection-state";
+import type { StateStore } from "../core/sync/types";
+
+export type { StateStore };
 
 /** Minimale, strukturelle Teilmenge von Obsidians `DataAdapter` (vault.adapter) —
  *  bewusst nicht `import type { DataAdapter } from "obsidian"`, damit Tests eine
@@ -9,12 +12,6 @@ export interface MinimalDataAdapter {
   read(normalizedPath: string): Promise<string>;
   write(normalizedPath: string, data: string): Promise<void>;
   remove(normalizedPath: string): Promise<void>;
-}
-
-export interface StateStore {
-  load(source: string): Promise<CollectionState>;
-  save(state: CollectionState): Promise<void>;
-  remove(source: string): Promise<void>;
 }
 
 function encode(source: string): string {
