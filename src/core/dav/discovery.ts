@@ -4,6 +4,8 @@ import { propfindBody } from "./requests";
 import { resolveHref, ensureTrailingSlash, hrefPath } from "./url";
 import { headerValue } from "./transport";
 
+const XML = { "Content-Type": "application/xml; charset=utf-8" };
+
 export interface DiscoveryResult {
   principal: string;
   calendarHome?: string;
@@ -19,7 +21,7 @@ const COLLECTION_PROPS = [
 ];
 
 async function propfind(t: Transport, url: string, depth: "0" | "1", props: string[]): Promise<MsResponse[]> {
-  const res = await t({ method: "PROPFIND", url, headers: { Depth: depth, "Content-Type": "application/xml; charset=utf-8" }, body: propfindBody(props) });
+  const res = await t({ method: "PROPFIND", url, headers: { Depth: depth, ...XML }, body: propfindBody(props) });
   if (res.status === 207) return parseMultistatus(res.text).responses;
   throw new DavError(res.status, `PROPFIND ${url} → ${res.status}`, url);
 }
@@ -27,7 +29,7 @@ async function propfind(t: Transport, url: string, depth: "0" | "1", props: stri
 /** Folgt einem well-known-Redirect (301/302/307/308) und liefert das Ziel — oder undefined. */
 async function wellKnown(t: Transport, baseUrl: string, kind: "caldav" | "carddav"): Promise<string | undefined> {
   const url = new URL(`/.well-known/${kind}`, baseUrl).toString();
-  const res = await t({ method: "PROPFIND", url, headers: { Depth: "0", "Content-Type": "application/xml; charset=utf-8" }, body: propfindBody(["d:current-user-principal"]) });
+  const res = await t({ method: "PROPFIND", url, headers: { Depth: "0", ...XML }, body: propfindBody(["d:current-user-principal"]) });
   if ([301, 302, 307, 308].includes(res.status)) {
     const loc = headerValue(res.headers, "location");
     return loc ? ensureTrailingSlash(resolveHref(url, loc)) : undefined;
