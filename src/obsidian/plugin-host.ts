@@ -7,10 +7,50 @@ import { fmKeyFor, type MappingProfile } from "../core/mirror/profile";
 import { effectiveProfile, sourceOf, type Account, type PluginSettings } from "../core/settings";
 import type { Notifier, SyncDeps } from "../core/sync/types";
 import { t } from "../i18n/strings";
+import type { MailTransport } from "./invite";
 import { obsidianSecretStore } from "./secrets";
 import { adapterStateStore } from "./state-store";
 import { obsidianTransport } from "./transport";
 import { vaultPlanExecutor, VaultNoteLookup } from "./vault-notes";
+
+/** Registry fuer Fremd-Plugin-Mail-Transporte (mailstone-Vertrag, s. `invite.ts`).
+ *  mailstone meldet sich defensiv beim Laden an/ab (Registry-Muster „fremde Plugin-API
+ *  konsumieren"), calendar-notes kennt keine feste Plugin-ID. `register` validiert die
+ *  Form defensiv (fremder Aufrufer, kein TS-Vertrauen) und meldet ein ungueltiges Objekt
+ *  per Notice statt es kommentarlos zu verwerfen. Wird ueber Task 7 (Plugin-API v1) auch
+ *  nach aussen exportiert — hier schon vollstaendig, damit main.ts/InviteRouter sie
+ *  ab Task 5 nutzen koennen. */
+export interface MailTransportRegistry {
+  register(transport: MailTransport): void;
+  unregister(id: string): void;
+  list(): MailTransport[];
+}
+
+function isMailTransport(v: unknown): v is MailTransport {
+  if (!v || typeof v !== "object") return false;
+  const o = v as Record<string, unknown>;
+  return typeof o["id"] === "string" && o["id"] !== "" && typeof o["label"] === "string" && typeof o["accounts"] === "function" && typeof o["send"] === "function";
+}
+
+export function createMailTransportRegistry(): MailTransportRegistry {
+  const transports = new Map<string, MailTransport>();
+  return {
+    register(transport: MailTransport): void {
+      if (!isMailTransport(transport)) {
+        const id = transport && typeof transport === "object" && "id" in transport ? String((transport as Record<string, unknown>)["id"]) : "?";
+        new Notice(t("notice.mailTransportInvalid", id));
+        return;
+      }
+      transports.set(transport.id, transport);
+    },
+    unregister(id: string): void {
+      transports.delete(id);
+    },
+    list(): MailTransport[] {
+      return [...transports.values()];
+    },
+  };
+}
 
 /** `Notice` als `Notifier`: `warn` bekommt keinen eigenen Obsidian-Kanal, zeigt sich also
  *  ebenfalls als Notice (mit "Warnung:"-Präfix, damit sie sich von `info` unterscheidet). */

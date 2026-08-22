@@ -3,6 +3,7 @@ import { candidateNotes, countTypeExcluded, matchItems, type CandidateNote, type
 import { planAdoption, stateAfterAdoption, type AdoptDecision, type LinkPlan } from "./core/adopt/plan";
 import { loadServerItems } from "./core/adopt/service";
 import { discover, type DiscoveryResult } from "./core/dav/discovery";
+import { discoverScheduling } from "./core/dav/scheduling";
 import { withBasicAuth } from "./core/dav/transport";
 import type { MappingProfile, ProfileKind } from "./core/mirror/profile";
 import { suggestProfileFromNote } from "./core/mirror/profile-from-note";
@@ -12,7 +13,8 @@ import { SyncService } from "./core/sync/service";
 import type { CollectionRunResult, SyncDeps } from "./core/sync/types";
 import { initI18n, t } from "./i18n/strings";
 import { AdoptionModal, summarizeAdoption } from "./obsidian/adoption-modal";
-import { buildSyncDeps } from "./obsidian/plugin-host";
+import { InviteRouter } from "./obsidian/invite";
+import { buildSyncDeps, createMailTransportRegistry, type MailTransportRegistry } from "./obsidian/plugin-host";
 import { PreviewModal } from "./obsidian/preview-modal";
 import { obsidianSecretStore, type SecretStore } from "./obsidian/secrets";
 import { CalendarNotesSettingTab, type SettingsHost } from "./obsidian/settings-tab";
@@ -74,6 +76,10 @@ export default class CalendarNotesPlugin extends Plugin {
   settings: PluginSettings = normalizeSettings(null);
   secrets!: SecretStore;
   service!: SyncService;
+  /** Fremd-Plugin-Mail-Transporte (mailstone-Vertrag) — Task 7 exportiert register/unregister
+   *  ueber die Plugin-API, `inviteRouter` liest den aktuellen Stand per Closure. */
+  mailTransports!: MailTransportRegistry;
+  inviteRouter!: InviteRouter;
   private deps!: SyncDeps;
   private settingTab!: CalendarNotesSettingTab;
   private intervalHandle: number | undefined;
@@ -96,6 +102,8 @@ export default class CalendarNotesPlugin extends Plugin {
     // Busy-Guard fuer `executeCommandPlan` (core/sync/execute.ts): `service` existiert erst
     // NACH `buildSyncDeps`, deshalb hier nachtraeglich gesetzt statt im Host-Objekt.
     this.deps.isBusy = () => this.service.isRunning();
+    this.mailTransports = createMailTransportRegistry();
+    this.inviteRouter = new InviteRouter(() => this.mailTransports.list(), this.app);
     await this.hydrateRunCache();
 
     this.settingTab = new CalendarNotesSettingTab(this.app, this, this.settingsHost());
@@ -177,7 +185,19 @@ export default class CalendarNotesPlugin extends Plugin {
     const password = this.secrets.get(account.secretId);
     if (password === null) throw new Error(t("notice.noSecret"));
     const transport = withBasicAuth(obsidianTransport({ timeoutMs: this.settings.sync.requestTimeoutMs }), account.username, password);
-    return discover(transport, account.baseUrl);
+    const result = await discover(transport, account.baseUrl);
+    // Scheduling-Discovery (RFC 6638) ist ein optionaler Zusatzschritt — scheitert sie (Server
+    // ohne schedule-outbox/-inbox, Rechteproblem, Timeout), bleibt `scheduling` einfach
+    // unveraendert statt die ganze Discovery scheitern zu lassen (settings-tab.ts wertet nur
+    // `result` aus, `account.scheduling` wird HIER direkt in den Settings aktualisiert).
+    try {
+      const scheduling = await discoverScheduling(transport, result.principal);
+      this.settings = { ...this.settings, accounts: this.settings.accounts.map((a) => (a.id === account.id ? { ...a, scheduling } : a)) };
+      await this.saveSettings();
+    } catch {
+      /* optional — Server ohne Scheduling-Unterstuetzung ist kein Fehler */
+    }
+    return result;
   }
 
   // ── Kommandos ────────────────────────────────────────────────────────────
