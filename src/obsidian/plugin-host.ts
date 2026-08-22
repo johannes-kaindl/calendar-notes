@@ -72,7 +72,7 @@ function noticeNotifier(): Notifier {
  *  ist: Frontmatter-Feld = `fmKeyFor(profile, "email")`, Wert (kleingeschrieben) → Pfad + Anzeige
  *  (Dateiname ohne Extension). Wird lazy je Lauf gebaut (`resolveAttendee` in `SyncDeps` ist
  *  selbst eine Funktion, die den Resolver erst bei Bedarf liefert). */
-function buildAttendeeIndex(app: App, settings: PluginSettings): AttendeeResolver | undefined {
+export function buildAttendeeIndex(app: App, settings: PluginSettings): AttendeeResolver | undefined {
   const contactProfiles = new Map<string, MappingProfile>();
   for (const c of settings.collections) {
     const p = settings.profiles.find((p) => p.id === c.profileId);

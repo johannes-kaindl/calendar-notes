@@ -13,6 +13,7 @@ import { SyncService } from "./core/sync/service";
 import type { CollectionRunResult, SyncDeps } from "./core/sync/types";
 import { initI18n, t } from "./i18n/strings";
 import { AdoptionModal, summarizeAdoption } from "./obsidian/adoption-modal";
+import { CommandFlow } from "./obsidian/command-flow";
 import { InviteRouter } from "./obsidian/invite";
 import { buildSyncDeps, createMailTransportRegistry, type MailTransportRegistry } from "./obsidian/plugin-host";
 import { PreviewModal } from "./obsidian/preview-modal";
@@ -80,6 +81,7 @@ export default class CalendarNotesPlugin extends Plugin {
    *  ueber die Plugin-API, `inviteRouter` liest den aktuellen Stand per Closure. */
   mailTransports!: MailTransportRegistry;
   inviteRouter!: InviteRouter;
+  private commandFlow!: CommandFlow;
   private deps!: SyncDeps;
   private settingTab!: CalendarNotesSettingTab;
   private intervalHandle: number | undefined;
@@ -104,6 +106,7 @@ export default class CalendarNotesPlugin extends Plugin {
     this.deps.isBusy = () => this.service.isRunning();
     this.mailTransports = createMailTransportRegistry();
     this.inviteRouter = new InviteRouter(() => this.mailTransports.list(), this.app);
+    this.commandFlow = new CommandFlow(this.app, this.deps, this.inviteRouter, () => this.mailTransports.list());
     await this.hydrateRunCache();
 
     this.settingTab = new CalendarNotesSettingTab(this.app, this, this.settingsHost());
@@ -207,6 +210,14 @@ export default class CalendarNotesPlugin extends Plugin {
     this.addCommand({ id: "sync-collection", name: t("cmd.syncCollection"), callback: () => this.openCollectionSuggester() });
     this.addCommand({ id: "adopt-collection", name: t("cmd.adoptCollection"), callback: () => this.openAdoptSuggester() });
     this.addCommand({ id: "profile-from-note", name: t("cmd.profileFromNote"), callback: () => this.fireAndForget(this.startProfileFromNote(), "Profil aus Notiz") });
+    // IDs bewusst OHNE das Wort „command" (obsidianmd/commands/no-command-in-command-id, Teil
+    // des Store-Scanners) — der Task-Auftrag nennt die Kommandos „command-run" etc., das ist
+    // hier der GESPRAECHSNAME, nicht die addCommand-ID.
+    this.addCommand({ id: "run-on-note", name: t("cmd.run"), callback: () => this.commandFlow.runOnActiveNote() });
+    this.addCommand({ id: "new-event", name: t("cmd.newEvent"), callback: () => this.commandFlow.newEvent() });
+    this.addCommand({ id: "new-contact", name: t("cmd.newContact"), callback: () => this.commandFlow.newContact() });
+    this.addCommand({ id: "undo-last-change", name: t("cmd.undo"), callback: () => this.commandFlow.undoLast() });
+    this.addCommand({ id: "push-hand-edits", name: t("cmd.pushHandEdits"), callback: () => this.commandFlow.pushHandEdits() });
   }
 
   private async runAll(): Promise<void> {
