@@ -117,6 +117,7 @@ export async function resyncObject(deps: SyncDeps, settings: PluginSettings, col
   for (const plan of applyResult.plans) {
     try {
       await deps.executor.execute(plan);
+      deps.events?.emit("changed", { path: plan.path, op: plan.op, uid: plan.uid });
     } catch (e) {
       execErrors.push(e instanceof Error ? e.message : String(e));
     }

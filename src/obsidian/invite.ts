@@ -17,8 +17,10 @@ export interface MailTransport {
 
 export type InviteRoute = "server" | "transport" | "ics";
 
-/** Uebersetzte Labels fuer `buildImip` (core bleibt i18n-frei, s. `imip.ts`). */
-function imipLabels(): ImipLabels {
+/** Uebersetzte Labels fuer `buildImip` (core bleibt i18n-frei, s. `imip.ts`). Exportiert,
+ *  weil `src/obsidian/api.ts` (Task 7) denselben iMIP-Bau fuer den `ics`-Rueckgabe-Fall
+ *  braucht, ohne das `.ics`-Modal zu oeffnen. */
+export function imipLabels(): ImipLabels {
   return {
     invitation: t("invite.label.invitation"),
     cancellation: t("invite.label.cancellation"),

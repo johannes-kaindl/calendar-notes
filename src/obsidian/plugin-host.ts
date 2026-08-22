@@ -27,7 +27,10 @@ export interface MailTransportRegistry {
   list(): MailTransport[];
 }
 
-function isMailTransport(v: unknown): v is MailTransport {
+/** Exportiert (nicht mehr modul-privat), weil `src/obsidian/api.ts` (Task 7)
+ *  `registerMailTransport` bereits mit einer Form-Diagnose statt einer stummen Notice
+ *  beantworten muss — die API oeffnet keine UI. */
+export function isMailTransport(v: unknown): v is MailTransport {
   if (!v || typeof v !== "object") return false;
   const o = v as Record<string, unknown>;
   return typeof o["id"] === "string" && o["id"] !== "" && typeof o["label"] === "string" && o["label"] !== "" && typeof o["accounts"] === "function" && typeof o["send"] === "function";

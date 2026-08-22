@@ -149,6 +149,7 @@ export class SyncService {
 
       if (dryRun) {
         const errorStr = errorStringOf(applyResult.errors, []);
+        this.deps.events?.emit("synced", { collectionId: col.id, counts: applyResult.counts });
         return { collectionId: col.id, ok: true, dryRun: true, plans: applyResult.plans, counts: applyResult.counts, handEdited, strategy: delta.strategy, ...(errorStr ? { error: errorStr } : {}) };
       }
 
@@ -156,6 +157,7 @@ export class SyncService {
       for (const plan of applyResult.plans) {
         try {
           await this.deps.executor.execute(plan);
+          this.deps.events?.emit("changed", { path: plan.path, op: plan.op, uid: plan.uid });
         } catch (e) {
           execErrors.push({ path: plan.path, message: errorMessage(e) });
         }
@@ -176,6 +178,7 @@ export class SyncService {
 
       if (errorStr && errorStr !== state.lastRun?.error) this.deps.notify.warn(`${col.displayName}: ${errorStr}`);
 
+      this.deps.events?.emit("synced", { collectionId: col.id, counts: applyResult.counts });
       return { collectionId: col.id, ok: runOk, dryRun: false, plans: applyResult.plans, counts: applyResult.counts, handEdited, strategy: delta.strategy, ...(errorStr ? { error: errorStr } : {}) };
     } catch (e) {
       const message = errorMessage(e);
@@ -185,6 +188,7 @@ export class SyncService {
         await this.deps.stateStore.save(withRun(state, runInfo));
       }
       if (isNew) this.deps.notify.warn(`${col.displayName}: ${message}`);
+      this.deps.events?.emit("synced", { collectionId: col.id, counts: zeroCounts() });
       return { collectionId: col.id, ok: false, dryRun, plans: [], counts: zeroCounts(), handEdited: [], error: message };
     }
   }

@@ -8,11 +8,14 @@ import { withBasicAuth } from "./core/dav/transport";
 import type { MappingProfile, ProfileKind } from "./core/mirror/profile";
 import { suggestProfileFromNote } from "./core/mirror/profile-from-note";
 import { normalizeSettings, sourceOf, type Account, type CollectionConfig, type PluginSettings } from "./core/settings";
+import type { CalendarNotesApi } from "./core/api/types";
 import type { RunInfo } from "./core/state/collection-state";
+import { createEmitter, type SyncEvents } from "./core/sync/events";
 import { SyncService } from "./core/sync/service";
 import type { CollectionRunResult, SyncDeps } from "./core/sync/types";
 import { initI18n, t } from "./i18n/strings";
 import { AdoptionModal, summarizeAdoption } from "./obsidian/adoption-modal";
+import { createPluginApi } from "./obsidian/api";
 import { CommandFlow } from "./obsidian/command-flow";
 import { InviteRouter } from "./obsidian/invite";
 import { buildSyncDeps, createMailTransportRegistry, type MailTransportRegistry } from "./obsidian/plugin-host";
@@ -81,6 +84,9 @@ export default class CalendarNotesPlugin extends Plugin {
    *  ueber die Plugin-API, `inviteRouter` liest den aktuellen Stand per Closure. */
   mailTransports!: MailTransportRegistry;
   inviteRouter!: InviteRouter;
+  /** Plugin-API v1 (Task 7, Spec §5b) — `app.plugins.plugins["calendar-notes"].api`.
+   *  Oeffentliches Feld, absichtlich: das IST die Schnittstelle nach aussen. */
+  api!: CalendarNotesApi;
   private commandFlow!: CommandFlow;
   private deps!: SyncDeps;
   private settingTab!: CalendarNotesSettingTab;
@@ -103,10 +109,15 @@ export default class CalendarNotesPlugin extends Plugin {
     // `deps.busy` (core/sync/busy.ts) wird in `buildSyncDeps` erzeugt und ist bidirektional
     // mit `executeCommandPlan` geteilt — SyncService braucht dafuer keine gesonderte Wiring
     // mehr (anders als der fruehere optionale `isBusy?()`).
+    // `events` (core/sync/events.ts) wird HIER erzeugt und dem bereits gebauten `deps`
+    // nachtraeglich angehaengt (`SyncDeps.events` ist optional) — SyncService/executeCommandPlan
+    // lesen denselben Emitter ueber `this.deps`, die Plugin-API abonniert ihn unten.
+    this.deps.events = createEmitter<SyncEvents>();
     this.service = new SyncService(this.deps);
     this.mailTransports = createMailTransportRegistry();
     this.inviteRouter = new InviteRouter(() => this.mailTransports.list(), this.app);
     this.commandFlow = new CommandFlow(this.app, this.deps, this.inviteRouter, () => this.mailTransports.list());
+    this.api = createPluginApi({ app: this.app, deps: this.deps, inviteRouter: this.inviteRouter, mailTransports: this.mailTransports });
     await this.hydrateRunCache();
 
     this.settingTab = new CalendarNotesSettingTab(this.app, this, this.settingsHost());
