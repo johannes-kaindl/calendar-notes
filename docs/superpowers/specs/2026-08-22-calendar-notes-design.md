@@ -47,7 +47,7 @@ Regeln: **(a)** `core/` importiert nie `obsidian`; Transport, Dateisystem, Uhr, 
 
 **Wiederholungen.** Eine Notiz je VEVENT-Master (mit `rrule`), keine Instanz-Notizen. Server-seitige Einzelabweichungen (`RECURRENCE-ID`) bekommen eigene Notiz mit `dav_recurrence_id` + Link auf den Master. Expansion ist keine Stufe-1-Aufgabe.
 
-**Zeitfenster.** Termine in `[heute − N, heute + M]` (Default 90/365 Tage). Herausfallende Termine → `dav_state: archived`, nicht gelöscht. Vom Server Gelöschtes: hat die Notiz Backlinks oder freien Body → `dav_state: deleted` + Notice; sonst `app.vault.trash(file, true)` (System-Papierkorb).
+**Zeitfenster.** Termine in `[heute − N, heute + M]` (Default 90/365 Tage). Herausfallende Termine → `dav_state: archived`, nicht gelöscht. Vom Server Gelöschtes: hat die Notiz Backlinks oder freien Body → `dav_state: deleted` + Notice; sonst `app.fileManager.trashFile(file)` (ehrt die Papierkorb-Einstellung des Nutzers: System-Papierkorb oder `.trash/`; Entscheidung M2b — die Store-Lint-Regel `prefer-file-manager-trash-file` verlangt genau das).
 
 **Dateiname** bei Neuanlage aus Profil-Template in der Kit-Syntax `filename-template` (`{start_date} {title}` / `{fn}`; Platzhalter: `title`, `start_date`, `start_time`, `uid`, `fn`, `family`, `given`, `org`), Kollision → Suffix ` (2)`. Nie automatisches Umbenennen; `title` folgt dem Server, Dateiname bleibt.
 
