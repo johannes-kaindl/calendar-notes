@@ -32,11 +32,12 @@ export function textOf(v: unknown): string | undefined {
   if (v === undefined || v === null) return undefined;
   if (typeof v === "string") return v;
   if (Array.isArray(v)) return textOf(v[0]);
+  if (typeof v === "number" || typeof v === "boolean" || typeof v === "bigint") return String(v);
   if (typeof v === "object") {
     const t = (v as Record<string, unknown>)["#text"];
-    return typeof t === "string" ? t : t === undefined ? "" : String(t);
+    return t === undefined ? "" : (textOf(t) ?? "");
   }
-  return String(v);
+  return undefined;
 }
 
 export function hrefsOf(v: unknown): string[] {
@@ -49,7 +50,7 @@ export function hrefsOf(v: unknown): string[] {
 
 export function hasChild(v: unknown, name: string): boolean {
   if (!v || typeof v !== "object") return false;
-  return Object.keys(v as Record<string, unknown>).some((k) => k.toLowerCase() === name.toLowerCase());
+  return Object.keys(v).some((k) => k.toLowerCase() === name.toLowerCase());
 }
 
 export function parseMultistatus(xml: string): Multistatus {
