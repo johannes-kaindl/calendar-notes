@@ -27,7 +27,7 @@ src/
   main.ts
 ```
 
-Regeln: **(a)** `core/` importiert nie `obsidian`; Transport, Dateisystem, Uhr, Secret-Zugriff werden injiziert. **(b)** `mirror/`/`commands/` entscheiden *was*, `obsidian/` führt aus. **(c)** Kit-first: `withTimeout`, Settings-Merge, i18n, `folder-suggest`, `confirm` aus `obsidian-kit` vendoren (Sync-Skript + Herkunftsstempel); Snapshot-Zustand nach dem `wikijs-maintainer`-Muster (eine JSON je Sammlung). Einzige Runtime-Dependency: `ical.js` (MIT).
+Regeln: **(a)** `core/` importiert nie `obsidian`; Transport, Dateisystem, Uhr, Secret-Zugriff werden injiziert. **(b)** `mirror/`/`commands/` entscheiden *was*, `obsidian/` führt aus. **(c)** Kit-first: `withTimeout`, Settings-Merge, i18n, `folder-suggest`, `confirm` aus `obsidian-kit` vendoren (Sync-Skript + Herkunftsstempel); Snapshot-Zustand nach dem `wikijs-maintainer`-Muster (eine JSON je Sammlung). Runtime-Dependencies: `ical.js` (MPL-2.0, iCalendar + vCard) und `fast-xml-parser` (MIT, WebDAV-Multistatus ohne DOM — `core/` darf keinen `DOMParser` anfassen).
 
 ## 2. Datenmodell
 
