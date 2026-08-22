@@ -49,7 +49,7 @@ Regeln: **(a)** `core/` importiert nie `obsidian`; Transport, Dateisystem, Uhr, 
 
 **Zeitfenster.** Termine in `[heute − N, heute + M]` (Default 90/365 Tage). Herausfallende Termine → `dav_state: archived`, nicht gelöscht. Vom Server Gelöschtes: hat die Notiz Backlinks oder freien Body → `dav_state: deleted` + Notice; sonst `app.vault.trash(file, true)` (System-Papierkorb).
 
-**Dateiname** bei Neuanlage aus Profil-Template (`{{start:YYYY-MM-DD}} {{title}}` / `{{fn}}`), Kollision → Suffix ` (2)`. Nie automatisches Umbenennen; `title` folgt dem Server, Dateiname bleibt.
+**Dateiname** bei Neuanlage aus Profil-Template in der Kit-Syntax `filename-template` (`{start_date} {title}` / `{fn}`; Platzhalter: `title`, `start_date`, `start_time`, `uid`, `fn`, `family`, `given`, `org`), Kollision → Suffix ` (2)`. Nie automatisches Umbenennen; `title` folgt dem Server, Dateiname bleibt.
 
 ## 3. Sync (Stufe 1)
 
