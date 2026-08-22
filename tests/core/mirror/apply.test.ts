@@ -69,7 +69,7 @@ describe("applyDelta — events", () => {
       now: NOW,
       state: emptyState("acc/kal"),
       lookup: lookupOf([{ path: "Events/old.md", frontmatter: { dav_uid: "allday-1@test", dav_source: "acc/kal", dav_state: "live" }, body: "" }]),
-      window: win,
+      timeWindow: win,
       delta: delta({ changed: [{ href: "https://s/c/ov.ics", etag: '"1"', data: fx("ical", "override.ics") }, { href: "https://s/c/x.ics", etag: '"2"', data: fx("ical", "allday.ics") }, { href: "https://s/c/s.ics", etag: '"3"', data: fx("ical", "simple.ics") }] }),
     });
     const ops = r.plans.map((x) => [x.op, x.path]);

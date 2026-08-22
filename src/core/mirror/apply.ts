@@ -25,7 +25,7 @@ export interface ApplyInput {
   state: CollectionState;
   lookup: NoteLookup;
   now: Date;
-  window?: Window;
+  timeWindow?: Window;
   resolveAttendee?: AttendeeResolver;
 }
 export interface ApplyResult {
@@ -79,7 +79,7 @@ export function applyDelta(i: ApplyInput): ApplyResult {
           items.push({ data: e, uid: e.uid, ...(e.recurrenceId ? { recurrenceId: e.recurrenceId } : {}), values: eventValues(e, { resolveAttendee: i.resolveAttendee, attendeeLinks: i.profile.attendeeLinks }), block: renderEventBlock(e) });
         }
       }
-      const inWindow = i.kind === "event" && i.window ? eventOccursWithin(obj.data, i.window.start, i.window.end) : true;
+      const inWindow = i.kind === "event" && i.timeWindow ? eventOccursWithin(obj.data, i.timeWindow.start, i.timeWindow.end) : true;
       for (const it of items) {
         const existing = i.lookup.byUid(it.uid, i.source, it.recurrenceId);
         if (!inWindow) {
@@ -122,6 +122,9 @@ export function applyDelta(i: ApplyInput): ApplyResult {
     }
     state = removeObject(state, hp);
   }
+  // Objekt bleibt unveraendert im State (nicht per upsertObject aktualisiert): das Fenster wandert
+  // vorwaerts, der naechste sync-token-/etag-Diff liest den Stand aus `snapshot.etags`, nicht aus
+  // `state.objects[hp]` — hier wird nur archiviert, nicht der Delta-Quellwert nachgezogen.
   for (const href of i.delta.outOfWindow) {
     const os = state.objects[hrefPath(href)];
     if (!os) continue;
