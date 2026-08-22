@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<multistatus xmlns="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:CS="http://calendarserver.org/ns/">
+  <response>
+    <href>/caldav/31/</href>
+    <propstat>
+      <prop>
+        <resourcetype><collection/><C:calendar/></resourcetype>
+        <displayname>Kalender</displayname>
+        <CS:getctag>http://www.open-xchange.com/ctags/31-1724320000000</CS:getctag>
+        <C:supported-calendar-component-set><C:comp name="VEVENT"/></C:supported-calendar-component-set>
+        <current-user-privilege-set><privilege><read/></privilege><privilege><write-content/></privilege></current-user-privilege-set>
+      </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+</multistatus>
