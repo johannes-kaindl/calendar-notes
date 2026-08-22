@@ -3,3 +3,22 @@
   min-height: 16em;
   font-family: var(--font-monospace);
 }
+
+.calendar-notes-adopt-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-block: var(--size-4-2);
+}
+
+.calendar-notes-adopt-table th,
+.calendar-notes-adopt-table td {
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding: var(--size-2-2) var(--size-4-2);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.calendar-notes-adopt-table th {
+  color: var(--text-muted);
+  font-weight: var(--font-medium);
+}

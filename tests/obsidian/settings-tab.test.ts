@@ -41,6 +41,8 @@ function fakeHost(settings: PluginSettings): SettingsHost & { saved: PluginSetti
       return 0.42;
     },
     removeState(_source: string): void {},
+    adopt(_collectionId: string): void {},
+    profileFromActiveNote(): void {},
   };
   return host;
 }

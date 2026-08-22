@@ -1,16 +1,23 @@
-import { FuzzySuggestModal, Notice, Plugin, Platform, getLanguage, type App } from "obsidian";
+import { FuzzySuggestModal, Notice, Plugin, Platform, TFile, getLanguage, type App } from "obsidian";
+import { candidateNotes, matchItems, type CandidateNote, type ServerItem } from "./core/adopt/match";
+import { planAdoption, stateAfterAdoption, type AdoptDecision } from "./core/adopt/plan";
+import { loadServerItems } from "./core/adopt/service";
 import { discover, type DiscoveryResult } from "./core/dav/discovery";
 import { withBasicAuth } from "./core/dav/transport";
+import type { MappingProfile, ProfileKind } from "./core/mirror/profile";
+import { suggestProfileFromNote } from "./core/mirror/profile-from-note";
 import { normalizeSettings, sourceOf, type Account, type CollectionConfig, type PluginSettings } from "./core/settings";
 import type { RunInfo } from "./core/state/collection-state";
 import { SyncService } from "./core/sync/service";
 import type { CollectionRunResult, SyncDeps } from "./core/sync/types";
 import { initI18n, t } from "./i18n/strings";
+import { AdoptionModal } from "./obsidian/adoption-modal";
 import { buildSyncDeps } from "./obsidian/plugin-host";
 import { PreviewModal } from "./obsidian/preview-modal";
 import { obsidianSecretStore, type SecretStore } from "./obsidian/secrets";
 import { CalendarNotesSettingTab, type SettingsHost } from "./obsidian/settings-tab";
 import { obsidianTransport } from "./obsidian/transport";
+import { stripFrontmatter } from "./obsidian/vault-notes";
 
 /** Waehlt in der Kommandopalette eine der AKTIVIERTEN Sammlungen fuer einen Einzel-Sync. */
 class CollectionSuggestModal extends FuzzySuggestModal<CollectionConfig> {
@@ -33,6 +40,29 @@ class CollectionSuggestModal extends FuzzySuggestModal<CollectionConfig> {
 
   onChooseItem(c: CollectionConfig): void {
     this.onChoose(c);
+  }
+}
+
+/** Waehlt die Art einer Notiz (Kontakt/Termin) fuer `profile-from-note`. */
+class ProfileKindSuggestModal extends FuzzySuggestModal<ProfileKind> {
+  constructor(
+    app: App,
+    private readonly onChoose: (kind: ProfileKind) => void,
+  ) {
+    super(app);
+    this.setPlaceholder(t("cmd.profileFromNote.placeholder"));
+  }
+
+  getItems(): ProfileKind[] {
+    return ["contact", "event"];
+  }
+
+  getItemText(kind: ProfileKind): string {
+    return kind === "contact" ? t("adopt.kind.contact") : t("adopt.kind.event");
+  }
+
+  onChooseItem(kind: ProfileKind): void {
+    this.onChoose(kind);
   }
 }
 
@@ -126,6 +156,8 @@ export default class CalendarNotesPlugin extends Plugin {
       status: (collectionId) => ({ lastRun: this.lastRunCache.get(collectionId), running: this.service.isRunning() }),
       rand: () => Math.random(),
       removeState: (source) => this.fireAndForget(this.deps.stateStore.remove(source), "State entfernen"),
+      adopt: (collectionId) => this.fireAndForget(this.startAdoption(collectionId), "Adoption"),
+      profileFromActiveNote: () => this.fireAndForget(this.startProfileFromNote(), "Profil aus Notiz"),
     };
     // `settings` lebt im Plugin (Kommandos/Sync-Deps lesen es dort); der Tab schreibt ueber den
     // Host — beide Sichten zeigen auf dasselbe Objekt, ohne this-Alias im Host.
@@ -150,6 +182,8 @@ export default class CalendarNotesPlugin extends Plugin {
     this.addCommand({ id: "sync-all", name: t("cmd.syncAll"), callback: () => this.fireAndForget(this.runAll(), "Sync") });
     this.addCommand({ id: "sync-preview", name: t("cmd.syncPreview"), callback: () => this.fireAndForget(this.previewSync(), "Vorschau") });
     this.addCommand({ id: "sync-collection", name: t("cmd.syncCollection"), callback: () => this.openCollectionSuggester() });
+    this.addCommand({ id: "adopt-collection", name: t("cmd.adoptCollection"), callback: () => this.openAdoptSuggester() });
+    this.addCommand({ id: "profile-from-note", name: t("cmd.profileFromNote"), callback: () => this.fireAndForget(this.startProfileFromNote(), "Profil aus Notiz") });
   }
 
   private async runAll(): Promise<void> {
@@ -171,6 +205,84 @@ export default class CalendarNotesPlugin extends Plugin {
     new CollectionSuggestModal(this.app, enabled, (c) => {
       this.fireAndForget(this.service.runCollection(c.id).then((r) => this.recordRun(new Date().toISOString(), [r])), "Sync");
     }).open();
+  }
+
+  // ── Adoption ─────────────────────────────────────────────────────────────
+  private openAdoptSuggester(): void {
+    const enabled = this.settings.collections.filter((c) => c.enabled);
+    if (enabled.length === 0) {
+      new Notice(t("notice.noEnabledCollections"));
+      return;
+    }
+    new CollectionSuggestModal(this.app, enabled, (c) => this.fireAndForget(this.startAdoption(c.id), "Adoption")).open();
+  }
+
+  private async startAdoption(collectionId: string): Promise<void> {
+    const { items, profile, source } = await loadServerItems(this.deps, this.settings, collectionId);
+    const notes = await this.loadCandidateNotes(profile);
+    const { suggestions, unmatchedItems, unmatchedNotes } = matchItems(items, notes, { profile });
+    new AdoptionModal(this.app, { suggestions, unmatchedItems, unmatchedNotes, profile }, (decisions) => this.confirmAdoption(decisions, profile, source, items)).open();
+  }
+
+  /** Kandidaten-Notizen fuer die Adoption: erst per Frontmatter (aus dem `metadataCache`,
+   *  ohne Datei-Zugriff) auf `candidateNotes()` vorfiltern, dann NUR fuer die uebrig
+   *  gebliebenen den Koerper lesen (`cachedRead`) — vaultweites `cachedRead` waere bei
+   *  vielen Notizen unnoetig teuer. */
+  private async loadCandidateNotes(profile: MappingProfile): Promise<CandidateNote[]> {
+    const files = this.app.vault.getMarkdownFiles();
+    const draft: CandidateNote[] = files.map((f) => ({
+      path: f.path,
+      basename: f.basename,
+      frontmatter: this.app.metadataCache.getFileCache(f)?.frontmatter ?? {},
+      body: "",
+    }));
+    const filtered = candidateNotes(draft, profile);
+    const wanted = new Set(filtered.map((n) => n.path));
+    for (const f of files) {
+      if (!wanted.has(f.path)) continue;
+      const note = filtered.find((n) => n.path === f.path);
+      if (!note) continue;
+      const cache = this.app.metadataCache.getFileCache(f);
+      const raw = await this.app.vault.cachedRead(f);
+      note.body = stripFrontmatter(raw, cache?.frontmatterPosition?.end.offset);
+    }
+    return filtered;
+  }
+
+  private async confirmAdoption(decisions: AdoptDecision[], profile: MappingProfile, source: string, items: ServerItem[]): Promise<void> {
+    const { links, createUids, skippedUids } = planAdoption(decisions, profile, source);
+    for (const link of links) {
+      const file = this.app.vault.getAbstractFileByPath(link.path);
+      if (!(file instanceof TFile)) continue;
+      await this.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
+        Object.assign(fm, link.set);
+      });
+    }
+    const state = await this.deps.stateStore.load(source);
+    const newState = stateAfterAdoption(state, links, items, this.deps.now());
+    await this.deps.stateStore.save(newState);
+    new Notice(t("notice.adoptDone", links.length, skippedUids.length, createUids.length));
+  }
+
+  // ── Profil aus Notiz ─────────────────────────────────────────────────────
+  private async startProfileFromNote(): Promise<void> {
+    const file = this.app.workspace.getActiveFile();
+    if (!file) {
+      new Notice(t("notice.noActiveFile"));
+      return;
+    }
+    new ProfileKindSuggestModal(this.app, (kind) => this.fireAndForget(this.createProfileFromNote(kind, file), "Profil aus Notiz")).open();
+  }
+
+  private async createProfileFromNote(kind: ProfileKind, file: TFile): Promise<void> {
+    const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
+    const folder = file.parent && file.parent.path !== "/" ? file.parent.path : "";
+    const name = t("adopt.profileFromNote.name", file.basename);
+    const { profile, mapped, unmapped } = suggestProfileFromNote(kind, frontmatter, { folder, name, rand: Math.random });
+    this.settings = { ...this.settings, profiles: [...this.settings.profiles, profile] };
+    await this.saveSettings();
+    new Notice(t("notice.profileCreated", Object.keys(mapped).length, unmapped.length));
+    this.settingTab.update();
   }
 
   // ── Auslöser ─────────────────────────────────────────────────────────────
