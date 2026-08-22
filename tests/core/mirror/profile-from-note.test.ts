@@ -1,0 +1,112 @@
+import { describe, it, expect } from "vitest";
+import { validateProfile } from "../../../src/core/mirror/profile";
+import { suggestProfileFromNote } from "../../../src/core/mirror/profile-from-note";
+
+const rand = (): number => 0.5;
+
+describe("suggestProfileFromNote — contact", () => {
+  const frontmatter = {
+    organisation: "MVZ am Marktplatz",
+    rolle: "Hausarzt",
+    email: "praxis@example.test",
+    telefon: "0821 555 0",
+    mobil: "0171 1234567",
+    adresse: "Marktplatz 1, Augsburg",
+    vcard_uid: "c3-1@test",
+    type: "👤 Kontakt",
+    status: "3-evergreen 🌿",
+    up: "[[10_Kontakte]]",
+  };
+
+  it("maps the Pallas contact synonyms onto server fields", () => {
+    const { profile, mapped, unmapped } = suggestProfileFromNote("contact", frontmatter, { folder: "50_Ressourcen/10_Reference/10_Kontakte", name: "Pallas Kontakte", rand });
+    expect(mapped).toEqual({ org: "organisation", title: "rolle", email: "email", tel_home: "telefon", tel_cell: "mobil", adr: "adresse" });
+    expect(unmapped).toEqual([]);
+    expect(profile.fields.org).toBe("organisation");
+    expect(profile.fields.title).toBe("rolle");
+    expect(profile.fields.email).toBe("email");
+    expect(profile.fields.tel_home).toBe("telefon");
+    expect(profile.fields.tel_cell).toBe("mobil");
+    expect(profile.fields.adr).toBe("adresse");
+  });
+
+  it("recognizes vcard_uid as uidField instead of the default", () => {
+    const { profile } = suggestProfileFromNote("contact", frontmatter, { folder: "Kontakte", name: "Kontakte", rand });
+    expect(profile.uidField).toBe("vcard_uid");
+  });
+
+  it("copies type/status/up verbatim into onCreate", () => {
+    const { profile } = suggestProfileFromNote("contact", frontmatter, { folder: "Kontakte", name: "Kontakte", rand });
+    expect(profile.onCreate).toEqual({ type: "👤 Kontakt", status: "3-evergreen 🌿", up: "[[10_Kontakte]]" });
+  });
+
+  it("sets id/name/folder from the given opts and kind", () => {
+    const { profile } = suggestProfileFromNote("contact", frontmatter, { folder: "Kontakte", name: "Pallas Kontakte", rand });
+    expect(profile.id.startsWith("profile-c-")).toBe(true);
+    expect(profile.name).toBe("Pallas Kontakte");
+    expect(profile.folder).toBe("Kontakte");
+    expect(profile.kind).toBe("contact");
+  });
+
+  it("produces a profile that passes validateProfile", () => {
+    const { profile } = suggestProfileFromNote("contact", frontmatter, { folder: "Kontakte", name: "Pallas Kontakte", rand });
+    const r = validateProfile(profile);
+    expect(r.ok).toBe(true);
+  });
+
+  it("puts unrecognized keys into unmapped", () => {
+    const fm = { ...frontmatter, lieblingsfarbe: "blau", geheimcode: "42" };
+    const { unmapped } = suggestProfileFromNote("contact", fm, { folder: "Kontakte", name: "Kontakte", rand });
+    expect(unmapped.sort()).toEqual(["geheimcode", "lieblingsfarbe"]);
+  });
+
+  it("defaults uidField to dav_uid when no uid key is present", () => {
+    const { profile } = suggestProfileFromNote("contact", { email: "a@b.test" }, { folder: "Kontakte", name: "Kontakte", rand });
+    expect(profile.uidField).toBe("dav_uid");
+  });
+});
+
+describe("suggestProfileFromNote — event", () => {
+  const frontmatter = {
+    termin_start: "2026-09-01 10:00",
+    termin_ende: "2026-09-01 11:00",
+    ort: "Marktplatz 1",
+    online: false,
+    teilnehmer: ["[[Florian Brandes]]"],
+    type: "📅 Termin",
+  };
+
+  it("maps the Pallas event synonyms onto server fields", () => {
+    const { profile, mapped, unmapped } = suggestProfileFromNote("event", frontmatter, { folder: "Termine", name: "Pallas Termine", rand });
+    expect(mapped).toEqual({ start: "termin_start", end: "termin_ende", location: "ort", online: "online", attendees: "teilnehmer" });
+    expect(unmapped).toEqual([]);
+    expect(profile.fields.start).toBe("termin_start");
+    expect(profile.fields.end).toBe("termin_ende");
+    expect(profile.fields.location).toBe("ort");
+    expect(profile.fields.online).toBe("online");
+    expect(profile.fields.attendees).toBe("teilnehmer");
+  });
+
+  it("copies only type into onCreate when status/up are absent", () => {
+    const { profile } = suggestProfileFromNote("event", frontmatter, { folder: "Termine", name: "Termine", rand });
+    expect(profile.onCreate).toEqual({ type: "📅 Termin" });
+  });
+
+  it("produces a profile that passes validateProfile", () => {
+    const { profile } = suggestProfileFromNote("event", frontmatter, { folder: "Termine", name: "Pallas Termine", rand });
+    const r = validateProfile(profile);
+    expect(r.ok).toBe(true);
+  });
+
+  it("kind and id prefix match the event branch", () => {
+    const { profile } = suggestProfileFromNote("event", frontmatter, { folder: "Termine", name: "Termine", rand });
+    expect(profile.kind).toBe("event");
+    expect(profile.id.startsWith("profile-e-")).toBe(true);
+  });
+
+  it("keeps unrecognized event keys in unmapped", () => {
+    const fm = { ...frontmatter, laenge_minuten: 60 };
+    const { unmapped } = suggestProfileFromNote("event", fm, { folder: "Termine", name: "Termine", rand });
+    expect(unmapped).toEqual(["laenge_minuten"]);
+  });
+});
