@@ -47,6 +47,7 @@ export default class CalendarNotesPlugin extends Plugin {
   private deps!: SyncDeps;
   private settingTab!: CalendarNotesSettingTab;
   private intervalHandle: number | undefined;
+  private armedMinutes: number | undefined;
   private readonly lastRunCache = new Map<string, RunInfo>();
 
   async onload(): Promise<void> {
@@ -96,10 +97,19 @@ export default class CalendarNotesPlugin extends Plugin {
 
   private recordRun(finishedAt: string, results: CollectionRunResult[]): void {
     for (const r of results) {
-      if (r.dryRun) continue;
+      // dryRun schreibt nichts; "busy" (Ueberlappung mit einem anderen Lauf) ist ebenfalls kein
+      // echtes Ergebnis — beides wuerde sonst den zuletzt ECHTEN Status im Cache ueberschreiben.
+      if (r.dryRun || r.skippedReason === "busy") continue;
       this.lastRunCache.set(r.collectionId, toRunInfo(finishedAt, r));
     }
     this.settingTab.update();
+  }
+
+  /** Fire-and-forget fuer Kommandos/Timer: eine Ablehnung (Wurf VOR dem Try/Catch je Sammlung
+   *  im SyncService, oder in `recordRun`/`settingTab.update()` selbst) darf nicht stumm im
+   *  Nirwana landen — der Nutzer soll wenigstens eine Notice sehen. */
+  private fireAndForget(p: Promise<unknown>, what: string): void {
+    p.catch((e: unknown) => new Notice(t("notice.unexpected", what, e instanceof Error ? e.message : String(e))));
   }
 
   private settingsHost(): SettingsHost {
@@ -109,10 +119,10 @@ export default class CalendarNotesPlugin extends Plugin {
       secrets: this.secrets,
       discover: (account) => this.discoverAccount(account),
       syncNow: (collectionId) => {
-        if (collectionId) void this.service.runCollection(collectionId).then((r) => this.recordRun(new Date().toISOString(), [r]));
-        else void this.runAll();
+        if (collectionId) this.fireAndForget(this.service.runCollection(collectionId).then((r) => this.recordRun(new Date().toISOString(), [r])), "Sync");
+        else this.fireAndForget(this.runAll(), "Sync");
       },
-      preview: () => void this.previewSync(),
+      preview: () => this.fireAndForget(this.previewSync(), "Vorschau"),
       status: (collectionId) => ({ lastRun: this.lastRunCache.get(collectionId), running: this.service.isRunning() }),
       rand: () => Math.random(),
     };
@@ -136,8 +146,8 @@ export default class CalendarNotesPlugin extends Plugin {
 
   // ── Kommandos ────────────────────────────────────────────────────────────
   private registerCommands(): void {
-    this.addCommand({ id: "sync-all", name: t("cmd.syncAll"), callback: () => void this.runAll() });
-    this.addCommand({ id: "sync-preview", name: t("cmd.syncPreview"), callback: () => void this.previewSync() });
+    this.addCommand({ id: "sync-all", name: t("cmd.syncAll"), callback: () => this.fireAndForget(this.runAll(), "Sync") });
+    this.addCommand({ id: "sync-preview", name: t("cmd.syncPreview"), callback: () => this.fireAndForget(this.previewSync(), "Vorschau") });
     this.addCommand({ id: "sync-collection", name: t("cmd.syncCollection"), callback: () => this.openCollectionSuggester() });
   }
 
@@ -148,7 +158,7 @@ export default class CalendarNotesPlugin extends Plugin {
 
   private async previewSync(): Promise<void> {
     const result = await this.service.runAll({ dryRun: true });
-    new PreviewModal(this.app, result, () => void this.runAll()).open();
+    new PreviewModal(this.app, result, () => this.fireAndForget(this.runAll(), "Sync")).open();
   }
 
   private openCollectionSuggester(): void {
@@ -158,7 +168,7 @@ export default class CalendarNotesPlugin extends Plugin {
       return;
     }
     new CollectionSuggestModal(this.app, enabled, (c) => {
-      void this.service.runCollection(c.id).then((r) => this.recordRun(new Date().toISOString(), [r]));
+      this.fireAndForget(this.service.runCollection(c.id).then((r) => this.recordRun(new Date().toISOString(), [r])), "Sync");
     }).open();
   }
 
@@ -167,16 +177,18 @@ export default class CalendarNotesPlugin extends Plugin {
    *  onunload); ein `window.clearInterval` VORHER (beim Re-Arm nach Settings-Aenderung) ist
    *  unschaedlich doppelt, weil ein ungueltiges Handle keinen Effekt hat. */
   private rearmInterval(): void {
+    const minutes = Platform.isMobile ? this.settings.sync.mobileIntervalMinutes : this.settings.sync.intervalMinutes;
+    if (minutes === this.armedMinutes) return; // unveraendert — kein Grund, den laufenden Timer zu kappen
     if (this.intervalHandle !== undefined) {
       window.clearInterval(this.intervalHandle);
       this.intervalHandle = undefined;
     }
-    const minutes = Platform.isMobile ? this.settings.sync.mobileIntervalMinutes : this.settings.sync.intervalMinutes;
+    this.armedMinutes = minutes;
     if (minutes <= 0) return;
     this.intervalHandle = this.registerInterval(
       window.setInterval(() => {
         if (this.service.isRunning()) return;
-        void this.runAll();
+        this.fireAndForget(this.runAll(), "Sync");
       }, minutes * 60000),
     );
   }
@@ -184,7 +196,7 @@ export default class CalendarNotesPlugin extends Plugin {
   private scheduleStartupSync(): void {
     this.app.workspace.onLayoutReady(() => {
       if (!this.settings.collections.some((c) => c.enabled)) return;
-      window.setTimeout(() => void this.runAll(), this.settings.sync.startupDelaySeconds * 1000);
+      window.setTimeout(() => this.fireAndForget(this.runAll(), "Sync"), this.settings.sync.startupDelaySeconds * 1000);
     });
   }
 }

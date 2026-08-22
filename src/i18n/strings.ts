@@ -17,6 +17,7 @@ export const EN: Record<string, string> = {
   "notice.profileInUse": "This profile is still used by a collection — remove that link first.",
   "notice.profileInvalid": "Profile invalid: {0}",
   "notice.secretFailed": "Could not store the password on this device.",
+  "notice.unexpected": "Unexpected error in {0}: {1}",
 
   "settings.accounts.add": "Add account",
   "settings.accounts.baseUrl": "Server URL",
@@ -95,6 +96,7 @@ export const DE: Record<string, string> = {
   "notice.profileInUse": "Dieses Profil wird noch von einer Sammlung verwendet — die Zuordnung zuerst entfernen.",
   "notice.profileInvalid": "Profil ungültig: {0}",
   "notice.secretFailed": "Das Passwort konnte auf diesem Gerät nicht gespeichert werden.",
+  "notice.unexpected": "Unerwarteter Fehler bei {0}: {1}",
 
   "settings.accounts.add": "Konto hinzufügen",
   "settings.accounts.baseUrl": "Server-URL",
