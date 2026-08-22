@@ -65,6 +65,12 @@ describe("validateProfile", () => {
     expect(validateProfile(null).ok).toBe(false);
     expect(validateProfile({ ...defaultEventProfile(), filename: "" }).ok).toBe(false);
   });
+  it("rejects duplicate non-null target keys in fields", () => {
+    const base = defaultContactProfile();
+    const r = validateProfile({ ...base, fields: { ...base.fields, email: "email", tel_cell: "email" } });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.errors).toContain('fields: Frontmatter-Key "email" ist mehrfach zugeordnet');
+  });
   it("rejects invalid body / attendeeLinks instead of silently coercing", () => {
     const base = defaultContactProfile();
     const r1 = validateProfile({ ...base, body: "blck" });

@@ -71,4 +71,13 @@ describe("toFrontmatter", () => {
     const { set } = toFrontmatter({ allday: true, title: "T" }, defaultEventProfile());
     expect(set).toEqual({ all_day: true, title: "T" });
   });
+  it("two server fields mapped to the same fm key: a set value never also lands in unset", () => {
+    const p = { ...defaultContactProfile(), fields: { ...defaultContactProfile().fields, email: "email", tel_cell: "email" } };
+    const r1 = toFrontmatter({ email: "a@b.test", tel_cell: null }, p);
+    expect(r1.set).toEqual({ email: "a@b.test" });
+    expect(r1.unset).toEqual([]);
+    const r2 = toFrontmatter({ email: null, tel_cell: null }, p);
+    expect(r2.set).toEqual({});
+    expect(r2.unset).toEqual(["email"]);
+  });
 });

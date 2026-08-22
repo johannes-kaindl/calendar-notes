@@ -32,6 +32,10 @@ describe("mergeBody", () => {
     expect(mergeBody(`# T\n\n${wrap("alt")}\n\nfrei\n`, "", "block")).toBe("# T\n\nfrei\n");
     expect(mergeBody("nur text\n", "", "block")).toBe("nur text\n");
   });
+  it("empty block removal collapses newlines only at the seam, never over the whole user text", () => {
+    const before = `a\n\n\n\n\nb\n\n${wrap("x")}`;
+    expect(mergeBody(before, "", "block")).toBe("a\n\n\n\n\nb\n");
+  });
   it("idempotent", () => {
     const once = mergeBody("x\n", "B", "block");
     expect(mergeBody(once, "B", "block")).toBe(once);

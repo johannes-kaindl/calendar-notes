@@ -30,11 +30,12 @@ export function mergeBody(existing: string, block: string, mode: "block" | "none
     return head.length ? `${head}\n\n${wrapped}\n` : `${wrapped}\n`;
   }
   if (block === "") {
-    // Block samt genau einer umgebenden Leerzeile entfernen
-    const before = parts.before.replace(/\n\n$/, "\n");
-    const after = parts.after.replace(/^\n\n/, "\n");
+    // Block entfernen: Newlines nur an der Nahtstelle zusammenziehen, nie ueber den ganzen
+    // Nutzertext hinweg (der Nutzertext vor/nach dem Block bleibt sonst unangetastet).
+    const before = parts.before.replace(/\n+$/, "\n");
+    const after = parts.after.replace(/^\n+/, "\n");
     const joined = `${before}${after}`;
-    return joined.replace(/^\n+/, "").replace(/\n{3,}/g, "\n\n");
+    return parts.before === "" ? joined.replace(/^\n+/, "") : joined;
   }
   return `${parts.before}${wrapped}${parts.after}`;
 }

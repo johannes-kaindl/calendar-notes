@@ -7,9 +7,10 @@ import { contactValues, eventValues, type AttendeeResolver } from "./fields";
 import { renderContactBlock, renderEventBlock } from "./body";
 import { noteBasename, notePath } from "./filename";
 import { planUpsert, planRemoval, planArchive, type ExistingNote, type NotePlan } from "./plan";
-import type { MappingProfile, ProfileKind } from "./profile";
+import type { MappingProfile } from "./profile";
 import type { Window } from "./window";
 import { upsertObject, removeObject, withSnapshot, type CollectionState, type RunInfo } from "../state/collection-state";
+import { sha256HexUtf8 } from "../../vendor/code-kit/sha256";
 
 export interface NoteLookup {
   byUid(uid: string, source: string, recurrenceId?: string): ExistingNote | undefined;
@@ -18,7 +19,6 @@ export interface NoteLookup {
   hasBacklinks(path: string): boolean;
 }
 export interface ApplyInput {
-  kind: ProfileKind;
   profile: MappingProfile;
   source: string;
   delta: SyncDelta;
@@ -35,12 +35,13 @@ export interface ApplyResult {
   counts: RunInfo["counts"];
 }
 
-function freePath(profile: MappingProfile, base: string, lookup: NoteLookup, taken: Set<string>): string {
+function freePath(profile: MappingProfile, base: string, uid: string, lookup: NoteLookup, taken: Set<string>): string {
   for (let n = 1; n < 100; n++) {
     const p = notePath(profile, base, n === 1 ? undefined : n);
     if (!lookup.exists(p) && !taken.has(p)) return p;
   }
-  return notePath(profile, base, 99);
+  const suffix = sha256HexUtf8(uid).slice(-6);
+  return notePath(profile, `${base} ${suffix}`);
 }
 
 interface Item {
@@ -57,6 +58,7 @@ export function applyDelta(i: ApplyInput): ApplyResult {
   const counts: RunInfo["counts"] = { created: 0, updated: 0, skipped: 0, archived: 0, deleted: 0, errors: 0 };
   let state = i.state;
   const taken = new Set<string>();
+  const erroredHps = new Set<string>();
   const at = i.now.toISOString();
   const push = (pl: NotePlan): void => {
     plans.push(pl);
@@ -67,11 +69,12 @@ export function applyDelta(i: ApplyInput): ApplyResult {
     else counts.deleted++;
   };
 
+  const kind = i.profile.kind;
   for (const obj of i.delta.changed) {
     const hp = hrefPath(obj.href);
     try {
       const items: Item[] = [];
-      if (i.kind === "contact") {
+      if (kind === "contact") {
         const c = parseContact(obj.data);
         items.push({ data: c, uid: c.uid, values: contactValues(c), block: renderContactBlock(c) });
       } else {
@@ -79,16 +82,17 @@ export function applyDelta(i: ApplyInput): ApplyResult {
           items.push({ data: e, uid: e.uid, ...(e.recurrenceId ? { recurrenceId: e.recurrenceId } : {}), values: eventValues(e, { resolveAttendee: i.resolveAttendee, attendeeLinks: i.profile.attendeeLinks }), block: renderEventBlock(e) });
         }
       }
-      const inWindow = i.kind === "event" && i.timeWindow ? eventOccursWithin(obj.data, i.timeWindow.start, i.timeWindow.end) : true;
+      const inWindow = kind === "event" && i.timeWindow ? eventOccursWithin(obj.data, i.timeWindow.start, i.timeWindow.end) : true;
       for (const it of items) {
+        const rid = it.recurrenceId ?? "";
         const existing = i.lookup.byUid(it.uid, i.source, it.recurrenceId);
         if (!inWindow) {
           if (existing) push(planArchive(i.profile, existing));
           continue;
         }
-        const path = existing?.path ?? freePath(i.profile, noteBasename(i.profile, it.data), i.lookup, taken);
+        const path = existing?.path ?? freePath(i.profile, noteBasename(i.profile, it.data), it.uid, i.lookup, taken);
         taken.add(path);
-        const prevWritten = state.objects[hp]?.written;
+        const prevWritten = state.objects[hp]?.notes[rid]?.written;
         const pl = planUpsert({
           profile: i.profile,
           source: i.source,
@@ -103,22 +107,26 @@ export function applyDelta(i: ApplyInput): ApplyResult {
           state: "live",
         });
         push(pl);
-        const written = pl.op === "create" || pl.op === "update" ? pl.written : (state.objects[hp]?.written ?? {});
-        const hash = pl.op === "create" || pl.op === "update" ? pl.hash : (state.objects[hp]?.hash ?? "");
+        const written = pl.op === "create" || pl.op === "update" ? pl.written : (state.objects[hp]?.notes[rid]?.written ?? {});
+        const hash = pl.op === "create" || pl.op === "update" ? pl.hash : (state.objects[hp]?.notes[rid]?.hash ?? "");
         state = upsertObject(state, hp, { uid: it.uid, etag: obj.etag, raw: obj.data, written, hash, notePath: pl.path, ...(it.recurrenceId ? { recurrenceId: it.recurrenceId } : {}), at });
       }
     } catch (e) {
       errors.push({ href: obj.href, message: e instanceof Error ? e.message : String(e) });
       counts.errors++;
+      // Objekt bleibt kaputt/unlesbar: kein neuer etag uebernommen, damit der naechste Lauf es
+      // wieder als geaendert erkennt und erneut versucht statt es als erledigt zu betrachten.
+      erroredHps.add(hp);
     }
   }
   for (const href of i.delta.deleted) {
     const hp = hrefPath(href);
     const os = state.objects[hp];
     if (!os) continue;
-    for (const path of Object.values(os.notePaths)) {
-      const n = i.lookup.byPath(path);
-      if (n) push(planRemoval(i.profile, n, { hasBacklinks: i.lookup.hasBacklinks(path) }));
+    for (const n of Object.values(os.notes)) {
+      const note = i.lookup.byPath(n.path);
+      if (note) push(planRemoval(i.profile, note, { hasBacklinks: i.lookup.hasBacklinks(n.path) }));
+      else { errors.push({ href, message: `Notiz nicht auffindbar: ${n.path}` }); counts.errors++; }
     }
     state = removeObject(state, hp);
   }
@@ -128,11 +136,18 @@ export function applyDelta(i: ApplyInput): ApplyResult {
   for (const href of i.delta.outOfWindow) {
     const os = state.objects[hrefPath(href)];
     if (!os) continue;
-    for (const path of Object.values(os.notePaths)) {
-      const n = i.lookup.byPath(path);
-      if (n) push(planArchive(i.profile, n));
+    for (const n of Object.values(os.notes)) {
+      const note = i.lookup.byPath(n.path);
+      if (note) push(planArchive(i.profile, note));
+      else { errors.push({ href, message: `Notiz nicht auffindbar: ${n.path}` }); counts.errors++; }
     }
   }
-  state = withSnapshot(state, i.delta.snapshot);
+  const snapshot = { ...i.delta.snapshot, etags: { ...i.delta.snapshot.etags } };
+  for (const hp of erroredHps) {
+    const prevEtag = i.state.snapshot.etags[hp];
+    if (prevEtag !== undefined) snapshot.etags[hp] = prevEtag;
+    else delete snapshot.etags[hp];
+  }
+  state = withSnapshot(state, snapshot);
   return { plans, state, errors, counts };
 }

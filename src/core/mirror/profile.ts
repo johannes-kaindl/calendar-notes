@@ -78,11 +78,14 @@ export function validateProfile(p: unknown): { ok: true; profile: MappingProfile
   if (new Set(idVals).size !== idVals.length) errors.push("Identitäts-Felder müssen verschieden sein");
   const fields: Record<string, string | null> = {};
   const rawFields = o["fields"];
+  const seenTargets = new Set<string>();
   if (!rawFields || typeof rawFields !== "object") errors.push("fields fehlt");
   else for (const [k, v] of Object.entries(rawFields as Record<string, unknown>)) {
     if (v === null || v === "") { fields[k] = null; continue; }
     if (typeof v !== "string") { errors.push(`fields.${k} muss String oder null sein`); continue; }
     if (idVals.includes(v)) errors.push(`fields.${k} kollidiert mit Identitäts-Feld ${v}`);
+    if (seenTargets.has(v)) errors.push(`fields: Frontmatter-Key "${v}" ist mehrfach zugeordnet`);
+    seenTargets.add(v);
     fields[k] = v;
   }
   const onCreate: Record<string, FmVal> = {};

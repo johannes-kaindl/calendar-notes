@@ -57,5 +57,8 @@ export function toFrontmatter(values: ManagedValues, p: MappingProfile): { set: 
     if (!key) continue;
     if (val === null) unset.push(key); else set[key] = val;
   }
-  return { set, unset };
+  // Zwei Server-Felder können auf denselben fm-Key zeigen (z. B. email + tel_cell → "email"):
+  // ein späterer null-Wert darf einen bereits gesetzten Key nicht erneut in unset schieben.
+  const dedupedUnset = [...new Set(unset)].filter((k) => !(k in set));
+  return { set, unset: dedupedUnset };
 }

@@ -1,3 +1,7 @@
+// Fenstergrenzen sind absichtlich UTC-Tagesgrenzen, nicht lokale: `toDavTimeRange` braucht
+// UTC-Zeitstempel fuers CalDAV time-range-Filter (RFC 4791 verlangt Z-Suffix), und `windowFor`
+// rechnet direkt mit `Date.UTC(...)`. Nicht lokalisieren — eine lokale Tagesgrenze würde je nach
+// Zeitzone des Nutzers verschieben, was der Server als "innerhalb"/"außerhalb" sieht.
 export interface Window {
   start: Date;
   end: Date;
