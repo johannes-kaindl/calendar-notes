@@ -6,7 +6,10 @@ import { join } from "node:path";
 
 const ROOT = "src/core";
 const FORBIDDEN_IMPORT = /(?:from|import)\s*\(?\s*["'](obsidian|electron|node:[a-z_]+|fs|path|http|https|net|tls|child_process)(\/[^"']*)?["']/;
-const FORBIDDEN_GLOBAL = /\b(document|window|navigator|DOMParser|XMLHttpRequest|localStorage|activeWindow|activeDocument|process)\b/;
+// `window` ist zusaetzlich ein legitimer Feld-/Property-Name (z. B. Mirror-Fenster, ApplyInput.window)
+// — nur die echte DOM-Global-Referenz (nicht per `.` erreicht, nicht als `window?:`/`window:`-Deklaration
+// gefolgt) zaehlt als Verstoss.
+const FORBIDDEN_GLOBAL = /\b(document|navigator|DOMParser|XMLHttpRequest|localStorage|activeWindow|activeDocument|process)\b|(?<![.\w/])window\b(?!\s*[?:]|["'])/;
 
 function walk(dir) {
   return readdirSync(dir).flatMap((entry) => {
