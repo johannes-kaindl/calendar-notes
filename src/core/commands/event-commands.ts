@@ -3,9 +3,10 @@ import { applyMutation, newEventIcs, type EventMutation } from "../ical/mutate";
 import { newId } from "../settings";
 import type { CommandContext, CommandDescriptor, CommandPlan, CommandTarget } from "./types";
 
-function hrefOf(target: CommandTarget): string {
+export function hrefOfEventTarget(target: CommandTarget): string {
   return "href" in target ? target.href : "";
 }
+const hrefOf = hrefOfEventTarget;
 
 function appliesToExistingEvent(ctx: CommandContext): boolean {
   return ctx.target.kind === "event" && "href" in ctx.target && typeof ctx.raw === "string";
