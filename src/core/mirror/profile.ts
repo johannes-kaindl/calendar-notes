@@ -88,7 +88,8 @@ export function validateProfile(p: unknown): { ok: true; profile: MappingProfile
   const onCreate: Record<string, FmVal> = {};
   const rawOn = o["onCreate"];
   if (rawOn && typeof rawOn === "object") for (const [k, v] of Object.entries(rawOn as Record<string, unknown>)) {
-    if (typeof v === "string" || typeof v === "number" || typeof v === "boolean" || (Array.isArray(v) && v.every((x) => typeof x === "string"))) onCreate[k] = v as FmVal;
+    if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") onCreate[k] = v;
+    else if (Array.isArray(v) && v.every((x) => typeof x === "string")) onCreate[k] = v;
     else errors.push(`onCreate.${k} hat unzulässigen Typ`);
   }
   const body = o["body"] === "none" ? "none" : "block";

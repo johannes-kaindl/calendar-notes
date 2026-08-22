@@ -12,8 +12,8 @@ export function managedHash(set: Record<string, FmVal>, unset: string[], block: 
 
 function norm(v: unknown): string | string[] | null {
   if (v === undefined || v === null) return null;
-  if (Array.isArray(v)) return v.map((x) => String(x));
-  return String(v);
+  if (Array.isArray(v)) return v.map((x) => (typeof x === "string" || typeof x === "number" || typeof x === "boolean" ? String(x) : JSON.stringify(x)));
+  return typeof v === "string" || typeof v === "number" || typeof v === "boolean" ? String(v) : JSON.stringify(v);
 }
 export function fmEquals(a: unknown, b: unknown): boolean {
   const x = norm(a), y = norm(b);
