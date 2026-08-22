@@ -124,7 +124,7 @@ const FM_DELIM_RE = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*\r?\n?/;
  *  `src/core/mirror/plan.ts`/`body.ts` rechnen NIE mit Frontmatter im Body). Bevorzugt
  *  `metadataCache.getFileCache(file)?.frontmatterPosition?.end.offset` (Obsidians eigene
  *  Positionsangabe); ohne Cache-Eintrag Fallback per Regex. */
-function stripFrontmatter(raw: string, end: number | undefined): string {
+export function stripFrontmatter(raw: string, end: number | undefined): string {
   if (end !== undefined) return raw.slice(end).replace(/^\r?\n/, "");
   const m = FM_DELIM_RE.exec(raw);
   return m ? raw.slice(m[0].length) : raw;

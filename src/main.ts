@@ -1,11 +1,17 @@
-import { FuzzySuggestModal, Notice, Plugin, Platform, getLanguage, type App } from "obsidian";
+import { FuzzySuggestModal, Notice, Plugin, Platform, TFile, getLanguage, type App } from "obsidian";
+import { candidateNotes, countTypeExcluded, matchItems, type CandidateNote, type ServerItem } from "./core/adopt/match";
+import { planAdoption, stateAfterAdoption, type AdoptDecision, type LinkPlan } from "./core/adopt/plan";
+import { loadServerItems } from "./core/adopt/service";
 import { discover, type DiscoveryResult } from "./core/dav/discovery";
 import { withBasicAuth } from "./core/dav/transport";
+import type { MappingProfile, ProfileKind } from "./core/mirror/profile";
+import { suggestProfileFromNote } from "./core/mirror/profile-from-note";
 import { normalizeSettings, sourceOf, type Account, type CollectionConfig, type PluginSettings } from "./core/settings";
 import type { RunInfo } from "./core/state/collection-state";
 import { SyncService } from "./core/sync/service";
 import type { CollectionRunResult, SyncDeps } from "./core/sync/types";
 import { initI18n, t } from "./i18n/strings";
+import { AdoptionModal, summarizeAdoption } from "./obsidian/adoption-modal";
 import { buildSyncDeps } from "./obsidian/plugin-host";
 import { PreviewModal } from "./obsidian/preview-modal";
 import { obsidianSecretStore, type SecretStore } from "./obsidian/secrets";
@@ -18,9 +24,10 @@ class CollectionSuggestModal extends FuzzySuggestModal<CollectionConfig> {
     app: App,
     private readonly collections: CollectionConfig[],
     private readonly onChoose: (c: CollectionConfig) => void,
+    placeholder: string = t("cmd.syncCollection.placeholder"),
   ) {
     super(app);
-    this.setPlaceholder(t("cmd.syncCollection.placeholder"));
+    this.setPlaceholder(placeholder);
   }
 
   getItems(): CollectionConfig[] {
@@ -33,6 +40,29 @@ class CollectionSuggestModal extends FuzzySuggestModal<CollectionConfig> {
 
   onChooseItem(c: CollectionConfig): void {
     this.onChoose(c);
+  }
+}
+
+/** Waehlt die Art einer Notiz (Kontakt/Termin) fuer `profile-from-note`. */
+class ProfileKindSuggestModal extends FuzzySuggestModal<ProfileKind> {
+  constructor(
+    app: App,
+    private readonly onChoose: (kind: ProfileKind) => void,
+  ) {
+    super(app);
+    this.setPlaceholder(t("cmd.profileFromNote.placeholder"));
+  }
+
+  getItems(): ProfileKind[] {
+    return ["contact", "event"];
+  }
+
+  getItemText(kind: ProfileKind): string {
+    return kind === "contact" ? t("adopt.kind.contact") : t("adopt.kind.event");
+  }
+
+  onChooseItem(kind: ProfileKind): void {
+    this.onChoose(kind);
   }
 }
 
@@ -126,6 +156,8 @@ export default class CalendarNotesPlugin extends Plugin {
       status: (collectionId) => ({ lastRun: this.lastRunCache.get(collectionId), running: this.service.isRunning() }),
       rand: () => Math.random(),
       removeState: (source) => this.fireAndForget(this.deps.stateStore.remove(source), "State entfernen"),
+      adopt: (collectionId) => this.fireAndForget(this.startAdoption(collectionId), "Adoption"),
+      profileFromActiveNote: () => this.fireAndForget(this.startProfileFromNote(), "Profil aus Notiz"),
     };
     // `settings` lebt im Plugin (Kommandos/Sync-Deps lesen es dort); der Tab schreibt ueber den
     // Host — beide Sichten zeigen auf dasselbe Objekt, ohne this-Alias im Host.
@@ -150,6 +182,8 @@ export default class CalendarNotesPlugin extends Plugin {
     this.addCommand({ id: "sync-all", name: t("cmd.syncAll"), callback: () => this.fireAndForget(this.runAll(), "Sync") });
     this.addCommand({ id: "sync-preview", name: t("cmd.syncPreview"), callback: () => this.fireAndForget(this.previewSync(), "Vorschau") });
     this.addCommand({ id: "sync-collection", name: t("cmd.syncCollection"), callback: () => this.openCollectionSuggester() });
+    this.addCommand({ id: "adopt-collection", name: t("cmd.adoptCollection"), callback: () => this.openAdoptSuggester() });
+    this.addCommand({ id: "profile-from-note", name: t("cmd.profileFromNote"), callback: () => this.fireAndForget(this.startProfileFromNote(), "Profil aus Notiz") });
   }
 
   private async runAll(): Promise<void> {
@@ -171,6 +205,100 @@ export default class CalendarNotesPlugin extends Plugin {
     new CollectionSuggestModal(this.app, enabled, (c) => {
       this.fireAndForget(this.service.runCollection(c.id).then((r) => this.recordRun(new Date().toISOString(), [r])), "Sync");
     }).open();
+  }
+
+  // ── Adoption ─────────────────────────────────────────────────────────────
+  private openAdoptSuggester(): void {
+    const enabled = this.settings.collections.filter((c) => c.enabled);
+    if (enabled.length === 0) {
+      new Notice(t("notice.noEnabledCollections"));
+      return;
+    }
+    new CollectionSuggestModal(this.app, enabled, (c) => this.fireAndForget(this.startAdoption(c.id), "Adoption"), t("cmd.adoptCollection.placeholder")).open();
+  }
+
+  private async startAdoption(collectionId: string): Promise<void> {
+    const { items, profile, source, skipped } = await loadServerItems(this.deps, this.settings, collectionId);
+    const notes = await this.loadCandidateNotes(profile);
+    const { suggestions, unmatchedItems, unmatchedNotes } = matchItems(items, notes, { profile });
+    const typeExcludedCount = countTypeExcluded(notes, profile);
+    new AdoptionModal(
+      this.app,
+      { suggestions, unmatchedItems, unmatchedNotes, profile, skipped, typeExcludedCount },
+      (decisions) => this.confirmAdoption(decisions, profile, source, items),
+    ).open();
+  }
+
+  /** Kandidaten-Notizen fuer die Adoption: per Frontmatter (aus dem `metadataCache`, ohne
+   *  Datei-Zugriff) auf `candidateNotes()` vorfiltern. `CandidateNote.body` wird vom Matcher
+   *  nicht ausgewertet — deshalb bleibt er leer, statt fuer jede Kandidatin extra `cachedRead`
+   *  zu bezahlen. */
+  private async loadCandidateNotes(profile: MappingProfile): Promise<CandidateNote[]> {
+    const files = this.app.vault.getMarkdownFiles();
+    const draft: CandidateNote[] = files.map((f) => ({
+      path: f.path,
+      basename: f.basename,
+      frontmatter: this.app.metadataCache.getFileCache(f)?.frontmatter ?? {},
+      body: "",
+    }));
+    return candidateNotes(draft, profile);
+  }
+
+  /** Verknuepft sequentiell (nicht parallel) — ein `processFrontMatter`-Fehlschlag bei
+   *  Notiz N darf die uebrigen Notizen nicht verhindern, und `stateAfterAdoption` bekommt
+   *  danach IMMER nur die tatsaechlich erfolgreichen Links, sonst behauptet der State-Eintrag
+   *  eine Verknuepfung, die im Frontmatter gar nicht steht. */
+  private async confirmAdoption(decisions: AdoptDecision[], profile: MappingProfile, source: string, items: ServerItem[]): Promise<void> {
+    const { links, createUids, skippedUids } = planAdoption(decisions, profile, source);
+    const succeeded: LinkPlan[] = [];
+    const failed: { path: string; message: string }[] = [];
+    for (const link of links) {
+      try {
+        const file = this.app.vault.getAbstractFileByPath(link.path);
+        if (!(file instanceof TFile)) throw new Error(`Notiz nicht gefunden: ${link.path}`);
+        await this.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
+          Object.assign(fm, link.set);
+        });
+        succeeded.push(link);
+      } catch (e) {
+        failed.push({ path: link.path, message: e instanceof Error ? e.message : String(e) });
+      }
+    }
+    // load/save separat abgesichert: ein State-Store-Fehler (z. B. kaputtes JSON, Disk voll)
+    // darf die bereits geschriebenen Frontmatter-Links nicht verschweigen — die Notice-Zeilen
+    // unten laufen in jedem Fall, und das Promise resolved statt zu werfen (sonst verschluckt
+    // `void ...then()` im Modal den Fehler wieder, s. adoption-modal.ts).
+    try {
+      const state = await this.deps.stateStore.load(source);
+      const newState = stateAfterAdoption(state, succeeded, items, profile, this.deps.now());
+      await this.deps.stateStore.save(newState);
+    } catch (e) {
+      new Notice(t("notice.unexpected", "Adoption", e instanceof Error ? e.message : String(e)));
+    }
+    const summary = summarizeAdoption(succeeded, failed);
+    new Notice(t("notice.adoptDone", summary.linkedCount, skippedUids.length, createUids.length));
+    if (summary.failedCount > 0) new Notice(t("notice.adoptFailed", summary.failedCount, summary.failedPaths.join(", ")));
+  }
+
+  // ── Profil aus Notiz ─────────────────────────────────────────────────────
+  private async startProfileFromNote(): Promise<void> {
+    const file = this.app.workspace.getActiveFile();
+    if (!file) {
+      new Notice(t("notice.noActiveFile"));
+      return;
+    }
+    new ProfileKindSuggestModal(this.app, (kind) => this.fireAndForget(this.createProfileFromNote(kind, file), "Profil aus Notiz")).open();
+  }
+
+  private async createProfileFromNote(kind: ProfileKind, file: TFile): Promise<void> {
+    const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
+    const folder = file.parent && file.parent.path !== "/" ? file.parent.path : "";
+    const name = t("adopt.profileFromNote.name", file.basename);
+    const { profile, mapped, unmapped } = suggestProfileFromNote(kind, frontmatter, { folder, name, rand: Math.random });
+    this.settings = { ...this.settings, profiles: [...this.settings.profiles, profile] };
+    await this.saveSettings();
+    new Notice(t("notice.profileCreated", Object.keys(mapped).length, unmapped.length));
+    this.settingTab.update();
   }
 
   // ── Auslöser ─────────────────────────────────────────────────────────────

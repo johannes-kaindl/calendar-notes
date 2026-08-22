@@ -7,3 +7,5 @@
 - Wiederholungs-Fensterprüfung über ical.js RecurExpansion — `src/core/ical/recur.ts`, `eventOccursWithin` mit EXDATE + Override-Support
 - `app.secretStorage` + `SecretComponent` für Zugangsdaten (erstes Exemplar im Dach) — `src/obsidian/secrets.ts`, Verifizierung per Rücklesen
 - SyncService mit injizierten Interfaces (Transport/Secret/State/Lookup/Executor/Notifier) — gesamter Ablauf in vitest mit Fakes — `src/core/sync/service.ts`
+- Adoptions-Matching (E-Mail exakt → Telefon E.164 normalisiert → Name fuzzy) mit Konfidenz-Stufen für Kontakte; Termin-Matching (Start exakt + Titel-Ähnlichkeit) — `src/core/adopt/match.ts`, `src/core/adopt/phone.ts`
+- Vault-Open-Helfer für CDP-Treiber: ipcRenderer-Kommando über beliebiges Fenster (`window.electron.ipcRenderer.sendSync('vault-open', dir, false)`) — `tools/obsidian-cdp/`

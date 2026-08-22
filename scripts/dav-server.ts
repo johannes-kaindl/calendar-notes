@@ -23,10 +23,14 @@ async function has(cmd: string): Promise<boolean> {
   return new Promise((ok) => { const r = spawn("sh", ["-c", `command -v ${cmd}`], { stdio: "ignore" }); r.on("close", (c) => ok(c === 0)); });
 }
 
-export async function startRadicale(opts: { port?: number; fixtureDir?: string } = {}): Promise<RunningServer> {
+export async function startRadicale(opts: { port?: number; fixtureDir?: string; runDir?: string } = {}): Promise<RunningServer> {
   const port = opts.port ?? 5232;
   const src = opts.fixtureDir ?? FIXTURE;
-  const dir = resolve(HERE, `../.radicale-run/${port}`);
+  // `HERE` zeigt nach dem esbuild-Buendeln (gui-smoke.ts importiert dieses Modul) auf die
+  // Ausgabedatei im Repo-Root statt auf `scripts/` — `opts.runDir` laesst den Aufrufer den
+  // tatsaechlichen Repo-Root explizit angeben, statt sich auf `import.meta.url` zu verlassen
+  // (s. Kommentar am CLI-Modus unten fuer denselben Befund an anderer Stelle).
+  const dir = opts.runDir ?? resolve(HERE, `../.radicale-run/${port}`);
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
   cpSync(src, dir, { recursive: true });
@@ -61,8 +65,17 @@ export async function startRadicale(opts: { port?: number; fixtureDir?: string }
   };
 }
 
-// CLI-Modus
-if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
+// CLI-Modus. Der zusaetzliche Namens-Check ist noetig, seit `gui-smoke.ts` dieses Modul
+// importiert und per esbuild in EINE Datei buendelt: gebuendelt teilen sich alle Module
+// dasselbe `import.meta.url` (das der Ausgabedatei) — ohne den Check wuerde der Vergleich
+// `process.argv[1] === fileURLToPath(import.meta.url)` dann IMMER zutreffen (beide Seiten
+// zeigen auf `.gui-smoke.mjs`) und ein zweites, unkontrolliertes Radicale auf dem
+// Default-Port starten, noch bevor `main()` in gui-smoke.ts ueberhaupt laeuft.
+if (
+  /dav-server\.(ts|mjs|js)$/.test(fileURLToPath(import.meta.url)) &&
+  process.argv[1] &&
+  resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))
+) {
   const s = await startRadicale({ port: Number(process.env["RADICALE_PORT"] ?? 5232) });
   console.log(`Radicale läuft: ${s.baseUrl} (user ${s.user} / pass ${s.pass}) — Daten in ${s.dir}. Ctrl-C beendet.`);
   process.on("SIGINT", () => { void s.stop().then(() => process.exit(0)); });

@@ -42,6 +42,10 @@ export interface SettingsHost {
    *  gebraucht beim Konto-Löschen, damit ein spaeter neu angelegtes Konto mit gleicher
    *  Sammlung nicht auf verwaisten Snapshot/Verlauf trifft. */
   removeState(source: string): void;
+  /** Startet den Adoptions-Fluss (Server-Eintraege ↔ bestehende Notizen) fuer eine Sammlung. */
+  adopt(collectionId: string): void;
+  /** Leitet aus der aktiven Notiz ein neues Zuordnungsprofil ab (Kind-Wahl passiert im Host). */
+  profileFromActiveNote(): void;
 }
 
 const COLLECTION_KEY = /^collections\.([^.]+)\.(enabled|profileId)$/;
@@ -197,6 +201,7 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
         { name: t("settings.collections.profile"), control: { type: "dropdown", key: `collections.${c.id}.profileId`, options: profileOptions } },
         { name: t("settings.collections.folder"), desc: t("settings.collections.folderDesc"), render: (setting: Setting) => this.renderFolderOverride(setting, c) },
         { name: t("settings.collections.syncButton"), desc: this.statusDesc(c), action: () => this.host.syncNow(c.id) },
+        { name: t("settings.collections.adoptButton"), action: () => this.host.adopt(c.id) },
       ],
     };
   }
@@ -238,7 +243,10 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
       emptyState: t("settings.profiles.empty"),
       onDelete: (index) => this.deleteProfile(s.profiles[index]!.id),
       addItem: { name: t("settings.profiles.add"), action: () => this.addProfile() },
-      extraButtons: [(btn) => btn.setIcon("clipboard-paste").setTooltip(t("settings.profiles.import")).onClick(() => this.openImportModal())],
+      extraButtons: [
+        (btn) => btn.setIcon("clipboard-paste").setTooltip(t("settings.profiles.import")).onClick(() => this.openImportModal()),
+        (btn) => btn.setIcon("wand").setTooltip(t("settings.profiles.fromNoteButton")).onClick(() => this.host.profileFromActiveNote()),
+      ],
     };
   }
 
