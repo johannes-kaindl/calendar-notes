@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:CR="urn:ietf:params:xml:ns:carddav" xmlns:CS="http://calendarserver.org/ns/" xmlns:ICAL="http://apple.com/ns/ical/">
+  <D:response>
+    <D:href>/test/</D:href>
+    <D:propstat>
+      <D:prop>
+        <D:resourcetype><D:collection/><D:principal/></D:resourcetype>
+        <D:displayname>test</D:displayname>
+      </D:prop>
+      <D:status>HTTP/1.1 200 OK</D:status>
+    </D:propstat>
+  </D:response>
+  <D:response>
+    <D:href>/test/kalender/</D:href>
+    <D:propstat>
+      <D:prop>
+        <D:resourcetype><D:collection/><C:calendar/></D:resourcetype>
+        <D:displayname>Kalender</D:displayname>
+        <CS:getctag>"abc123"</CS:getctag>
+        <D:sync-token>http://radicale.org/ns/sync/42</D:sync-token>
+        <C:supported-calendar-component-set><C:comp name="VEVENT"/><C:comp name="VTODO"/></C:supported-calendar-component-set>
+        <ICAL:calendar-color>#ff0000ff</ICAL:calendar-color>
+        <D:current-user-privilege-set><D:privilege><D:read/></D:privilege><D:privilege><D:write/></D:privilege></D:current-user-privilege-set>
+      </D:prop>
+      <D:status>HTTP/1.1 200 OK</D:status>
+    </D:propstat>
+  </D:response>
+  <D:response>
+    <D:href>/test/kontakte/</D:href>
+    <D:propstat>
+      <D:prop>
+        <D:resourcetype><D:collection/><CR:addressbook/></D:resourcetype>
+        <D:displayname>Kontakte</D:displayname>
+        <CS:getctag>"def456"</CS:getctag>
+        <D:current-user-privilege-set><D:privilege><D:read/></D:privilege></D:current-user-privilege-set>
+      </D:prop>
+      <D:status>HTTP/1.1 200 OK</D:status>
+    </D:propstat>
+    <D:propstat>
+      <D:prop><C:supported-calendar-component-set/></D:prop>
+      <D:status>HTTP/1.1 404 Not Found</D:status>
+    </D:propstat>
+  </D:response>
+</D:multistatus>
