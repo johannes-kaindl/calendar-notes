@@ -108,8 +108,12 @@ export function candidateNotes(notes: CandidateNote[], profile: MappingProfile):
   const requiredType = typeof onCreateType === "string" && onCreateType.length > 0 ? onCreateType : undefined;
   return notes.filter((n) => {
     if (prefix.length > 0 && !n.path.startsWith(prefix)) return false;
-    const uidVal = n.frontmatter[profile.uidField];
-    if (uidVal !== undefined && uidVal !== null && uidVal !== "") return false;
+    // "Bereits verknuepft" heisst: der Plugin-Marker dav_source (profile.sourceField) ist gesetzt —
+    // NICHT irgendein Wert in uidField. Handgemachte Notizen (z. B. Pallas-Kontakte) tragen oft
+    // schon ein legacy uidField (Hash statt Server-UID), das die Adoption erst noch ueberschreiben
+    // soll; solche Notizen bleiben Kandidat, solange sourceField fehlt.
+    const sourceVal = n.frontmatter[profile.sourceField];
+    if (sourceVal !== undefined && sourceVal !== null && sourceVal !== "") return false;
     if (requiredType !== undefined && n.frontmatter["type"] !== requiredType) return false;
     return true;
   });
@@ -160,10 +164,23 @@ function bestNameSim(name: string, note: CandidateNote, aliasesKey: string): num
   return candidates.reduce((max, c) => Math.max(max, nameSimilarity(name, c)), 0);
 }
 
+// Termin-Notizen sind haeufig datumsgepraegt benannt ("2026-09-01 Zahnärztin.md" bzw. mit Uhrzeit
+// "2026-09-01T09-00 Zahnärztin.md") — das Datum/die Uhrzeit gehoert nicht zum Titel und wuerde den
+// Namensvergleich sonst unnoetig verwaessern.
+const DATE_PREFIX_RE = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}[:-]\d{2})?[ _-]*/;
+
+function stripDatePrefix(s: string): string {
+  return s.replace(DATE_PREFIX_RE, "");
+}
+
 function bestTitleSim(title: string, note: CandidateNote): number {
+  const stripped = stripDatePrefix(note.basename);
   const candidates: string[] = [note.basename];
-  const t = note.frontmatter["title"];
-  if (typeof t === "string") candidates.push(t);
+  if (stripped !== note.basename && stripped.length > 0) candidates.push(stripped);
+  for (const key of ["title", "titel"]) {
+    const t = note.frontmatter[key];
+    if (typeof t === "string") candidates.push(t);
+  }
   return candidates.reduce((max, c) => Math.max(max, nameSimilarity(title, c)), 0);
 }
 

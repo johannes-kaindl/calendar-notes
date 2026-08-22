@@ -45,6 +45,9 @@ describe("nameSimilarity", () => {
   it("unrelated names score low", () => {
     expect(nameSimilarity("Florian Brandes", "Sandra Meier")).toBeLessThan(0.3);
   });
+  it("boosts to at least 0.7 when all tokens of the shorter string are contained in the longer", () => {
+    expect(nameSimilarity("Zahnärztin Dr. Müller", "Zahnärztin")).toBeGreaterThanOrEqual(0.7);
+  });
 });
 
 describe("candidateNotes", () => {
@@ -52,14 +55,28 @@ describe("candidateNotes", () => {
   const notes: CandidateNote[] = [
     note("Contacts/Florian Brandes.md", { title: "Florian Brandes", type: "👤 Kontakt" }),
     note("Contacts/Sub/Alex Aguado.md", { title: "Alex Aguado", type: "👤 Kontakt" }),
-    note("Contacts/Already Linked.md", { title: "Already Linked", type: "👤 Kontakt", vcard_uid: "c3-1@test" }),
+    // Legacy vcard_uid (16-Hex-Hash, KEINE Server-UID) ohne dav_source: bleibt Kandidat — die
+    // Verknuepfung ueberschreibt uidField anschliessend mit der echten Server-UID.
+    note("Contacts/Legacy Uid.md", { title: "Legacy Uid", type: "👤 Kontakt", vcard_uid: "a4843c7a6d3005dd" }),
+    // Bereits verknuepft (dav_source gesetzt) → kein Kandidat mehr, unabhaengig vom uidField-Wert.
+    note("Contacts/Already Linked.md", { title: "Already Linked", type: "👤 Kontakt", vcard_uid: "c3-1@test", dav_source: "acc/col1" }),
     note("Other/Not In Folder.md", { title: "Not In Folder", type: "👤 Kontakt" }),
     note("Contacts/Wrong Type.md", { title: "Wrong Type", type: "📄 Note" }),
   ];
 
-  it("keeps notes in the profile folder (including subfolders) without uidField and with matching onCreate.type", () => {
+  it("keeps notes in the profile folder (including subfolders) that carry no sourceField yet, with matching onCreate.type", () => {
     const out = candidateNotes(notes, profile);
-    expect(out.map((n) => n.path)).toEqual(["Contacts/Florian Brandes.md", "Contacts/Sub/Alex Aguado.md"]);
+    expect(out.map((n) => n.path)).toEqual(["Contacts/Florian Brandes.md", "Contacts/Sub/Alex Aguado.md", "Contacts/Legacy Uid.md"]);
+  });
+  it("keeps a note with a legacy uidField value as long as sourceField is unset", () => {
+    const legacy = note("Contacts/Real.md", { type: "👤 Kontakt", vcard_uid: "a4843c7a6d3005dd", telefon: "+34 696 386 907" });
+    const out = candidateNotes([legacy], profile);
+    expect(out).toEqual([legacy]);
+  });
+  it("excludes a note once sourceField (the dav_source link marker) is set, even with the same uidField value", () => {
+    const linked = note("Contacts/Real.md", { type: "👤 Kontakt", vcard_uid: "a4843c7a6d3005dd", telefon: "+34 696 386 907", dav_source: "acc/col" });
+    const out = candidateNotes([linked], profile);
+    expect(out).toEqual([]);
   });
   it("keeps everything when folder is empty", () => {
     const out = candidateNotes(notes, { ...profile, folder: "" });
@@ -188,5 +205,25 @@ describe("matchItems — events", () => {
     const { suggestions, unmatchedItems } = matchItems([item], [n], { profile });
     expect(suggestions).toHaveLength(0);
     expect(unmatchedItems).toHaveLength(1);
+  });
+
+  it("strips a date-prefixed basename before comparing titles, so a same-start event matches as likely", () => {
+    const dentistIcs = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//DE\r\nBEGIN:VEVENT\r\nUID:zahn-1@test\r\nDTSTAMP:20260801T100000Z\r\nDTSTART:20260901T090000Z\r\nDTEND:20260901T093000Z\r\nSUMMARY:Zahnärztin Dr. Müller\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`;
+    const item = eventItem(dentistIcs);
+    // Notiz-Basename ist datumsgepraegt ("2026-09-01 Zahnärztin"), wie es Pallas-Terminnotizen sind.
+    const n = note("Events/2026-09-01 Zahnärztin.md", { start: "2026-09-01 09:00" });
+    const { suggestions } = matchItems([item], [n], { profile });
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0]?.reason).toBe("start+title");
+    expect(suggestions[0]?.confidence).toBe("likely");
+  });
+
+  it("also considers frontmatter title/titel (not just the basename) for the title comparison", () => {
+    const dentistIcs = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//DE\r\nBEGIN:VEVENT\r\nUID:zahn-2@test\r\nDTSTAMP:20260801T100000Z\r\nDTSTART:20260901T090000Z\r\nDTEND:20260901T093000Z\r\nSUMMARY:Zahnärztin Dr. Müller\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`;
+    const item = eventItem(dentistIcs);
+    const n = note("Events/Termin.md", { start: "2026-09-01 09:00", titel: "Zahnärztin" });
+    const { suggestions } = matchItems([item], [n], { profile });
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0]?.confidence).toBe("likely");
   });
 });
