@@ -9,7 +9,7 @@ DATE=$(date +%F)
 stamp() { # $1 repo $2 version $3 sha $4 dir
   printf '{\n  "source": "%s",\n  "version": "%s",\n  "sha": "%s",\n  "vendored": "%s"\n}\n' "$1" "$2" "$3" "$DATE" > "$4/VENDOR.json"
 }
-mkdir -p src/vendor/code-kit src/vendor/kit tests/vendor/kit
+mkdir -p src/vendor/code-kit src/vendor/kit src/vendor/kit-obsidian tests/vendor/kit
 CK_VER=$(git -C "$CODEKIT" describe --tags --abbrev=0); CK_SHA=$(git -C "$CODEKIT" rev-parse HEAD)
 for f in timeout sha256 filename-template settings i18n; do
   { printf '%s\n' "// vendored from code-kit@$CK_VER, src/ts/pure/$f.ts — do not hand-edit; re-vendor via tools/sync-kit.sh"; cat "$CODEKIT/src/ts/pure/$f.ts"; } > "src/vendor/code-kit/$f.ts"
@@ -22,4 +22,8 @@ done
 { printf '%s\n' "// vendored from obsidian-kit@$K_VER, src/testing/obsidian-mock.ts — do not hand-edit; re-vendor via tools/sync-kit.sh"; cat "$KIT/src/testing/obsidian-mock.ts"; } > tests/vendor/kit/obsidian-mock.ts
 stamp obsidian-kit "$K_VER" "$K_SHA" src/vendor/kit
 stamp obsidian-kit "$K_VER" "$K_SHA" tests/vendor/kit
-echo "vendored: code-kit($CK_VER): timeout sha256 filename-template settings i18n | obsidian-kit($K_VER): frontmatter vault-path obsidian-mock"
+for f in settings_walker folder-suggest confirm; do
+  { printf '%s\n' "// vendored from obsidian-kit@$K_VER, src/obsidian/$f.ts — do not hand-edit; re-vendor via tools/sync-kit.sh"; cat "$KIT/src/obsidian/$f.ts"; } > "src/vendor/kit-obsidian/$f.ts"
+done
+stamp obsidian-kit "$K_VER" "$K_SHA" src/vendor/kit-obsidian
+echo "vendored: code-kit($CK_VER): timeout sha256 filename-template settings i18n | obsidian-kit($K_VER): frontmatter vault-path obsidian-mock settings_walker folder-suggest confirm"
