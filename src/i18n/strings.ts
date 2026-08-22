@@ -2,12 +2,18 @@
 import { defineStrings, pickLang, setLang, t } from "../vendor/code-kit/i18n";
 
 export const EN: Record<string, string> = {
+  "cmd.syncAll": "Sync all collections",
+  "cmd.syncPreview": "Preview sync (dry run)",
+  "cmd.syncCollection": "Sync one collection…",
+  "cmd.syncCollection.placeholder": "Choose a collection to sync",
+
   "notice.clipboardUnavailable": "Clipboard unavailable — copy the JSON manually.",
   "notice.copied": "Copied to the clipboard.",
   "notice.copyFailed": "Copying failed: {0}",
   "notice.discoverFailed": "Connection test failed: {0}",
   "notice.discoverOk": "{0} collection(s) found ({1} warning(s)).",
   "notice.jsonInvalid": "Not valid JSON.",
+  "notice.noEnabledCollections": "No collections are enabled yet — turn one on in the plugin settings first.",
   "notice.profileInUse": "This profile is still used by a collection — remove that link first.",
   "notice.profileInvalid": "Profile invalid: {0}",
   "notice.secretFailed": "Could not store the password on this device.",
@@ -74,12 +80,18 @@ export const EN: Record<string, string> = {
 };
 
 export const DE: Record<string, string> = {
+  "cmd.syncAll": "Alle Sammlungen synchronisieren",
+  "cmd.syncPreview": "Synchronisation als Vorschau (Trockenlauf)",
+  "cmd.syncCollection": "Eine Sammlung synchronisieren…",
+  "cmd.syncCollection.placeholder": "Sammlung zum Synchronisieren wählen",
+
   "notice.clipboardUnavailable": "Zwischenablage nicht verfügbar — bitte das JSON manuell kopieren.",
   "notice.copied": "In die Zwischenablage kopiert.",
   "notice.copyFailed": "Kopieren fehlgeschlagen: {0}",
   "notice.discoverFailed": "Verbindungstest fehlgeschlagen: {0}",
   "notice.discoverOk": "{0} Sammlung(en) gefunden ({1} Warnung(en)).",
   "notice.jsonInvalid": "Kein gültiges JSON.",
+  "notice.noEnabledCollections": "Noch keine Sammlung aktiviert — bitte zuerst eine in den Plugin-Einstellungen einschalten.",
   "notice.profileInUse": "Dieses Profil wird noch von einer Sammlung verwendet — die Zuordnung zuerst entfernen.",
   "notice.profileInvalid": "Profil ungültig: {0}",
   "notice.secretFailed": "Das Passwort konnte auf diesem Gerät nicht gespeichert werden.",
