@@ -31,6 +31,13 @@ describe("formatAddress / isOnline", () => {
     expect(isOnline({ location: "Zoom-Meeting", url: undefined })).toBe(true);
     expect(isOnline({ location: "Praxis am Markt" })).toBe(false);
   });
+  it("does not false-positive on 'Teamsitzung' but recognizes Microsoft Teams", () => {
+    expect(isOnline({ location: "Teamsitzung im Büro" })).toBe(false);
+    expect(isOnline({ location: "Microsoft Teams" })).toBe(true);
+    expect(isOnline({ location: "Zoom-Meeting" })).toBe(true);
+    expect(isOnline({ location: "Praxis am Markt" })).toBe(false);
+    expect(isOnline({ url: "https://x" })).toBe(true);
+  });
 });
 describe("eventValues", () => {
   it("simple.ics", () => {

@@ -65,4 +65,12 @@ describe("validateProfile", () => {
     expect(validateProfile(null).ok).toBe(false);
     expect(validateProfile({ ...defaultEventProfile(), filename: "" }).ok).toBe(false);
   });
+  it("rejects invalid body / attendeeLinks instead of silently coercing", () => {
+    const base = defaultContactProfile();
+    const r1 = validateProfile({ ...base, body: "blck" });
+    expect(r1.ok).toBe(false);
+    if (!r1.ok) expect(r1.errors.join(" ")).toMatch(/body/);
+    const r2 = validateProfile({ ...base, attendeeLinks: "false" });
+    expect(r2.ok).toBe(false);
+  });
 });

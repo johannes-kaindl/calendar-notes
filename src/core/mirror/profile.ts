@@ -92,8 +92,12 @@ export function validateProfile(p: unknown): { ok: true; profile: MappingProfile
     else if (Array.isArray(v) && v.every((x) => typeof x === "string")) onCreate[k] = v;
     else errors.push(`onCreate.${k} hat unzulässigen Typ`);
   }
-  const body = o["body"] === "none" ? "none" : "block";
-  const attendeeLinks = o["attendeeLinks"] !== false;
+  const rawBody = o["body"];
+  if (rawBody !== undefined && rawBody !== "block" && rawBody !== "none") errors.push("body muss block oder none sein");
+  const body: "block" | "none" = rawBody === "none" ? "none" : "block";
+  const rawAttendeeLinks = o["attendeeLinks"];
+  if (rawAttendeeLinks !== undefined && typeof rawAttendeeLinks !== "boolean") errors.push("attendeeLinks muss ein boolean sein");
+  const attendeeLinks = rawAttendeeLinks === undefined ? true : rawAttendeeLinks === true;
   if (errors.length) return { ok: false, errors };
   return { ok: true, profile: { id, name, kind: kind as ProfileKind, folder: normFolder(folderRaw), filename, ...ids, fields, onCreate, body, attendeeLinks } };
 }

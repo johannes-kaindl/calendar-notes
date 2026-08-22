@@ -27,9 +27,10 @@ export function contactValues(c: ContactData): ManagedValues {
   };
 }
 
-const ONLINE_RE = /https?:\/\/|zoom|meet\.|teams|jitsi|webex|\bbbb\b/i;
+const URL_RE = /https?:\/\//i;
+const LOCATION_ONLINE_RE = /\b(zoom|webex|jitsi|microsoft teams|ms teams|teams-meeting|videokonferenz|online-?meeting|videocall)\b/i;
 export function isOnline(e: Pick<EventData, "location" | "url">): boolean {
-  return ONLINE_RE.test(e.location ?? "") || ONLINE_RE.test(e.url ?? "");
+  return URL_RE.test(e.location ?? "") || URL_RE.test(e.url ?? "") || LOCATION_ONLINE_RE.test(e.location ?? "");
 }
 
 function attendeeText(a: Attendee, opts: { resolveAttendee?: AttendeeResolver; attendeeLinks?: boolean }): string {
