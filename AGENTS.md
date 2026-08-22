@@ -36,5 +36,5 @@ CalDAV-Termine und CardDAV-Kontakte als Notiz-Spiegel; der Server ist die Wahrhe
 - Vorschau-Modal (`src/obsidian/preview-modal.ts`) für Trockenlauf: Gesamtzahl, per-Collection Zähler/Fehler, Operationen nach Typ
 - Kommandos: `sync-all` (alle Sammlungen), `sync-preview` (Trockenlauf + Modal), `sync-collection` (Suggester über aktivierte Sammlungen)
 - Auslöser: Start-Verzögerung (`onLayoutReady`), Intervall (Mobil vs. Desktop), Neusetzung bei Settings-Änderung
-- Manueller Smoke: `npm run deploy OBSIDIAN_PLUGIN_DIR=<staging-vault>/.obsidian/plugins/calendar-notes`, Radicale via `npx esbuild scripts/dav-server.ts --bundle --platform=node --format=esm --outfile=scripts/.dav-server.mjs && node scripts/.dav-server.mjs`, Staging-Vault `~/StagingVaults/calendar-notes`, Anleitung `docs/smoke/2026-08-22-m2b-manual.md`
+- Manueller Smoke: `OBSIDIAN_PLUGIN_DIR=<staging-vault>/.obsidian/plugins/calendar-notes npm run deploy`, Radicale via `npx esbuild scripts/dav-server.ts --bundle --platform=node --format=esm --outfile=scripts/.dav-server.mjs && node scripts/.dav-server.mjs`, Staging-Vault `~/StagingVaults/calendar-notes`, Anleitung `docs/smoke/2026-08-22-m2b-manual.md`
 - 191 Unit-Tests + 4 Integration-Tests (0 Warnings)
