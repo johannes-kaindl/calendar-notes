@@ -410,15 +410,24 @@ async function checkP3(cdp: Cdp, info: DiscoverInfo): Promise<void> {
     };
   `,
   );
-  const noNewFileForLinked = before.kontakteCount === after.kontakteCount && before.anstehendCount === after.anstehendCount;
+  // Die drei UNVERKNUEPFTEN Server-Objekte (Florian Brandes, Weihnachten, Teamrunde) legen
+  // legitim neue Notizen an — und zwar in genau diesen beiden Ordnern (das Profil aus
+  // `createProfileFromNote` uebernimmt den Ordner der Beispielnotiz woertlich). Ein flaches
+  // "Anzahl bleibt gleich" waere hier ein falsches Rot. Die scharfe Kondition ist: der
+  // Gesamtzuwachs ueber beide Ordner entspricht GENAU `sync.created` — jede zusaetzliche
+  // Datei (z. B. "Alex Aguado 1.md" durch einen fehlgeschlagenen Link) würde die Summe ueber
+  // diese erwartete Zahl hinaus treiben.
+  const kontakteDelta = after.kontakteCount - before.kontakteCount;
+  const anstehendDelta = after.anstehendCount - before.anstehendCount;
+  const noExtraFileForLinked = kontakteDelta + anstehendDelta === sync.created;
   const bodyKept = after.zahnBody.includes("Vorbereitung");
-  const syncOk = sync.ok && sync.updated >= 2 && noNewFileForLinked && bodyKept;
+  const syncOk = sync.ok && sync.updated >= 2 && noExtraFileForLinked && bodyKept;
   record(
     "P3b",
     "Sync nach Adoption aktualisiert statt neu anzulegen",
     syncOk,
-    `created=${sync.created} updated=${sync.updated}, Dateizahl Kontakte ${before.kontakteCount}→${after.kontakteCount}, ` +
-      `Anstehend ${before.anstehendCount}→${after.anstehendCount} unveraendert=${noNewFileForLinked}, ` +
+    `created=${sync.created} updated=${sync.updated}, Dateizahl Kontakte ${before.kontakteCount}→${after.kontakteCount} (Δ${kontakteDelta}), ` +
+      `Anstehend ${before.anstehendCount}→${after.anstehendCount} (Δ${anstehendDelta}), Summe Δ == created=${noExtraFileForLinked}, ` +
       `Body "Vorbereitung…" erhalten=${bodyKept}`,
   );
 }
