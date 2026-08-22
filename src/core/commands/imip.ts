@@ -12,15 +12,34 @@ export interface ImipMessage {
   ics: string;
 }
 
-/** Fuegt `METHOD:<method>` direkt nach der `PRODID`-Zeile im VCALENDAR ein — reine
- *  Zeilen-Operation (kein ical.js-Re-Serialize noetig), robust gegen CRLF/LF. Wirft, wenn
- *  keine PRODID-Zeile gefunden wird (kein gueltiges VCALENDAR fuer diesen Zweck). */
+/** Sprach-Text fuer `buildImip` — `src/core/**` bleibt i18n-frei (kein `t()`-Import, `check:pure`
+ *  scannt zwar nur obsidian/node/DOM, aber deutschsprachige Literale gehoeren trotzdem nicht in
+ *  den Kern): der Aufrufer (`invite.ts`) reicht die uebersetzten Labels durch. */
+export interface ImipLabels {
+  invitation: string;
+  cancellation: string;
+  title: string;
+  time: string;
+  location: string;
+  description: string;
+}
+
+/** Setzt `METHOD:<method>` im VCALENDAR — ersetzt eine bereits vorhandene METHOD-Zeile
+ *  (z. B. wenn `plan.newRaw` schon einmal durch `insertMethod` lief) statt sie zu duplizieren,
+ *  sonst wird sie direkt nach `PRODID` eingefuegt. Reine Zeilen-Operation (kein
+ *  ical.js-Re-Serialize noetig), robust gegen CRLF/LF. Wirft, wenn weder eine METHOD- noch
+ *  eine PRODID-Zeile gefunden wird (kein gueltiges VCALENDAR fuer diesen Zweck). */
 export function insertMethod(ics: string, method: string): string {
   const eol = ics.includes("\r\n") ? "\r\n" : "\n";
   const lines = ics.split(/\r\n|\n/);
-  const idx = lines.findIndex((l) => l.startsWith("PRODID"));
-  if (idx === -1) throw new Error("iMIP: VCALENDAR ohne PRODID-Zeile");
-  lines.splice(idx + 1, 0, `METHOD:${method}`);
+  const methodIdx = lines.findIndex((l) => l.startsWith("METHOD:"));
+  if (methodIdx !== -1) {
+    lines[methodIdx] = `METHOD:${method}`;
+    return lines.join(eol);
+  }
+  const prodidIdx = lines.findIndex((l) => l.startsWith("PRODID"));
+  if (prodidIdx === -1) throw new Error("iMIP: VCALENDAR ohne PRODID-Zeile");
+  lines.splice(prodidIdx + 1, 0, `METHOD:${method}`);
   return lines.join(eol);
 }
 
@@ -30,21 +49,24 @@ function displayTime(start: string, end?: string): string {
 
 /** Baut die iMIP-Nachricht (Betreff/Klartext/ics mit METHOD) aus einem `CommandPlan` mit
  *  `invite` (event-commands.ts fuellt das bei Kommandos, die eine Zu-/Absage ausloesen).
- *  Pure — kein Obsidian-/Node-/DOM-Zugriff (`src/core/**`, `check:pure`). */
-export function buildImip(plan: CommandPlan, method: "REQUEST" | "CANCEL", from: string, opts: { now: Date }): ImipMessage {
+ *  Pure — kein Obsidian-/Node-/DOM-Zugriff (`src/core/**`, `check:pure`); `opts.labels`
+ *  liefert die deutsch/englisch uebersetzten Beschriftungen (der Aufrufer liest sie aus
+ *  `t("invite.label.*")`, s. `src/obsidian/invite.ts`). */
+export function buildImip(plan: CommandPlan, method: "REQUEST" | "CANCEL", from: string, opts: { now: Date; labels: ImipLabels }): ImipMessage {
   if (!plan.invite) throw new Error("buildImip: Plan enthaelt keine invite-Angaben");
   const ics = insertMethod(plan.newRaw, method);
   const ev = primaryEvent(parseEvents(ics));
   if (!ev) throw new Error("buildImip: kein VEVENT im Plan");
 
-  const title = ev.summary || "(ohne Titel)";
+  const { labels } = opts;
+  const title = ev.summary;
   const time = displayTime(ev.start, ev.end);
-  const verb = method === "CANCEL" ? "Absage" : "Einladung";
+  const verb = method === "CANCEL" ? labels.cancellation : labels.invitation;
   const subject = `${verb}: ${title}, ${time}`;
 
-  const lines = [`Titel: ${title}`, `Zeit: ${time}`];
-  if (ev.location) lines.push(`Ort: ${ev.location}`);
-  if (ev.description) lines.push(`Beschreibung: ${ev.description}`);
+  const lines = [`${labels.title}: ${title}`, `${labels.time}: ${time}`];
+  if (ev.location) lines.push(`${labels.location}: ${ev.location}`);
+  if (ev.description) lines.push(`${labels.description}: ${ev.description}`);
   const text = lines.join("\n");
 
   return { method, from, to: plan.invite.attendees, subject, text, ics };

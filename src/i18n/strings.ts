@@ -39,6 +39,13 @@ export const EN: Record<string, string> = {
   "cmd.syncCollection.placeholder": "Choose a collection to sync",
   "cmd.undo": "Undo last change",
 
+  "execute.error.account-not-found": "Account not found.",
+  "execute.error.busy": "A sync is currently running — please try again shortly.",
+  "execute.error.collection-not-found": "Collection not found.",
+  "execute.error.no-secret": "No password stored on this device for this account.",
+  "execute.error.profile-not-found": "Mapping profile not found.",
+  "execute.error.transport-error": "The server request failed.",
+
   "form.cancel": "Cancel",
   "form.chooseContact": "Choose contact…",
   "form.chooseContact.placeholder": "Choose a contact",
@@ -69,6 +76,12 @@ export const EN: Record<string, string> = {
 
   "invite.copy": "Copy",
   "invite.icsTitle": "Invitation (.ics)",
+  "invite.label.cancellation": "Cancellation",
+  "invite.label.description": "Description",
+  "invite.label.invitation": "Invitation",
+  "invite.label.location": "Location",
+  "invite.label.time": "Time",
+  "invite.label.title": "Title",
   "invite.noSenderAccounts": "{0} has no sender identities configured.",
   "invite.saveToVault": "Save to vault",
   "invite.saved": "Saved to {0}.",
@@ -215,6 +228,13 @@ export const DE: Record<string, string> = {
   "cmd.syncCollection.placeholder": "Sammlung zum Synchronisieren wählen",
   "cmd.undo": "Letzte Änderung rückgängig machen",
 
+  "execute.error.account-not-found": "Konto nicht gefunden.",
+  "execute.error.busy": "Gerade läuft eine Synchronisation — bitte gleich noch einmal versuchen.",
+  "execute.error.collection-not-found": "Sammlung nicht gefunden.",
+  "execute.error.no-secret": "Für dieses Konto ist auf diesem Gerät kein Passwort hinterlegt.",
+  "execute.error.profile-not-found": "Zuordnungsprofil nicht gefunden.",
+  "execute.error.transport-error": "Die Anfrage an den Server ist fehlgeschlagen.",
+
   "form.cancel": "Abbrechen",
   "form.chooseContact": "Kontakt wählen…",
   "form.chooseContact.placeholder": "Kontakt wählen",
@@ -245,6 +265,12 @@ export const DE: Record<string, string> = {
 
   "invite.copy": "Kopieren",
   "invite.icsTitle": "Einladung (.ics)",
+  "invite.label.cancellation": "Absage",
+  "invite.label.description": "Beschreibung",
+  "invite.label.invitation": "Einladung",
+  "invite.label.location": "Ort",
+  "invite.label.time": "Zeit",
+  "invite.label.title": "Titel",
   "invite.noSenderAccounts": "{0} hat keine Absender-Identitäten konfiguriert.",
   "invite.saveToVault": "Im Vault speichern",
   "invite.saved": "Gespeichert unter {0}.",

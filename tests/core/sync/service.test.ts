@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { SyncService } from "../../../src/core/sync/service";
+import { createBusyGuard, type BusyGuard } from "../../../src/core/sync/busy";
 import type { SyncDeps, Notifier, PlanExecutor } from "../../../src/core/sync/types";
 import type { NoteLookup } from "../../../src/core/mirror/apply";
 import type { NotePlan } from "../../../src/core/mirror/plan";
@@ -133,9 +134,10 @@ interface DepsBundle {
   saved: PluginSettings[];
   transports: Map<string, Transport & { calls: DavRequest[] }>;
   settingsRef: { current: PluginSettings };
+  busy: BusyGuard;
 }
 
-function makeDeps(settings: PluginSettings, transports: Record<string, Transport & { calls: DavRequest[] }>, opts: { secret?: string | null; now?: Date } = {}): DepsBundle {
+function makeDeps(settings: PluginSettings, transports: Record<string, Transport & { calls: DavRequest[] }>, opts: { secret?: string | null; now?: Date; busy?: BusyGuard } = {}): DepsBundle {
   const notify = collectingNotify();
   const executor = loggingExecutor();
   const saved: PluginSettings[] = [];
@@ -155,18 +157,20 @@ function makeDeps(settings: PluginSettings, transports: Record<string, Transport
       this.states.delete(source);
     }
   })();
+  const busy = opts.busy ?? createBusyGuard();
   const deps: SyncDeps = {
     settings: () => settingsRef.current,
     saveSettings: async (s) => { saved.push(s); settingsRef.current = s; },
     secrets: { get: () => secret, set: () => {}, has: () => secret !== null },
     stateStore,
+    busy,
     transportFor: (account) => transportsMap.get(account.id) ?? (async () => ({ status: 404, headers: {}, text: "" })),
     lookupFor: async () => noopLookup(),
     executor,
     notify,
     now: () => now,
   };
-  return { deps, notify, executor, saved, transports: transportsMap, settingsRef };
+  return { deps, notify, executor, saved, transports: transportsMap, settingsRef, busy };
 }
 
 describe("SyncService", () => {
@@ -270,6 +274,20 @@ describe("SyncService", () => {
     expect(r2.collections.every((c) => c.skippedReason === "busy")).toBe(true);
     const r1 = await p1;
     expect(r1.collections[0]!.skippedReason).toBeUndefined();
+    expect(service.isRunning()).toBe(false);
+  });
+
+  it("(e2) bidirektionaler Busy-Guard: ein extern belegter deps.busy (z. B. ein laufendes Kommando) laesst runAll() ebenfalls busy melden", async () => {
+    const col = addressbookCollection("ab1");
+    const settings = baseSettings([col]);
+    const t = addressbookTransport(col);
+    const { deps, busy } = makeDeps(settings, { acc1: t });
+    const service = new SyncService(deps);
+    expect(busy.tryAcquire()).toBe(true); // simuliert executeCommandPlan(), das gerade laeuft
+    expect(service.isRunning()).toBe(true);
+    const r = await service.runAll();
+    expect(r.collections.every((c) => c.skippedReason === "busy")).toBe(true);
+    busy.release();
     expect(service.isRunning()).toBe(false);
   });
 

@@ -2,6 +2,7 @@ import { ButtonComponent, Modal, Notice, type App } from "obsidian";
 import type { CommandPlan } from "../core/commands/types";
 import type { ExecuteResult } from "../core/sync/execute";
 import { t } from "../i18n/strings";
+import { describeExecuteError } from "./execute-i18n";
 
 /** Diff-Zeilen fuers Anzeigen — `—` statt `undefined`, damit die Tabelle nie leere Zellen
  *  zeigt. Pure, damit sie ohne Modal/DOM getestet werden kann. */
@@ -89,7 +90,7 @@ export class PlanPreviewModal extends Modal {
       }
       return;
     }
-    new Notice(t("notice.unexpected", "Kommando", result.error));
+    new Notice(t("notice.unexpected", "Kommando", describeExecuteError(result.error)));
     this.close();
   }
 }

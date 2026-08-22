@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import ICAL from "ical.js";
-import { buildImip, insertMethod } from "../../../src/core/commands/imip";
+import { buildImip, insertMethod, type ImipLabels } from "../../../src/core/commands/imip";
 import type { CommandPlan } from "../../../src/core/commands/types";
 
 const ICS = [
@@ -18,6 +18,15 @@ const ICS = [
   "END:VEVENT",
   "END:VCALENDAR",
 ].join("\r\n");
+
+const LABELS: ImipLabels = {
+  invitation: "Einladung",
+  cancellation: "Absage",
+  title: "Titel",
+  time: "Zeit",
+  location: "Ort",
+  description: "Beschreibung",
+};
 
 function plan(overrides: Partial<CommandPlan> = {}): CommandPlan {
   return {
@@ -51,6 +60,13 @@ describe("insertMethod", () => {
     expect(root.getFirstPropertyValue("method")).toBe("CANCEL");
   });
 
+  it("ersetzt eine bereits vorhandene METHOD-Zeile statt sie zu duplizieren", () => {
+    const once = insertMethod(ICS, "REQUEST");
+    const twice = insertMethod(once, "CANCEL");
+    const methodLines = twice.split("\r\n").filter((l) => l.startsWith("METHOD:"));
+    expect(methodLines).toEqual(["METHOD:CANCEL"]);
+  });
+
   it("wirft ohne PRODID", () => {
     expect(() => insertMethod("BEGIN:VCALENDAR\r\nEND:VCALENDAR", "REQUEST")).toThrow();
   });
@@ -58,7 +74,7 @@ describe("insertMethod", () => {
 
 describe("buildImip", () => {
   it("baut Betreff/Text/ics fuer REQUEST", () => {
-    const msg = buildImip(plan(), "REQUEST", "acc-mail", { now: new Date("2026-08-22T12:00:00Z") });
+    const msg = buildImip(plan(), "REQUEST", "acc-mail", { now: new Date("2026-08-22T12:00:00Z"), labels: LABELS });
     expect(msg.method).toBe("REQUEST");
     expect(msg.from).toBe("acc-mail");
     expect(msg.to).toEqual(["alice@example.test", "bob@example.test"]);
@@ -71,14 +87,23 @@ describe("buildImip", () => {
   });
 
   it("baut Betreff fuer CANCEL", () => {
-    const msg = buildImip(plan({ invite: { attendees: ["alice@example.test"], method: "CANCEL" } }), "CANCEL", "acc-mail", { now: new Date() });
+    const msg = buildImip(plan({ invite: { attendees: ["alice@example.test"], method: "CANCEL" } }), "CANCEL", "acc-mail", { now: new Date(), labels: LABELS });
     expect(msg.subject).toContain("Absage: Teamrunde");
     expect(msg.ics).toContain("METHOD:CANCEL");
+  });
+
+  it("nutzt die uebergebenen Labels (nicht fest verdrahtete deutsche Strings)", () => {
+    const enLabels: ImipLabels = { invitation: "Invitation", cancellation: "Cancellation", title: "Title", time: "Time", location: "Location", description: "Description" };
+    const msg = buildImip(plan(), "REQUEST", "acc-mail", { now: new Date(), labels: enLabels });
+    expect(msg.subject).toContain("Invitation: Teamrunde");
+    expect(msg.text).toContain("Title: Teamrunde");
+    expect(msg.text).toContain("Location: Raum 3");
+    expect(msg.text).toContain("Description: Sprint-Planung");
   });
 
   it("wirft ohne invite am Plan", () => {
     const p = plan();
     delete p.invite;
-    expect(() => buildImip(p, "REQUEST", "acc-mail", { now: new Date() })).toThrow();
+    expect(() => buildImip(p, "REQUEST", "acc-mail", { now: new Date(), labels: LABELS })).toThrow();
   });
 });

@@ -5,6 +5,7 @@ import type { NoteLookup } from "../core/mirror/apply";
 import type { AttendeeResolver } from "../core/mirror/fields";
 import { fmKeyFor, type MappingProfile } from "../core/mirror/profile";
 import { effectiveProfile, sourceOf, type Account, type PluginSettings } from "../core/settings";
+import { createBusyGuard } from "../core/sync/busy";
 import type { Notifier, SyncDeps } from "../core/sync/types";
 import { t } from "../i18n/strings";
 import type { MailTransport } from "./invite";
@@ -29,7 +30,7 @@ export interface MailTransportRegistry {
 function isMailTransport(v: unknown): v is MailTransport {
   if (!v || typeof v !== "object") return false;
   const o = v as Record<string, unknown>;
-  return typeof o["id"] === "string" && o["id"] !== "" && typeof o["label"] === "string" && typeof o["accounts"] === "function" && typeof o["send"] === "function";
+  return typeof o["id"] === "string" && o["id"] !== "" && typeof o["label"] === "string" && o["label"] !== "" && typeof o["accounts"] === "function" && typeof o["send"] === "function";
 }
 
 export function createMailTransportRegistry(): MailTransportRegistry {
@@ -123,6 +124,7 @@ export function buildSyncDeps(app: App, pluginDir: string, host: { settings(): P
     saveSettings: (s) => host.saveSettings(s),
     secrets,
     stateStore,
+    busy: createBusyGuard(),
     transportFor(account: Account, password: string): Transport {
       const base = obsidianTransport({ timeoutMs: host.settings().sync.requestTimeoutMs });
       return withBasicAuth(base, account.username, password);

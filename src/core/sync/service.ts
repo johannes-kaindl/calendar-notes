@@ -50,13 +50,14 @@ function baseCollectionOf(col: CollectionConfig): DavCollection {
  * das selbst anhand von `col.syncToken`).
  */
 export class SyncService {
-  private running = false;
   private last: RunResult | undefined;
 
   constructor(private readonly deps: SyncDeps) {}
 
+  /** Bidirektional mit `executeCommandPlan` geteilt (`deps.busy`, s. core/sync/busy.ts) —
+   *  laeuft gerade ein Kommando, meldet sich ein Sync-Lauf hier ebenfalls busy. */
   isRunning(): boolean {
-    return this.running;
+    return this.deps.busy.isBusy();
   }
 
   lastResult(): RunResult | undefined {
@@ -65,12 +66,11 @@ export class SyncService {
 
   async runAll(opts?: { dryRun?: boolean }): Promise<RunResult> {
     const dryRun = opts?.dryRun ?? false;
-    if (this.running) {
+    if (!this.deps.busy.tryAcquire()) {
       const now = this.deps.now().toISOString();
       const settings = this.deps.settings();
       return { startedAt: now, finishedAt: now, collections: settings.collections.map((c) => skipped(c.id, dryRun, "busy")) };
     }
-    this.running = true;
     try {
       const startedAt = this.deps.now().toISOString();
       const settings = this.deps.settings();
@@ -84,14 +84,13 @@ export class SyncService {
       this.last = result;
       return result;
     } finally {
-      this.running = false;
+      this.deps.busy.release();
     }
   }
 
   async runCollection(collectionId: string, opts?: { dryRun?: boolean }): Promise<CollectionRunResult> {
     const dryRun = opts?.dryRun ?? false;
-    if (this.running) return skipped(collectionId, dryRun, "busy");
-    this.running = true;
+    if (!this.deps.busy.tryAcquire()) return skipped(collectionId, dryRun, "busy");
     try {
       const startedAt = this.deps.now().toISOString();
       const settings = this.deps.settings();
@@ -102,7 +101,7 @@ export class SyncService {
       this.last = { startedAt, finishedAt, collections: [result] };
       return result;
     } finally {
-      this.running = false;
+      this.deps.busy.release();
     }
   }
 

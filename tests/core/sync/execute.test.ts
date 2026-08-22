@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { executeCommandPlan, resyncObject } from "../../../src/core/sync/execute";
+import { createBusyGuard, type BusyGuard } from "../../../src/core/sync/busy";
 import type { SyncDeps, Notifier, PlanExecutor } from "../../../src/core/sync/types";
 import type { NoteLookup } from "../../../src/core/mirror/apply";
 import type { NotePlan } from "../../../src/core/mirror/plan";
@@ -28,9 +29,17 @@ function noopLookup(): NoteLookup {
   return { byUid: () => undefined, byPath: () => undefined, exists: () => false, hasBacklinks: () => false };
 }
 
-function loggingExecutor(): PlanExecutor & { calls: NotePlan[] } {
+function loggingExecutor(opts: { throwOnFirst?: boolean } = {}): PlanExecutor & { calls: NotePlan[] } {
   const calls: NotePlan[] = [];
-  return { calls, execute: async (plan) => { calls.push(plan); } };
+  let n = 0;
+  return {
+    calls,
+    execute: async (plan) => {
+      n += 1;
+      if (opts.throwOnFirst && n === 1) throw new Error("Vault-Schreibfehler");
+      calls.push(plan);
+    },
+  };
 }
 
 function noopNotify(): Notifier {
@@ -44,12 +53,15 @@ interface TransportOpts {
   getStatus?: number;
   getEtag?: string;
   getData?: string;
+  getThrows?: boolean;
+  throws?: boolean;
 }
 
 function fakeTransport(opts: TransportOpts = {}): Transport & { calls: DavRequest[] } {
   const calls: DavRequest[] = [];
   const t = (async (req: DavRequest): Promise<DavResponse> => {
     calls.push(req);
+    if (opts.throws) throw new Error("Netzwerkfehler");
     if (req.method === "PUT") {
       const status = opts.putStatus ?? 201;
       return { status, headers: status < 300 ? { etag: opts.putEtag ?? '"e-new"' } : {}, text: status === 412 ? "" : "" };
@@ -58,6 +70,7 @@ function fakeTransport(opts: TransportOpts = {}): Transport & { calls: DavReques
       return { status: opts.deleteStatus ?? 204, headers: {}, text: "" };
     }
     if (req.method === "GET") {
+      if (opts.getThrows) throw new Error("GET fehlgeschlagen (5xx)");
       const status = opts.getStatus ?? 200;
       if (status === 200) return { status, headers: { etag: opts.getEtag ?? '"e-new"' }, text: opts.getData ?? VCARD };
       return { status, headers: {}, text: "" };
@@ -68,10 +81,13 @@ function fakeTransport(opts: TransportOpts = {}): Transport & { calls: DavReques
   return t;
 }
 
-function makeDeps(opts: { transport: Transport; secret?: string | null; isBusy?: boolean } = { transport: fakeTransport() }): { deps: SyncDeps; executor: ReturnType<typeof loggingExecutor>; states: Map<string, CollectionState> } {
-  const executor = loggingExecutor();
+function makeDeps(
+  opts: { transport: Transport; secret?: string | null; busy?: BusyGuard; executor?: PlanExecutor & { calls: NotePlan[] } } = { transport: fakeTransport() },
+): { deps: SyncDeps; executor: ReturnType<typeof loggingExecutor>; states: Map<string, CollectionState>; busy: BusyGuard } {
+  const executor = opts.executor ?? loggingExecutor();
   const states = new Map<string, CollectionState>();
   const secret = opts.secret === undefined ? "geheim" : opts.secret;
+  const busy = opts.busy ?? createBusyGuard();
   const deps: SyncDeps = {
     settings: () => baseSettings(),
     saveSettings: async () => {},
@@ -81,14 +97,14 @@ function makeDeps(opts: { transport: Transport; secret?: string | null; isBusy?:
       save: async (state) => { states.set(state.source, state); },
       remove: async (source) => { states.delete(source); },
     },
+    busy,
     transportFor: () => opts.transport,
     lookupFor: async () => noopLookup(),
     executor,
     notify: noopNotify(),
     now: () => new Date("2026-08-22T12:00:00Z"),
-    ...(opts.isBusy !== undefined ? { isBusy: () => opts.isBusy! } : {}),
   };
-  return { deps, executor, states };
+  return { deps, executor, states, busy };
 }
 
 function updatePlan(overrides: Partial<CommandPlan> = {}): CommandPlan {
@@ -116,6 +132,7 @@ describe("executeCommandPlan", () => {
     if (res.ok) {
       expect(res.resynced).toBe(true);
       expect(res.uid).toBe(UID);
+      expect(res.resyncError).toBeUndefined();
     }
     expect(executor.calls).toHaveLength(1);
     expect(executor.calls[0]?.op).toBe("create");
@@ -159,22 +176,102 @@ describe("executeCommandPlan", () => {
     expect(executor.calls).toHaveLength(0);
   });
 
+  it("PUT wirft (Netzwerkfehler) → { ok:false, conflict:false, error:'transport-error' }", async () => {
+    const transport = fakeTransport({ throws: true });
+    const { deps } = makeDeps({ transport });
+    const plan = updatePlan();
+    const res = await executeCommandPlan(deps, baseSettings(), plan);
+    expect(res).toEqual({ ok: false, conflict: false, error: "transport-error" });
+  });
+
+  it("PUT nicht-conflict-Fehlstatus (z. B. 500) → error:'transport-error'", async () => {
+    const transport = fakeTransport({ putStatus: 500 });
+    const { deps } = makeDeps({ transport });
+    const plan = updatePlan();
+    const res = await executeCommandPlan(deps, baseSettings(), plan);
+    expect(res).toEqual({ ok: false, conflict: false, error: "transport-error" });
+  });
+
   it("busy: liefert { ok:false, conflict:false, error:'busy' } ohne Netzwerkaufruf", async () => {
     const transport = fakeTransport();
-    const { deps } = makeDeps({ transport, isBusy: true });
+    const busy = createBusyGuard();
+    busy.tryAcquire(); // simuliert einen laufenden SyncService-Lauf
+    const { deps } = makeDeps({ transport, busy });
     const plan = updatePlan();
     const res = await executeCommandPlan(deps, baseSettings(), plan);
     expect(res).toEqual({ ok: false, conflict: false, error: "busy" });
     expect(transport.calls).toHaveLength(0);
   });
 
-  it("fehlende Sammlung/Konto → { ok:false, conflict:false, error }", async () => {
+  it("gibt den Busy-Guard nach Ausfuehrung wieder frei (auch nach Erfolg)", async () => {
+    const { deps, busy } = makeDeps({ transport: fakeTransport() });
+    await executeCommandPlan(deps, baseSettings(), updatePlan());
+    expect(busy.isBusy()).toBe(false);
+  });
+
+  it("fehlende Sammlung → error:'collection-not-found'", async () => {
     const transport = fakeTransport();
     const { deps } = makeDeps({ transport });
     const plan = updatePlan({ target: { kind: "contact", source: "acc1/unknown", href: CARD_HREF, uid: UID } });
     const res = await executeCommandPlan(deps, baseSettings(), plan);
-    expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.conflict).toBe(false);
+    expect(res).toEqual({ ok: false, conflict: false, error: "collection-not-found" });
+  });
+
+  it("fehlendes Passwort → error:'no-secret'", async () => {
+    const transport = fakeTransport();
+    const { deps } = makeDeps({ transport, secret: null });
+    const res = await executeCommandPlan(deps, baseSettings(), updatePlan());
+    expect(res).toEqual({ ok: false, conflict: false, error: "no-secret" });
+  });
+
+  it("PUT erfolgreich, aber Resync-GET scheitert nicht-404 → ok:true, resynced:false, resyncError gesetzt; State haelt trotzdem den frischen etag fest", async () => {
+    const transport = fakeTransport({ getThrows: true, putEtag: '"e-fresh"' });
+    const { deps, executor, states } = makeDeps({ transport });
+    const res = await executeCommandPlan(deps, baseSettings(), updatePlan());
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.resynced).toBe(false);
+      expect(res.resyncError).toBeDefined();
+      expect(res.etag).toBe('"e-fresh"');
+    }
+    expect(executor.calls).toHaveLength(0); // Resync kam nie bis applyDelta/Executor
+    const state = states.get("acc1/ab1");
+    expect(state?.snapshot.etags["/ab1/card1.vcf"]).toBe('"e-fresh"');
+  });
+
+  it("PUT erfolgreich, Executor wirft beim Notiz-Schreiben → ok:true, resynced:false, resyncError gesetzt; State (etag) wird trotzdem gespeichert", async () => {
+    const transport = fakeTransport();
+    const throwingExecutor = loggingExecutor({ throwOnFirst: true });
+    const { deps, states } = makeDeps({ transport, executor: throwingExecutor });
+    const res = await executeCommandPlan(deps, baseSettings(), updatePlan());
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.resynced).toBe(false);
+      expect(res.resyncError).toBeDefined();
+    }
+    const state = states.get("acc1/ab1");
+    expect(state?.snapshot.etags["/ab1/card1.vcf"]).toBe('"e-new"');
+  });
+});
+
+describe("bidirektionaler Busy-Guard", () => {
+  it("ein von aussen belegter Guard (simulierter SyncService-Lauf) blockiert executeCommandPlan", async () => {
+    const busy = createBusyGuard();
+    const { deps } = makeDeps({ transport: fakeTransport(), busy });
+    expect(busy.tryAcquire()).toBe(true); // "SyncService laeuft"
+    const res = await executeCommandPlan(deps, baseSettings(), updatePlan());
+    expect(res).toEqual({ ok: false, conflict: false, error: "busy" });
+    busy.release();
+    const res2 = await executeCommandPlan(deps, baseSettings(), updatePlan());
+    expect(res2.ok).toBe(true);
+  });
+
+  it("executeCommandPlan haelt den Guard fuer die GESAMTE Dauer (PUT+Resync) belegt", async () => {
+    const { deps, busy } = makeDeps({ transport: fakeTransport() });
+    const p = executeCommandPlan(deps, baseSettings(), updatePlan());
+    expect(busy.isBusy()).toBe(true);
+    await p;
+    expect(busy.isBusy()).toBe(false);
   });
 });
 
@@ -182,7 +279,16 @@ describe("resyncObject", () => {
   it("GET 404 behandelt als Loeschung statt zu werfen", async () => {
     const transport = fakeTransport({ getStatus: 404 });
     const { deps } = makeDeps({ transport });
-    const { plans } = await resyncObject(deps, baseSettings(), "ab1", CARD_HREF);
+    const { plans, error } = await resyncObject(deps, baseSettings(), "ab1", CARD_HREF);
     expect(plans).toEqual([]);
+    expect(error).toBeUndefined();
+  });
+
+  it("GET-Fehler (nicht-404) liefert { plans:[], error } statt zu werfen", async () => {
+    const transport = fakeTransport({ getThrows: true });
+    const { deps } = makeDeps({ transport });
+    const { plans, error } = await resyncObject(deps, baseSettings(), "ab1", CARD_HREF);
+    expect(plans).toEqual([]);
+    expect(error).toBeDefined();
   });
 });

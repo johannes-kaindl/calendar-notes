@@ -100,10 +100,10 @@ export default class CalendarNotesPlugin extends Plugin {
         await this.saveSettings();
       },
     });
+    // `deps.busy` (core/sync/busy.ts) wird in `buildSyncDeps` erzeugt und ist bidirektional
+    // mit `executeCommandPlan` geteilt — SyncService braucht dafuer keine gesonderte Wiring
+    // mehr (anders als der fruehere optionale `isBusy?()`).
     this.service = new SyncService(this.deps);
-    // Busy-Guard fuer `executeCommandPlan` (core/sync/execute.ts): `service` existiert erst
-    // NACH `buildSyncDeps`, deshalb hier nachtraeglich gesetzt statt im Host-Objekt.
-    this.deps.isBusy = () => this.service.isRunning();
     this.mailTransports = createMailTransportRegistry();
     this.inviteRouter = new InviteRouter(() => this.mailTransports.list(), this.app);
     this.commandFlow = new CommandFlow(this.app, this.deps, this.inviteRouter, () => this.mailTransports.list());

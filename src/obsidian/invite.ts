@@ -1,5 +1,5 @@
 import { ButtonComponent, FuzzySuggestModal, Modal, Notice, TextAreaComponent, type App } from "obsidian";
-import { buildImip, type ImipMessage } from "../core/commands/imip";
+import { buildImip, type ImipLabels, type ImipMessage } from "../core/commands/imip";
 import type { CommandPlan } from "../core/commands/types";
 import type { Account } from "../core/settings";
 import { t } from "../i18n/strings";
@@ -16,6 +16,18 @@ export interface MailTransport {
 }
 
 export type InviteRoute = "server" | "transport" | "ics";
+
+/** Uebersetzte Labels fuer `buildImip` (core bleibt i18n-frei, s. `imip.ts`). */
+function imipLabels(): ImipLabels {
+  return {
+    invitation: t("invite.label.invitation"),
+    cancellation: t("invite.label.cancellation"),
+    title: t("invite.label.title"),
+    time: t("invite.label.time"),
+    location: t("invite.label.location"),
+    description: t("invite.label.description"),
+  };
+}
 
 interface SenderIdentity {
   id: string;
@@ -127,7 +139,7 @@ export class InviteRouter {
       if (!transport) return; // sollte durch route() ausgeschlossen sein
       const identities = await transport.accounts();
       const send = async (sender: SenderIdentity): Promise<void> => {
-        const msg = buildImip(plan, plan.invite!.method, sender.id, { now: opts.now });
+        const msg = buildImip(plan, plan.invite!.method, sender.id, { now: opts.now, labels: imipLabels() });
         const res = await transport.send(msg);
         if (res.ok) new Notice(t("invite.sent", transport.label));
         else new Notice(t("invite.sendFailed", res.error));
@@ -143,7 +155,7 @@ export class InviteRouter {
     }
 
     const uid = "uid" in plan.target ? plan.target.uid : plan.commandId;
-    const msg = buildImip(plan, plan.invite.method, account.id, { now: opts.now });
+    const msg = buildImip(plan, plan.invite.method, account.id, { now: opts.now, labels: imipLabels() });
     new IcsModal(this.app, msg.ics, uid, opts.notePath).open();
   }
 }
