@@ -115,6 +115,11 @@ export const EN: Record<string, string> = {
   "notice.stateObjectMissing": "No synced version of this note was found — sync the collection first.",
   "notice.unexpected": "Unexpected error in {0}: {1}",
 
+  "op.command": "Command",
+  "op.invite": "Invitation",
+  "op.pushHandEdits": "Write hand edits",
+  "op.undo": "Undo",
+
   "plan.cancel": "Cancel",
   "plan.col.after": "After",
   "plan.col.before": "Before",
@@ -303,6 +308,11 @@ export const DE: Record<string, string> = {
   "notice.secretFailed": "Das Passwort konnte auf diesem Gerät nicht gespeichert werden.",
   "notice.stateObjectMissing": "Keine synchronisierte Version dieser Notiz gefunden — zuerst die Sammlung synchronisieren.",
   "notice.unexpected": "Unerwarteter Fehler bei {0}: {1}",
+
+  "op.command": "Kommando",
+  "op.invite": "Einladung",
+  "op.pushHandEdits": "Handänderungen übertragen",
+  "op.undo": "Rückgängig machen",
 
   "plan.cancel": "Abbrechen",
   "plan.col.after": "Danach",

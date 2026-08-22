@@ -78,7 +78,7 @@ export class CommandFlow {
 
   // ── command-run ──────────────────────────────────────────────────────────
   runOnActiveNote(): void {
-    this.fireAndForget(this.startRun(), "Kommando");
+    this.fireAndForget(this.startRun(), t("op.command"));
   }
 
   private async startRun(): Promise<void> {
@@ -110,7 +110,7 @@ export class CommandFlow {
       new Notice(t("notice.noEnabledCollections"));
       return;
     }
-    new KindCollectionSuggestModal(this.app, enabled, (col) => this.fireAndForget(this.startCreate(col, commandKind), "Kommando"), placeholder).open();
+    new KindCollectionSuggestModal(this.app, enabled, (col) => this.fireAndForget(this.startCreate(col, commandKind), t("op.command")), placeholder).open();
   }
 
   private async startCreate(collection: CollectionConfig, kind: "event" | "contact"): Promise<void> {
@@ -137,7 +137,7 @@ export class CommandFlow {
 
   // ── command-undo ─────────────────────────────────────────────────────────
   undoLast(): void {
-    this.fireAndForget(this.runUndo(false), "Rückgängig machen");
+    this.fireAndForget(this.runUndo(false), t("op.undo"));
   }
 
   private async runUndo(fresh: boolean): Promise<void> {
@@ -150,12 +150,12 @@ export class CommandFlow {
       new Notice(t("notice.noHistory"));
       return;
     }
-    this.openPreview(plan, resolved, () => this.fireAndForget(this.runUndo(true), "Rückgängig machen"));
+    this.openPreview(plan, resolved, () => this.fireAndForget(this.runUndo(true), t("op.undo")));
   }
 
   // ── command-push-hand-edits ──────────────────────────────────────────────
   pushHandEdits(): void {
-    this.fireAndForget(this.runPushHandEdits(false), "Handänderungen übertragen");
+    this.fireAndForget(this.runPushHandEdits(false), t("op.pushHandEdits"));
   }
 
   private async runPushHandEdits(fresh: boolean): Promise<void> {
@@ -170,7 +170,7 @@ export class CommandFlow {
       new Notice(skipped.length > 0 ? t("notice.handEditsSkipped", skipped.map((s) => s.key).join(", ")) : t("notice.handEditsNone"));
       return;
     }
-    this.openPreview(plan, resolved, () => this.fireAndForget(this.runPushHandEdits(true), "Handänderungen übertragen"));
+    this.openPreview(plan, resolved, () => this.fireAndForget(this.runPushHandEdits(true), t("op.pushHandEdits")));
   }
 
   // ── gemeinsame Bausteine ─────────────────────────────────────────────────
@@ -235,7 +235,7 @@ export class CommandFlow {
     try {
       await resyncObject(this.deps, this.deps.settings(), first.collection.id, href);
     } catch (e) {
-      new Notice(t("notice.unexpected", "Kommando", e instanceof Error ? e.message : String(e)));
+      new Notice(t("notice.unexpected", t("op.command"), e instanceof Error ? e.message : String(e)));
       return undefined;
     }
     return this.resolveTarget(file);
@@ -253,7 +253,7 @@ export class CommandFlow {
       new Notice(t("notice.unexpected", descriptor.title, e instanceof Error ? e.message : String(e)));
       return;
     }
-    const onRetry = file ? () => this.fireAndForget(this.retryForm(descriptor, file), "Kommando") : undefined;
+    const onRetry = file ? () => this.fireAndForget(this.retryForm(descriptor, file), t("op.command")) : undefined;
     this.openPreview(plan, { ctx, file, account: ctx.account }, onRetry);
   }
 
@@ -283,7 +283,7 @@ export class CommandFlow {
         if (plan.invite) {
           this.fireAndForget(
             this.inviteRouter.deliver(resolved.account, plan, { now: this.deps.now(), ...(resolved.file ? { notePath: resolved.file.path } : {}) }),
-            "Einladung",
+            t("op.invite"),
           );
         }
       }

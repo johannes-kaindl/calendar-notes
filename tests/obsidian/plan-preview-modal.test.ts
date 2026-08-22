@@ -10,16 +10,21 @@ function plan(diff: CommandPlan["diff"]): CommandPlan {
 }
 
 describe("diffRows", () => {
-  it("passes field/before/after through unchanged", () => {
+  it("translates the field key via fieldLabel and passes before/after through unchanged", () => {
     const rows = diffRows(plan([{ field: "title", before: "Alt", after: "Neu" }]));
-    expect(rows).toEqual([{ field: "title", before: "Alt", after: "Neu" }]);
+    expect(rows).toEqual([{ field: "Title", before: "Alt", after: "Neu" }]);
+  });
+
+  it("humanizes a camelCase field key (e.g. allDay) without an i18n dictionary loaded", () => {
+    const rows = diffRows(plan([{ field: "allDay", before: "false", after: "true" }]));
+    expect(rows).toEqual([{ field: "All day", before: "false", after: "true" }]);
   });
 
   it("shows an em dash for missing before/after values (e.g. a newly-set field)", () => {
     const rows = diffRows(plan([{ field: "location", after: "Büro" }, { field: "url", before: "https://old" }]));
     expect(rows).toEqual([
-      { field: "location", before: "—", after: "Büro" },
-      { field: "url", before: "https://old", after: "—" },
+      { field: "Location", before: "—", after: "Büro" },
+      { field: "Url", before: "https://old", after: "—" },
     ]);
   });
 });

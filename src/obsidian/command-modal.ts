@@ -4,6 +4,7 @@ import type { FieldSchema, ObjectSchema } from "../core/commands/schema";
 import { validateInput } from "../core/commands/schema";
 import type { CommandContext, CommandDescriptor } from "../core/commands/types";
 import { parseContact } from "../core/vcard/contact";
+import { fieldLabel } from "./field-labels";
 import { t } from "../i18n/strings";
 
 /**
@@ -42,13 +43,6 @@ export function initialValuesFor(descriptor: CommandDescriptor, ctx: CommandCont
   return out;
 }
 
-/**
- * Roh-Formularwerte (aus den Setting-Komponenten — Strings fuer Text/TextArea/Dropdown,
- * `boolean` fuer Toggle) auf die vom Schema erwarteten Typen bringen: Zahl parsen, Array aus
- * Zeilen einer TextArea bilden, leere OPTIONALE Felder weglassen (sonst wuerde z. B. ein
- * leeres, nicht ausgefuelltes `end` als ungueltiges Datum durchfallen). Pure — Verdrahtung mit
- * `validateInput` passiert im Modal.
- */
 /** `String(unknown)` faellt bei Objekten auf `[object Object]` zurueck (eslint
  *  `no-base-to-string`) — hier reichen die drei Formular-Wertarten (Text/Zahl/Toggle liefern
  *  String/String/boolean), alles andere wird als leerer String behandelt statt geraten. */
@@ -58,6 +52,13 @@ function scalarToString(v: unknown): string {
   return "";
 }
 
+/**
+ * Roh-Formularwerte (aus den Setting-Komponenten — Strings fuer Text/TextArea/Dropdown,
+ * `boolean` fuer Toggle) auf die vom Schema erwarteten Typen bringen: Zahl parsen, Array aus
+ * Zeilen einer TextArea bilden, leere OPTIONALE Felder weglassen (sonst wuerde z. B. ein
+ * leeres, nicht ausgefuelltes `end` als ungueltiges Datum durchfallen). Pure — Verdrahtung mit
+ * `validateInput` passiert im Modal.
+ */
 export function parseFormValues(schema: ObjectSchema, raw: Record<string, unknown>): Record<string, unknown> {
   const required = new Set(schema.required ?? []);
   const out: Record<string, unknown> = {};
@@ -86,13 +87,6 @@ export function parseFormValues(schema: ObjectSchema, raw: Record<string, unknow
     out[key] = s;
   }
   return out;
-}
-
-function fieldLabel(key: string): string {
-  const translated = t(`form.field.${key}`);
-  if (translated !== `form.field.${key}`) return translated;
-  const spaced = key.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_-]/g, " ");
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase();
 }
 
 interface ContactCandidate {

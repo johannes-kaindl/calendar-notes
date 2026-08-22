@@ -3,11 +3,14 @@ import type { CommandPlan } from "../core/commands/types";
 import type { ExecuteResult } from "../core/sync/execute";
 import { t } from "../i18n/strings";
 import { describeExecuteError } from "./execute-i18n";
+import { fieldLabel } from "./field-labels";
 
-/** Diff-Zeilen fuers Anzeigen — `—` statt `undefined`, damit die Tabelle nie leere Zellen
- *  zeigt. Pure, damit sie ohne Modal/DOM getestet werden kann. */
+/** Diff-Zeilen fuers Anzeigen — Feldname uebersetzt (dieselbe `fieldLabel()` wie im
+ *  Formular, s. `command-modal.ts`, damit `allDay` z. B. auch hier „Ganztägig"/„All day"
+ *  zeigt statt des rohen Schema-Schluessels), `—` statt `undefined` fuer fehlende
+ *  Vorher/Nachher-Werte. Pure, damit sie ohne Modal/DOM getestet werden kann. */
 export function diffRows(plan: CommandPlan): { field: string; before: string; after: string }[] {
-  return plan.diff.map((d) => ({ field: d.field, before: d.before ?? "—", after: d.after ?? "—" }));
+  return plan.diff.map((d) => ({ field: fieldLabel(d.field), before: d.before ?? "—", after: d.after ?? "—" }));
 }
 
 /**
@@ -69,7 +72,7 @@ export class PlanPreviewModal extends Modal {
     try {
       result = await this.onExecute();
     } catch (e) {
-      new Notice(t("notice.unexpected", "Kommando", e instanceof Error ? e.message : String(e)));
+      new Notice(t("notice.unexpected", t("op.command"), e instanceof Error ? e.message : String(e)));
       return;
     }
     if (result.ok) {
@@ -90,7 +93,7 @@ export class PlanPreviewModal extends Modal {
       }
       return;
     }
-    new Notice(t("notice.unexpected", "Kommando", describeExecuteError(result.error)));
+    new Notice(t("notice.unexpected", t("op.command"), describeExecuteError(result.error)));
     this.close();
   }
 }
