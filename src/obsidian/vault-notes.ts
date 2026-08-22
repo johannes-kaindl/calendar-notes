@@ -1,4 +1,4 @@
-import { TFile, type App } from "obsidian";
+import { TFile, getFrontMatterInfo, type App } from "obsidian";
 import type { ExistingNote, NotePlan } from "../core/mirror/plan";
 import type { NoteLookup } from "../core/mirror/apply";
 import type { MappingProfile } from "../core/mirror/profile";
@@ -69,8 +69,10 @@ export class VaultNoteLookup implements NoteLookup {
     for (const path of targets) {
       const file = this.app.vault.getAbstractFileByPath(path);
       if (!(file instanceof TFile)) continue;
-      const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
-      const body = await this.app.vault.cachedRead(file);
+      const cache = this.app.metadataCache.getFileCache(file);
+      const frontmatter = cache?.frontmatter ?? {};
+      const raw = await this.app.vault.cachedRead(file);
+      const body = stripFrontmatter(raw, cache?.frontmatterPosition?.end.offset);
       this.primed.set(path, { path, frontmatter, body });
     }
   }
@@ -114,6 +116,20 @@ async function ensureFolder(app: App, dir: string): Promise<void> {
   }
 }
 
+// Matches "---\n<block>\n---\n" at the very start of a document — dieselbe Form wie
+// DELIM_RE in vendor/kit/frontmatter.ts (Fallback, wenn metadataCache keinen Eintrag hat).
+const FM_DELIM_RE = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*\r?\n?/;
+
+/** Koerper ohne YAML-Frontmatter fuer den M2a-Mirror-Vertrag (`ExistingNote.body`,
+ *  `src/core/mirror/plan.ts`/`body.ts` rechnen NIE mit Frontmatter im Body). Bevorzugt
+ *  `metadataCache.getFileCache(file)?.frontmatterPosition?.end.offset` (Obsidians eigene
+ *  Positionsangabe); ohne Cache-Eintrag Fallback per Regex. */
+function stripFrontmatter(raw: string, end: number | undefined): string {
+  if (end !== undefined) return raw.slice(end).replace(/^\r?\n/, "");
+  const m = FM_DELIM_RE.exec(raw);
+  return m ? raw.slice(m[0].length) : raw;
+}
+
 function fileAt(app: App, path: string): TFile {
   const f = app.vault.getAbstractFileByPath(path);
   if (!(f instanceof TFile)) throw new Error(`Notiz nicht gefunden: ${path}`);
@@ -122,7 +138,7 @@ function fileAt(app: App, path: string): TFile {
 
 /** Fuehrt einen `NotePlan` gegen den Vault aus. `create`/`update`/`archive`/`delete:mark`
  *  gehen ueber `processFrontMatter` (Obsidians eigener atomarer Frontmatter-Schreibpfad),
- *  `delete:trash` ueber `vault.trash`. `skip` tut nichts. */
+ *  `delete:trash` ueber `fileManager.trashFile`. `skip` tut nichts. */
 export function vaultPlanExecutor(app: App): PlanExecutor {
   return {
     async execute(plan: NotePlan): Promise<void> {
@@ -143,7 +159,10 @@ export function vaultPlanExecutor(app: App): PlanExecutor {
           });
           if (plan.body !== undefined) {
             const body = plan.body;
-            await app.vault.process(file, () => body);
+            // `body` (M2a-Vertrag) traegt NIE Frontmatter — die YAML-Zeilen des Ziel-Textes
+            // (frisch geschrieben von `processFrontMatter` oben) muessen erhalten bleiben,
+            // sonst ueberschreibt dieser Call sie stumm.
+            await app.vault.process(file, (data) => data.slice(0, getFrontMatterInfo(data).contentStart) + body);
           }
           return;
         }

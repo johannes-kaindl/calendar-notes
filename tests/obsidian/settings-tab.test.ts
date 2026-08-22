@@ -40,6 +40,7 @@ function fakeHost(settings: PluginSettings): SettingsHost & { saved: PluginSetti
     rand(): number {
       return 0.42;
     },
+    removeState(_source: string): void {},
   };
   return host;
 }
@@ -120,5 +121,40 @@ describe("CalendarNotesSettingTab.getSettingDefinitions", () => {
     const tab = newTab(host);
     expect(tab.getControlValue("sync.pastDays")).toBe(host.settings.sync.pastDays);
     expect(tab.getControlValue("language")).toBe("auto");
+  });
+
+  it("removeState(source) is called for each removed collection when an account is deleted", () => {
+    const removed: string[] = [];
+    const settings = withAccountAndCollections();
+    const host = fakeHost(settings);
+    host.removeState = (source: string) => { removed.push(source); };
+    const tab = newTab(host);
+    // `update()` kommt vom nativen 1.13-Renderer (nicht Teil des Test-Mocks) — hier stubben,
+    // die Methode selbst wird nicht getestet.
+    (tab as unknown as { update(): void }).update = () => {};
+    (tab as unknown as { deleteAccount(id: string): void }).deleteAccount("a1");
+    expect(removed.sort()).toEqual(["a1/c1", "a1/c2"]);
+    expect(host.settings.collections).toEqual([]);
+  });
+
+  it("discovery merge: an existing enabled collection NOT returned by discovery survives with its profileId/enabled", () => {
+    const settings = withAccountAndCollections();
+    const host = fakeHost(settings);
+    const tab = newTab(host);
+    const account = host.settings.accounts[0]!;
+    // Discovery liefert diesmal NUR die Kontakte-Sammlung zurück (der Kalender fehlt, z.B. Timeout) —
+    // der Kalender (c1: enabled, profileId default-event) darf trotzdem nicht verschwinden.
+    (tab as unknown as { mergeDiscoveredCollections(a: typeof account, r: unknown): void }).mergeDiscoveredCollections(account, {
+      principal: "p",
+      collections: [{ href: "https://dav.example/ab/", kind: "addressbook", displayName: "Contacts (renamed)", readOnly: false }],
+      warnings: [],
+    });
+    const survivor = host.settings.collections.find((c) => c.id === "c1");
+    expect(survivor).toBeDefined();
+    expect(survivor?.enabled).toBe(true);
+    expect(survivor?.profileId).toBe("default-event");
+    const updated = host.settings.collections.find((c) => c.id === "c2");
+    expect(updated?.displayName).toBe("Contacts (renamed)");
+    expect(host.settings.collections).toHaveLength(2);
   });
 });

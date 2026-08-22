@@ -16,7 +16,7 @@ export class MemorySecretStore implements SecretStore {
   }
 
   has(id: string): boolean {
-    return this.values.has(id);
+    return (this.values.get(id) ?? "") !== "";
   }
 }
 
@@ -36,7 +36,8 @@ export function obsidianSecretStore(app: App): SecretStore {
       }
     },
     has(id: string): boolean {
-      return app.secretStorage.getSecret(id) !== null;
+      const v = app.secretStorage.getSecret(id);
+      return v !== null && v !== "";
     },
   };
 }

@@ -6,6 +6,7 @@ import type { AttendeeResolver } from "../core/mirror/fields";
 import { fmKeyFor, type MappingProfile } from "../core/mirror/profile";
 import { effectiveProfile, sourceOf, type Account, type PluginSettings } from "../core/settings";
 import type { Notifier, SyncDeps } from "../core/sync/types";
+import { t } from "../i18n/strings";
 import { obsidianSecretStore } from "./secrets";
 import { adapterStateStore } from "./state-store";
 import { obsidianTransport } from "./transport";
@@ -20,6 +21,9 @@ function noticeNotifier(): Notifier {
     },
     warn(msg: string): void {
       new Notice(`⚠ ${msg}`);
+    },
+    handEdited(count: number): void {
+      new Notice(t("notice.handEdited", count));
     },
   };
 }

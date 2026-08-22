@@ -25,6 +25,13 @@ describe("MemorySecretStore", () => {
     expect(s.has("a")).toBe(true);
     expect(s.get("a")).toBe("geheim");
   });
+
+  it("an empty secret counts as missing (has() is false)", () => {
+    const s = new MemorySecretStore();
+    s.set("a", "");
+    expect(s.has("a")).toBe(false);
+    expect(s.get("a")).toBe("");
+  });
 });
 
 describe("obsidianSecretStore", () => {
@@ -41,5 +48,13 @@ describe("obsidianSecretStore", () => {
     const app = fakeApp({ setSecret: () => {} }); // schluckt den Wert stillschweigend
     const s = obsidianSecretStore(app);
     expect(() => s.set("id1", "geheim")).toThrow("Obsidian SecretStorage did not persist id1");
+  });
+
+  it("an empty secret counts as missing (has() is false)", () => {
+    const app = fakeApp();
+    const s = obsidianSecretStore(app);
+    s.set("id1", "");
+    expect(s.has("id1")).toBe(false);
+    expect(s.get("id1")).toBe("");
   });
 });

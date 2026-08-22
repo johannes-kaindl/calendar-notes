@@ -93,10 +93,13 @@ export class SyncService {
     if (this.running) return skipped(collectionId, dryRun, "busy");
     this.running = true;
     try {
+      const startedAt = this.deps.now().toISOString();
       const settings = this.deps.settings();
       const col = settings.collections.find((c) => c.id === collectionId);
       const result = col ? await this.processCollection(col, dryRun) : skipped(collectionId, dryRun, "no-profile");
+      const finishedAt = this.deps.now().toISOString();
       this.notifyHandEdited([result]);
+      this.last = { startedAt, finishedAt, collections: [result] };
       return result;
     } finally {
       this.running = false;
@@ -105,7 +108,7 @@ export class SyncService {
 
   private notifyHandEdited(results: CollectionRunResult[]): void {
     const total = results.reduce((n, r) => n + r.handEdited.length, 0);
-    if (total > 0) this.deps.notify.info(`${total} Notiz(en) mit Hand-Edits gefunden`);
+    if (total > 0) this.deps.notify.handEdited(total);
   }
 
   private async processCollection(col: CollectionConfig, dryRun: boolean): Promise<CollectionRunResult> {
@@ -115,7 +118,7 @@ export class SyncService {
     const profile = effectiveProfile(settings, col);
     if (!account || !profile) return skipped(col.id, dryRun, "no-profile");
     const secret = this.deps.secrets.get(account.secretId);
-    if (secret === null) return skipped(col.id, dryRun, "no-secret");
+    if (secret === null || secret === "") return skipped(col.id, dryRun, "no-secret");
 
     const source = sourceOf(col);
     const state = await this.deps.stateStore.load(source);
@@ -159,7 +162,8 @@ export class SyncService {
         }
       }
       const errorStr = errorStringOf(applyResult.errors, execErrors);
-      const runInfo: RunInfo = { at: now.toISOString(), ok: true, counts: applyResult.counts, ...(errorStr ? { error: errorStr } : {}) };
+      const runOk = applyResult.errors.length === 0 && execErrors.length === 0;
+      const runInfo: RunInfo = { at: now.toISOString(), ok: runOk, counts: applyResult.counts, ...(errorStr ? { error: errorStr } : {}) };
       const newState: CollectionState = withRun(applyResult.state, runInfo);
       await this.deps.stateStore.save(newState);
 
@@ -173,7 +177,7 @@ export class SyncService {
 
       if (errorStr && errorStr !== state.lastRun?.error) this.deps.notify.warn(`${col.displayName}: ${errorStr}`);
 
-      return { collectionId: col.id, ok: true, dryRun: false, plans: applyResult.plans, counts: applyResult.counts, handEdited, strategy: delta.strategy, ...(errorStr ? { error: errorStr } : {}) };
+      return { collectionId: col.id, ok: runOk, dryRun: false, plans: applyResult.plans, counts: applyResult.counts, handEdited, strategy: delta.strategy, ...(errorStr ? { error: errorStr } : {}) };
     } catch (e) {
       const message = errorMessage(e);
       const isNew = message !== state.lastRun?.error;

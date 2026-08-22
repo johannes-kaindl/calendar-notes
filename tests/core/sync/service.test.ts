@@ -114,10 +114,11 @@ function noopLookup(): NoteLookup {
   return { byUid: () => undefined, byPath: () => undefined, exists: () => false, hasBacklinks: () => false };
 }
 
-function collectingNotify(): Notifier & { infos: string[]; warns: string[] } {
+function collectingNotify(): Notifier & { infos: string[]; warns: string[]; handEditedCounts: number[] } {
   const infos: string[] = [];
   const warns: string[] = [];
-  return { infos, warns, info: (m) => infos.push(m), warn: (m) => warns.push(m) };
+  const handEditedCounts: number[] = [];
+  return { infos, warns, handEditedCounts, info: (m) => infos.push(m), warn: (m) => warns.push(m), handEdited: (n) => handEditedCounts.push(n) };
 }
 
 function loggingExecutor(): PlanExecutor & { calls: NotePlan[] } {
@@ -215,6 +216,17 @@ describe("SyncService", () => {
     expect(notify.infos).toEqual([]);
   });
 
+  it("(c2) leeres Secret (\"\") zählt ebenfalls als no-secret, kein Transport-Aufruf", async () => {
+    const col = addressbookCollection("ab1");
+    const settings = baseSettings([col]);
+    const t = addressbookTransport(col);
+    const { deps } = makeDeps(settings, { acc1: t }, { secret: "" });
+    const service = new SyncService(deps);
+    const r = await service.runCollection("ab1");
+    expect(r.skippedReason).toBe("no-secret");
+    expect(t.calls).toEqual([]);
+  });
+
   it("(d) Transport wirft 401 in Sammlung A, Sammlung B läuft durch; warn genau einmal; zweiter Lauf mit gleichem Fehler → keine zweite warn", async () => {
     const colA = addressbookCollection("a");
     const colB = addressbookCollection("b");
@@ -259,6 +271,24 @@ describe("SyncService", () => {
     const r1 = await p1;
     expect(r1.collections[0]!.skippedReason).toBeUndefined();
     expect(service.isRunning()).toBe(false);
+  });
+
+  it("(f) Executor-Fehler markiert RunInfo.ok als false; runCollection() setzt lastResult() mit genau dieser Sammlung", async () => {
+    const col = addressbookCollection("ab1");
+    const settings = baseSettings([col]);
+    const t = addressbookTransport(col);
+    const { deps } = makeDeps(settings, { acc1: t });
+    deps.executor = { execute: async () => { throw new Error("boom"); } };
+    const service = new SyncService(deps);
+    const r = await service.runCollection("ab1");
+    expect(r.ok).toBe(false);
+    expect(r.error).toContain("boom");
+    const state = await deps.stateStore.load("acc1/ab1");
+    expect(state.lastRun?.ok).toBe(false);
+    const last = service.lastResult();
+    expect(last?.collections).toHaveLength(1);
+    expect(last?.collections[0]?.collectionId).toBe("ab1");
+    expect(last?.collections[0]?.ok).toBe(false);
   });
 
   it("disabled collection is skipped", async () => {
@@ -328,7 +358,7 @@ describe("SyncService", () => {
 
     expect(r.plans[0]!.op).toBe("update");
     expect(r.handEdited).toEqual([{ path: "Contacts/A.md", keys: ["title"] }]);
-    expect(notify.infos).toHaveLength(1);
-    expect(notify.infos[0]).toContain("1");
+    expect(notify.handEditedCounts).toEqual([1]);
+    expect(notify.infos).toEqual([]);
   });
 });

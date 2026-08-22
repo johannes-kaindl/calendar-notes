@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { makeFakeApp, TFile } from "../vendor/kit/obsidian-mock";
+import { getFrontMatterInfo } from "../__mocks__/obsidian";
 import { buildNoteIndex, VaultNoteLookup, vaultPlanExecutor } from "../../src/obsidian/vault-notes";
 import { defaultContactProfile } from "../../src/core/mirror/profile";
+import { userContent } from "../../src/core/mirror/body";
 import type { NotePlan } from "../../src/core/mirror/plan";
 
 const p = defaultContactProfile(); // uidField dav_uid, sourceField dav_source, recurrenceIdField dav_recurrence_id
@@ -80,7 +82,109 @@ describe("VaultNoteLookup", () => {
   });
 });
 
+describe("VaultNoteLookup.prime() strips frontmatter from the body (M2a-Vertrag: ExistingNote.body ist frontmatter-frei)", () => {
+  it("byPath().body excludes the YAML block, keeping only the user content", async () => {
+    const raw = "---\ndav_uid: u1\ndav_source: acc/kon\n---\nHello world\n";
+    const app = makeFakeApp();
+    const file = Object.assign(new TFile("Contacts/A.md"), { __body: raw });
+    app.vault.getMarkdownFiles.mockReturnValue([file]);
+    app.vault.getAbstractFileByPath.mockImplementation((path: string) => (path === file.path ? file : null));
+    app.vault.cachedRead.mockImplementation(() => Promise.resolve(raw));
+    const info = getFrontMatterInfo(raw);
+    app.metadataCache.getFileCache.mockImplementation(() => ({
+      frontmatter: { dav_uid: "u1", dav_source: "acc/kon" },
+      frontmatterPosition: { start: { line: 0, col: 0, offset: 0 }, end: { line: 2, col: 3, offset: info.contentStart } },
+    }));
+    const lookup = new VaultNoteLookup(app, p);
+    await lookup.prime();
+    expect(lookup.byPath("Contacts/A.md")?.body).toBe("Hello world\n");
+  });
+
+  it("without a frontmatterPosition (no cache entry), falls back to stripping the --- block via regex", async () => {
+    const raw = "---\ndav_uid: u1\ndav_source: acc/kon\n---\nHello world\n";
+    const app = makeFakeApp();
+    const file = Object.assign(new TFile("Contacts/A.md"), { __body: raw });
+    app.vault.getMarkdownFiles.mockReturnValue([file]);
+    app.vault.getAbstractFileByPath.mockImplementation((path: string) => (path === file.path ? file : null));
+    app.vault.cachedRead.mockImplementation(() => Promise.resolve(raw));
+    app.metadataCache.getFileCache.mockImplementation(() => ({ frontmatter: { dav_uid: "u1", dav_source: "acc/kon" } }));
+    const lookup = new VaultNoteLookup(app, p);
+    await lookup.prime();
+    expect(lookup.byPath("Contacts/A.md")?.body).toBe("Hello world\n");
+  });
+
+  it("prime() + userContent(): a note with only a dav block and no user text yields empty user content (delete:trash bleibt erreichbar)", async () => {
+    const raw = "---\ndav_uid: u1\ndav_source: acc/kon\n---\n%% dav:begin %%\nsome managed content\n%% dav:end %%\n";
+    const app = makeFakeApp();
+    const file = Object.assign(new TFile("Contacts/A.md"), { __body: raw });
+    app.vault.getMarkdownFiles.mockReturnValue([file]);
+    app.vault.getAbstractFileByPath.mockImplementation((path: string) => (path === file.path ? file : null));
+    app.vault.cachedRead.mockImplementation(() => Promise.resolve(raw));
+    const info = getFrontMatterInfo(raw);
+    app.metadataCache.getFileCache.mockImplementation(() => ({
+      frontmatter: { dav_uid: "u1", dav_source: "acc/kon" },
+      frontmatterPosition: { start: { line: 0, col: 0, offset: 0 }, end: { line: 2, col: 3, offset: info.contentStart } },
+    }));
+    const lookup = new VaultNoteLookup(app, p);
+    await lookup.prime();
+    const note = lookup.byPath("Contacts/A.md")!;
+    expect(userContent(note.body)).toBe("");
+  });
+});
+
 interface Call { fn: string; args: unknown[] }
+
+/** In-memory Datei-Inhalt (String, inkl. Frontmatter), damit `processFrontMatter` UND
+ *  `vault.process` gegen denselben Text arbeiten — genau die Reihenfolge, die im echten
+ *  Vault auch passiert (`processFrontMatter` schreibt zuerst die YAML, `vault.process`
+ *  darf sie danach nicht verlieren). */
+function fileVaultApp(initialContent: Record<string, string>): { app: any; contents: Map<string, string> } {
+  const contents = new Map(Object.entries(initialContent));
+  const files = new Map(Object.keys(initialContent).map((path) => [path, new TFile(path)]));
+  const app: any = {
+    vault: {
+      getAbstractFileByPath: (p: string) => files.get(p) ?? null,
+      process: async (file: TFile, fn: (d: string) => string) => {
+        const cur = contents.get(file.path) ?? "";
+        const out = fn(cur);
+        contents.set(file.path, out);
+        return out;
+      },
+    },
+    fileManager: {
+      processFrontMatter: async (file: TFile, fn: (fm: Record<string, unknown>) => void) => {
+        const cur = contents.get(file.path) ?? "";
+        const info = getFrontMatterInfo(cur);
+        const fm: Record<string, unknown> = {};
+        if (info.exists) {
+          for (const line of info.frontmatter.split("\n")) {
+            const m = /^([\w.-]+):\s*(.*)$/.exec(line);
+            if (m) fm[m[1]!] = m[2];
+          }
+        }
+        fn(fm);
+        const yaml = Object.entries(fm).map(([k, v]) => `${k}: ${String(v)}`).join("\n");
+        const body = cur.slice(info.contentStart);
+        contents.set(file.path, `---\n${yaml}\n---\n${body}`);
+      },
+    },
+  };
+  return { app, contents };
+}
+
+describe("vaultPlanExecutor update: body-only Overwrite darf die eben geschriebene Frontmatter nicht verlieren", () => {
+  it("keeps the (new) frontmatter and writes the new body", async () => {
+    const initial = "---\ndav_uid: u1\ndav_etag: old\n---\nold body\n";
+    const { app, contents } = fileVaultApp({ "Contacts/A.md": initial });
+    const executor = vaultPlanExecutor(app);
+    const plan: NotePlan = { op: "update", path: "Contacts/A.md", uid: "u1", set: { dav_etag: "new" }, unset: [], body: "new body\n", written: {}, hash: "h", handEdited: [] };
+    await executor.execute(plan);
+    const finalText = contents.get("Contacts/A.md")!;
+    expect(finalText).toContain("dav_etag: new");
+    expect(finalText.endsWith("new body\n")).toBe(true);
+    expect(finalText).not.toContain("old body");
+  });
+});
 
 function loggingApp(opts: { existing?: Record<string, unknown> } = {}): { app: any; calls: Call[] } {
   const calls: Call[] = [];

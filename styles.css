@@ -1,0 +1,5 @@
+.calendar-notes-json-textarea {
+  width: 100%;
+  min-height: 16em;
+  font-family: var(--font-monospace);
+}

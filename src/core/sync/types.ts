@@ -18,6 +18,10 @@ import type { Transport } from "../dav/types";
 export interface Notifier {
   info(msg: string): void;
   warn(msg: string): void;
+  /** Strukturierter Ruf statt eines fertig formatierten Strings: `src/core/**` darf keine
+   *  deutschsprachigen Literale enthalten (kein i18n-Import, `check:pure`). Der Aufrufer
+   *  (`plugin-host.ts`) formatiert mit `t("notice.handEdited", count)`. */
+  handEdited(count: number): void;
 }
 
 export interface SecretStore {

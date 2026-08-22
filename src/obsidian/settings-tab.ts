@@ -19,7 +19,7 @@ import {
 } from "obsidian";
 import type { DiscoveryResult } from "../core/dav/discovery";
 import { defaultEventProfile, validateProfile, type MappingProfile } from "../core/mirror/profile";
-import { newId, type Account, type CollectionConfig, type PluginSettings } from "../core/settings";
+import { newId, secretIdFor, sourceOf, type Account, type CollectionConfig, type PluginSettings } from "../core/settings";
 import type { RunInfo } from "../core/state/collection-state";
 import { t } from "../i18n/strings";
 import { FolderSuggest } from "../vendor/kit-obsidian/folder-suggest";
@@ -38,6 +38,10 @@ export interface SettingsHost {
   preview(): void;
   status(collectionId: string): { lastRun?: RunInfo; running: boolean };
   rand(): number;
+  /** Entfernt den gespeicherten Sync-Zustand einer Sammlung (`state/<source>.json`) —
+   *  gebraucht beim Konto-Löschen, damit ein spaeter neu angelegtes Konto mit gleicher
+   *  Sammlung nicht auf verwaisten Snapshot/Verlauf trifft. */
+  removeState(source: string): void;
 }
 
 const COLLECTION_KEY = /^collections\.([^.]+)\.(enabled|profileId)$/;
@@ -99,7 +103,7 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
 
   private addAccount(): void {
     const id = newId("acc", () => this.host.rand());
-    const account: Account = { id, name: t("settings.accounts.newAccountDefaultName"), baseUrl: "", username: "", secretId: `calendar-notes-${id}` };
+    const account: Account = { id, name: t("settings.accounts.newAccountDefaultName"), baseUrl: "", username: "", secretId: secretIdFor(id) };
     this.host.settings = { ...this.host.settings, accounts: [...this.host.settings.accounts, account] };
     void this.host.saveSettings();
     this.update();
@@ -108,8 +112,10 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
   private deleteAccount(id: string): void {
     const s = this.host.settings;
     const account = s.accounts.find((a) => a.id === id);
+    const removedCollections = s.collections.filter((c) => c.accountId === id);
     this.host.settings = { ...s, accounts: s.accounts.filter((a) => a.id !== id), collections: s.collections.filter((c) => c.accountId !== id) };
     void this.host.saveSettings();
+    for (const c of removedCollections) this.host.removeState(sourceOf(c));
     // SecretStore/SecretStorage kennt keine echte "delete"-Operation (nur get/set/has) —
     // best-effort mit leerem Wert ueberschreiben, statt so zu tun, als waere entfernt worden.
     if (account) {
@@ -137,7 +143,9 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
     const s = this.host.settings;
     const existingByHref = new Map(s.collections.filter((c) => c.accountId === account.id).map((c) => [c.href, c]));
     const merged: CollectionConfig[] = [];
+    const seenHrefs = new Set<string>();
     for (const dc of result.collections) {
+      seenHrefs.add(dc.href);
       const prev = existingByHref.get(dc.href);
       if (prev) {
         merged.push({ ...prev, displayName: dc.displayName, readOnly: dc.readOnly, ...(dc.ctag ? { ctag: dc.ctag } : {}), ...(dc.syncToken ? { syncToken: dc.syncToken } : {}) });
@@ -146,13 +154,17 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
         merged.push({ id: newId("col", () => this.host.rand()), accountId: account.id, href: dc.href, kind: dc.kind, displayName: dc.displayName, enabled: false, profileId, readOnly: dc.readOnly });
       }
     }
+    // Sammlungen dieses Kontos, die die Discovery diesmal NICHT zurueckgab (Server-seitig
+    // temporaer weg, Timeout, Filter) bleiben unveraendert bestehen — sonst verliert eine
+    // aktivierte Sammlung stillschweigend ihre Konfiguration (enabled/profileId/folderOverride).
+    const keptExisting = s.collections.filter((c) => c.accountId === account.id && !seenHrefs.has(c.href));
     const untouched = s.collections.filter((c) => c.accountId !== account.id);
     const accounts = s.accounts.map((a) =>
       a.id === account.id
         ? { ...a, principal: result.principal, ...(result.calendarHome ? { calendarHome: result.calendarHome } : {}), ...(result.addressbookHome ? { addressbookHome: result.addressbookHome } : {}) }
         : a,
     );
-    this.host.settings = { ...s, accounts, collections: [...untouched, ...merged] };
+    this.host.settings = { ...s, accounts, collections: [...untouched, ...merged, ...keptExisting] };
     void this.host.saveSettings();
   }
 
@@ -203,7 +215,7 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
     if (!run) return t("settings.collections.status.never");
     if (!run.ok || run.error) return t("settings.collections.status.error", run.error ?? "?");
     const n = run.counts;
-    return t("settings.collections.status.ok", n.created, n.updated, n.archived, n.deleted, n.errors);
+    return t("settings.collections.status.ok", n.created, n.updated, n.archived, n.deleted, n.skipped, n.errors);
   }
 
   private updateCollection(id: string, patch: Partial<CollectionConfig>): void {

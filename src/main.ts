@@ -125,6 +125,7 @@ export default class CalendarNotesPlugin extends Plugin {
       preview: () => this.fireAndForget(this.previewSync(), "Vorschau"),
       status: (collectionId) => ({ lastRun: this.lastRunCache.get(collectionId), running: this.service.isRunning() }),
       rand: () => Math.random(),
+      removeState: (source) => this.fireAndForget(this.deps.stateStore.remove(source), "State entfernen"),
     };
     // `settings` lebt im Plugin (Kommandos/Sync-Deps lesen es dort); der Tab schreibt ueber den
     // Host — beide Sichten zeigen auf dasselbe Objekt, ohne this-Alias im Host.
@@ -139,7 +140,7 @@ export default class CalendarNotesPlugin extends Plugin {
 
   private async discoverAccount(account: Account): Promise<DiscoveryResult> {
     const password = this.secrets.get(account.secretId);
-    if (password === null) throw new Error(t("notice.secretFailed"));
+    if (password === null) throw new Error(t("notice.noSecret"));
     const transport = withBasicAuth(obsidianTransport({ timeoutMs: this.settings.sync.requestTimeoutMs }), account.username, password);
     return discover(transport, account.baseUrl);
   }
@@ -196,7 +197,8 @@ export default class CalendarNotesPlugin extends Plugin {
   private scheduleStartupSync(): void {
     this.app.workspace.onLayoutReady(() => {
       if (!this.settings.collections.some((c) => c.enabled)) return;
-      window.setTimeout(() => this.fireAndForget(this.runAll(), "Sync"), this.settings.sync.startupDelaySeconds * 1000);
+      const id = window.setTimeout(() => this.fireAndForget(this.runAll(), "Sync"), this.settings.sync.startupDelaySeconds * 1000);
+      this.register(() => window.clearTimeout(id));
     });
   }
 }
