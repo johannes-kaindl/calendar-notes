@@ -38,3 +38,12 @@ CalDAV-Termine und CardDAV-Kontakte als Notiz-Spiegel; der Server ist die Wahrhe
 - Auslöser: Start-Verzögerung (`onLayoutReady`), Intervall (Mobil vs. Desktop), Neusetzung bei Settings-Änderung
 - Manueller Smoke: `OBSIDIAN_PLUGIN_DIR=<staging-vault>/.obsidian/plugins/calendar-notes npm run deploy`, Radicale via `npx esbuild scripts/dav-server.ts --bundle --platform=node --format=esm --outfile=scripts/.dav-server.mjs && node scripts/.dav-server.mjs`, Staging-Vault `~/StagingVaults/calendar-notes`, Anleitung `docs/smoke/2026-08-22-m2b-manual.md`
 - 191 Unit-Tests + 4 Integration-Tests (0 Warnings)
+
+## Was M3 liefert
+- Adoptions-Ablauf: Kommando `adopt-collection` + Settings-Button „Bestehende Notizen verknüpfen…" → Review-Modal (Tabelle mit Matching-Grund und Konfidenz, Dropdown je Zeile für `link|skip|create`, Button „Alle sicheren übernehmen") → Verknüpfung schreibt nur nach Bestätigung (`uidField`/`sourceField`/`etagField`/`stateField:live` setzen, Notiz in Sammlungs-State eintragen); Kandidaten = Notizen im Profil-Ordner ohne `uidField`, später erster Sync aktualisiert statt neu anzulegen
+- Profil-Ableitungs-Modul (`src/core/mirror/profile-from-note.ts`): Case-insensitives Mapping aus beliebigen Frontmatter-Keys (`organisation→org`, `mobil→tel_cell` u.a.) mit Heuristik-Synonymen; Kommando `profile-from-note` auf aktiver Notiz → Profil in Settings anlegen → Notice mit mapped/unmapped
+- Matching-Regeln (E-Mail exakt → Telefon normalisiert E.164 → Name fuzzy bis Konfidenz-Schwelle; Termine: Start exakt + Titel-Ähnlichkeit) mit `sure/likely/weak`-Stufen (`src/core/adopt/match.ts`, `src/core/adopt/phone.ts`)
+- Staging-Vault-Fixture (`fixtures/vault/`) mit Pallas-ähnlicher Struktur (Kontakte + Termine mit echten Feldmustern) und Default-Profil-Vorlage, über `npm run smoke:gui -- --setup|--section generic|pallas` abrufbar
+- GUI-Smoke-Treiber (`scripts/gui-smoke.ts`, zentrale CDP-Brücke via `../../tools/obsidian-cdp/`) mit Prüfpunkten P1–P9 (Laden, Discovery, Adoption, Sync, Updates, Löschung, Discovery-Stabilität, Settings-UI nur mit `--focus`); Baseline `docs/smoke/baseline-2026-08-22.md`
+- Vault-Open-Helfer für CDP-Treiber: `window.electron.ipcRenderer.sendSync('vault-open', dir, false)` per beliebiges Fenster; Treiber wartet bis `readyState==="complete"` oder bricht mit Anleitung ab
+- 277 Unit-Tests + 4 Integration-Tests (0 Warnings)

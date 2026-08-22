@@ -41,8 +41,8 @@ export function nameSimilarity(a: string, b: string): number   // 0..1, case-/di
 ```
 Regeln: Kontakt-Notiz-Werte aus Frontmatter über die Profil-Feldnamen (`fmKeyFor(profile,"email")`, `tel_cell/tel_home/tel_work`) **und** zusätzlich aus üblichen Keys (`email`, `mail`, `telefon`, `mobil`, `phone`, `tel`) — Adoption läuft vor dem ersten Sync, die Notizen sind handgemacht. Reihenfolge: exakte E-Mail (case-insensitiv, alle E-Mails des vCards) → `sure`; Telefon (normalisiert, alle Tels) → `sure`; Name (`fn` vs basename/`title`/`aliases`) ≥ threshold → `likely` (≥ 0.95 → `sure`), 0.7–threshold → `weak`. Termine: `start` gleich (ISO-Vergleich auf Minute; `termin_start`/`start`/`datum`+`uhrzeit` akzeptieren) **und** Titel-Ähnlichkeit ≥ 0.6 → `likely`; nur Start gleich → `weak`. Jede Notiz und jeder Item höchstens einmal (beste Konfidenz gewinnt; Ties → Item-Reihenfolge).
 
-- [ ] Tests: E-Mail-Treffer, Telefon-Treffer (`+49 171 1234567` vs `0171/1234567`), Name-fuzzy („Dr. Florian Brandes" vs „Florian Brandes"), Termin start+title, Notiz mit uidField wird nicht Kandidat, Notiz außerhalb des Ordners nicht, Eindeutigkeit (zwei Items, eine Notiz → nur bester), `nameSimilarity` Grenzfälle (leer, Umlaute/Akzente).
-- [ ] Implementieren; Commit `feat(adopt): Matching E-Mail → Telefon → Name / Start+Titel (pure)`.
+- [x] Tests: E-Mail-Treffer, Telefon-Treffer (`+49 171 1234567` vs `0171/1234567`), Name-fuzzy („Dr. Florian Brandes" vs „Florian Brandes"), Termin start+title, Notiz mit uidField wird nicht Kandidat, Notiz außerhalb des Ordners nicht, Eindeutigkeit (zwei Items, eine Notiz → nur bester), `nameSimilarity` Grenzfälle (leer, Umlaute/Akzente).
+- [x] Implementieren; Commit `feat(adopt): Matching E-Mail → Telefon → Name / Start+Titel (pure)`.
 
 ---
 
@@ -57,8 +57,8 @@ export interface LinkPlan { path: string; set: Record<string, FmVal> }   // uidF
 export function planAdoption(decisions: AdoptDecision[], profile: MappingProfile, source: string): { links: LinkPlan[]; createUids: string[]; skippedUids: string[] }
 export function stateAfterAdoption(state: CollectionState, links: LinkPlan[], items: ServerItem[], now: Date): CollectionState   // upsertObject je verknüpftem Item mit notePath, written = {} (leer → erster Sync schreibt alles und meldet KEINE handEdited, weil prevWritten leer), hash ""
 ```
-- [ ] Tests: link → set-Keys korrekt; skip/create Listen; `stateAfterAdoption` trägt `notes[""].path` ein und behält Snapshot.
-- [ ] Commit `feat(adopt): Adoptionsplan + State-Eintrag`.
+- [x] Tests: link → set-Keys korrekt; skip/create Listen; `stateAfterAdoption` trägt `notes[""].path` ein und behält Snapshot.
+- [x] Commit `feat(adopt): Adoptionsplan + State-Eintrag`.
 
 ---
 
@@ -71,8 +71,8 @@ export function stateAfterAdoption(state: CollectionState, links: LinkPlan[], it
 export function suggestProfileFromNote(kind: ProfileKind, frontmatter: Record<string, unknown>, opts: { folder: string; name: string; rand: () => number }): { profile: MappingProfile; mapped: Record<string,string>; unmapped: string[] }
 ```
 Heuristik (case-insensitiv, Synonyme de/en): contact: `email|e-mail|mail→email`, `mobil|mobile|handy|phone_mobile→tel_cell`, `telefon|phone|tel|festnetz→tel_home`, `phone_work|telefon_arbeit|work_phone→tel_work`, `organisation|organization|org|firma|company→org`, `rolle|job_title|title(job)|position→title`, `website|url|web|homepage→url`, `adresse|address|anschrift→adr`, `geburtstag|birthday|bday→bday`, `name|title|fn→fn`; event: `termin_start|start|beginn|datum→start`, `termin_ende|end|ende→end`, `ort|location→location`, `online→online`, `teilnehmer|attendees→attendees`, `url|link→url`, `title|titel→title`, `status→status`. `onCreate` = `type` (wenn vorhanden) + `status` + `up` aus der Notiz übernehmen (Werte verbatim), `uidField` bleibt Default (`dav_uid`), **außer** die Notiz trägt `vcard_uid`/`ical_uid`/`uid` → dann dieses Feld als `uidField`. Identitäts-Kollisionen vermeiden (`validateProfile` muss `ok` sein — Test).
-- [ ] Tests: Pallas-Kontakt-Frontmatter (aus Spec: `organisation/rolle/email/telefon/mobil/adresse/vcard_uid/type/status/up`) → erwartete Zuordnung; Pallas-Termin (`termin_start/termin_ende/ort/online/teilnehmer/type`) ; unbekannte Keys in `unmapped`; Ergebnis validiert.
-- [ ] Commit `feat(mirror): Profil aus Beispielnotiz ableiten`.
+- [x] Tests: Pallas-Kontakt-Frontmatter (aus Spec: `organisation/rolle/email/telefon/mobil/adresse/vcard_uid/type/status/up`) → erwartete Zuordnung; Pallas-Termin (`termin_start/termin_ende/ort/online/teilnehmer/type`) ; unbekannte Keys in `unmapped`; Ergebnis validiert.
+- [x] Commit `feat(mirror): Profil aus Beispielnotiz ableiten`.
 
 ---
 
@@ -89,8 +89,8 @@ export async function loadServerItems(deps: AdoptDeps, settings: PluginSettings,
 export class AdoptionModal extends Modal { constructor(app, input: { suggestions: AdoptionSuggestion[]; unmatchedItems: ServerItem[]; unmatchedNotes: CandidateNote[]; profile: MappingProfile }, onConfirm: (decisions: AdoptDecision[]) => Promise<void>) }
 ```
 Modal: Kopf mit Zählern; Tabelle (Notiz · Server-Eintrag · Grund/Konfidenz · Aktion-Dropdown `link|skip|create` — Default `link` bei sure/likely, `skip` bei weak); Button „Alle sicheren übernehmen" (setzt `link` für `sure`), „Verknüpfen" (ruft onConfirm), „Abbrechen". Nicht gematchte Items: Hinweis „n neue Notizen entstehen beim nächsten Sync"; nicht gematchte Notizen: Hinweis „bleiben unberührt". `onConfirm` in main.ts: `planAdoption` → je Link `processFrontMatter` (set) → `stateAfterAdoption` → `stateStore.save` → Notice. Kommando `profile-from-note`: aktive Notiz → Kind wählen (Suggester contact/event) → `suggestProfileFromNote` → Profil in Settings anlegen → Notice mit mapped/unmapped; Settings-Tab aktualisieren.
-- [ ] Tests: `loadServerItems` mit Fake-Transport (Radicale-Fixtures) liefert 3 Events + 2 Kontakte; Modal: `collectDecisions()` pure Helfer (Default-Aktionen) getestet; main.ts-Verdrahtung im Smoke.
-- [ ] Commit `feat(obsidian): Adoption — Server-Einträge mit bestehenden Notizen verknüpfen (Modal) + Profil aus Notiz`.
+- [x] Tests: `loadServerItems` mit Fake-Transport (Radicale-Fixtures) liefert 3 Events + 2 Kontakte; Modal: `collectDecisions()` pure Helfer (Default-Aktionen) getestet; main.ts-Verdrahtung im Smoke.
+- [x] Commit `feat(obsidian): Adoption — Server-Einträge mit bestehenden Notizen verknüpfen (Modal) + Profil aus Notiz`.
 
 ---
 
@@ -98,8 +98,8 @@ Modal: Kopf mit Zählern; Tabelle (Notiz · Server-Eintrag · Grund/Konfidenz ·
 
 **Files:** Create `fixtures/vault/notes/**`, `fixtures/vault/obsidian/{app.json,appearance.json,core-plugins.json,community-plugins.json}`, `fixtures/vault/README.md`
 Inhalt `notes/`: `Welcome.md`; Pallas-Struktur: `Pallas/50_Ressourcen/10_Reference/10_Kontakte/Alex Aguado.md` (Frontmatter wie Spec-Beispiel: `type: 👤 Kontakt`, `status: 3-evergreen 🌿`, `telefon: +34 696 386 907`, `vcard_uid: a4843c7a6d3005dd`, leere `email`), `…/10_Kontakte/ADAC.md` (Organisation, kein Server-Pendant), `Pallas/30_Chronos/70_Termine/10_Anstehend/2026-09-01 Zahnärztin.md` (`type: 📅 Termin`, `termin_start: 2026-09-01 10:00`, freier Body „Vorbereitung: Karte mitbringen"); generische Struktur: `Contacts/`, `Events/` leer (`.gitkeep` via Notiz `Contacts/_index.md`). `obsidian/`: `community-plugins.json` `["calendar-notes"]`, `app.json` `{ "promptDelete": false, "alwaysUpdateLinks": true, "showFrontmatter": true }`, `appearance.json` `{ "baseFontSize": 16 }`, `core-plugins.json` wie 3d-codeblocks-Fixture (`file-explorer`, `global-search`, `command-palette`, `page-preview`, `switcher`).
-- [ ] README: was das Fixture zeigt; `docs/images/fixture` ist hier **nicht** der Ort — `fixtures/vault` (Smoke-Fixture; `readme-shots` später dieselbe Quelle).
-- [ ] Commit `test(fixture): Staging-Vault-Fixture (Pallas-ähnlich + generisch)`.
+- [x] README: was das Fixture zeigt; `docs/images/fixture` ist hier **nicht** der Ort — `fixtures/vault` (Smoke-Fixture; `readme-shots` später dieselbe Quelle).
+- [x] Commit `test(fixture): Staging-Vault-Fixture (Pallas-ähnlich + generisch)`.
 
 ---
 
@@ -118,14 +118,14 @@ Ablauf: Args `--port 9222`, `--vault calendar-notes`, `--keep`, `--focus`, `--se
   - **P8 Settings-UI (nur `--focus`):** Settings-Fenster öffnen (`attachTo("settings")`), Tab `calendar-notes`, DOM enthält Konto-Unterseite + SecretComponent (`.setting-item` mit Passwort-Label) + Discovery-Button; Screenshot nach `docs/smoke/shots/` (gitignored).
   - **P9 Notices:** `notices(cdp)` nach P5 enthält keine Fehler.
   `finally`: Radicale stoppen, Notizen/State im Staging-Vault zurücksetzen (außer `--keep`).
-- [ ] `npm run typecheck:scripts` grün; Lauf gegen das laufende Obsidian: `npm run smoke:gui -- --section generic` und `-- --section pallas`; Ergebnis in `docs/smoke/baseline-2026-08-22.md` (Baseline) — **Wenn kein Obsidian mit Debug-Port läuft oder das Fenster fehlt und nicht geöffnet werden kann: Treiber meldet das klar; der Implementierer dokumentiert den Stand und bricht nicht ab.**
-- [ ] Commit `test(gui-smoke): Treiber gegen laufendes Obsidian (P1–P9) + Baseline`.
+- [x] `npm run typecheck:scripts` grün; Lauf gegen das laufende Obsidian: `npm run smoke:gui -- --section generic` und `-- --section pallas`; Ergebnis in `docs/smoke/baseline-2026-08-22.md` (Baseline) — **Wenn kein Obsidian mit Debug-Port läuft oder das Fenster fehlt und nicht geöffnet werden kann: Treiber meldet das klar; der Implementierer dokumentiert den Stand und bricht nicht ab.**
+- [x] Commit `test(gui-smoke): Treiber gegen laufendes Obsidian (P1–P9) + Baseline`.
 
 ---
 
 ### Task 7: Abschluss M3 — Gate, Doku, Plan-Checkboxen, CORE-TEST-02-Zählung (Hinweis für Dach)
 
-- [ ] `npm run gate && npm run test:integration`; CHANGELOG (M3), AGENTS.md („Was M3 liefert": Adoption, Profil-aus-Notiz, `npm run smoke:gui`, Fixture), `docs/registry-kandidaten.md` (+ Adoption-Matching, + Vault-Open-Helfer), Plan-Checkboxen; Commit `docs: M3 abgeschlossen`.
+- [x] `npm run gate && npm run test:integration`; CHANGELOG (M3), AGENTS.md („Was M3 liefert": Adoption, Profil-aus-Notiz, `npm run smoke:gui`, Fixture), `docs/registry-kandidaten.md` (+ Adoption-Matching, + Vault-Open-Helfer), Plan-Checkboxen; Commit `docs: M3 abgeschlossen`.
 
 ## Self-Review
 - Spec §4 Adoption (Kandidaten, Match-Reihenfolge, Review-Modal, nur Bestätigung schreibt, Unmatched unberührt, nie Server-Einträge aus Notizen) → T1, T2, T4 ✓; „Profil aus Notiz" → T3/T4 ✓; §6.3 Staging-Vault + GUI-Smoke + Baseline → T5, T6 ✓.
