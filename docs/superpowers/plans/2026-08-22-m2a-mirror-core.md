@@ -54,7 +54,7 @@ export function identityKeys(p: MappingProfile): string[]     // [uidField, sour
 export function managedKeys(p: MappingProfile): string[]      // identityKeys ∪ alle nicht-null fields-Werte (dedupliziert, Reihenfolge: identity zuerst)
 ```
 
-- [ ] **Step 1: Tests**
+ - [x] **Step 1: Tests**
 
 `tests/core/mirror/profile.test.ts`:
 ```ts
@@ -128,9 +128,9 @@ describe("validateProfile", () => {
 });
 ```
 
-- [ ] **Step 2: Rot sehen** — `npx vitest run tests/core/mirror/profile.test.ts` → FAIL.
+ - [x] **Step 2: Rot sehen** — `npx vitest run tests/core/mirror/profile.test.ts` → FAIL.
 
-- [ ] **Step 3: Implementieren**
+ - [x] **Step 3: Implementieren**
 
 `src/core/mirror/profile.ts`:
 ```ts
@@ -234,7 +234,7 @@ export function validateProfile(p: unknown): { ok: true; profile: MappingProfile
 }
 ```
 
-- [ ] **Step 4: Grün + Commit** — `npx vitest run tests/core/mirror && npm run check:pure`; `git commit -m "feat(mirror): Mapping-Profile — Typ, Defaults, Validierung, Key-Auflösung"`.
+ - [x] **Step 4: Grün + Commit** — `npx vitest run tests/core/mirror && npm run check:pure`; `git commit -m "feat(mirror): Mapping-Profile — Typ, Defaults, Validierung, Key-Auflösung"`.
 
 ---
 
@@ -257,7 +257,7 @@ export function isOnline(e: Pick<EventData,"location"|"url">): boolean
 ```
 Regeln: `contactValues`: `fn`, `given`/`family` aus `n`, `nickname`, `email` = primaryEmail, `email_home`/`email_work` = erste mit Typ, `tel_cell`/`tel_home`/`tel_work` = primaryTel(kind), `org` = org.join(" / "), `title`, `role`, `url` = erste URL, `adr` = formatAddress(pref ?? erste), `bday`, `note`, `categories` (Array oder null wenn leer), `photo` = `"vorhanden"` wenn data/uri, sonst null. `eventValues`: `title`=summary, `start`, `end`, `allday`, `tzid`, `location`, `url`, `online`=isOnline, `description`, `status`, `rrule`, `attendees` = Array aus `"[[path|Name]]"` (aufgelöst) bzw. `"Name <email>"`/`"email"`, `organizer` analog (String), `categories`, `last_modified`. `isOnline`: location oder url enthält `https?://` **oder** eines von `zoom|meet\.|teams|jitsi|webex|bbb` (case-insensitiv).
 
-- [ ] **Step 1: Tests**
+ - [x] **Step 1: Tests**
 
 `tests/core/mirror/fields.test.ts`:
 ```ts
@@ -330,7 +330,7 @@ describe("toFrontmatter", () => {
 });
 ```
 
-- [ ] **Step 2: Rot sehen**, **Step 3: Implementieren**
+ - [x] **Step 2: Rot sehen**, **Step 3: Implementieren**
 
 `src/core/mirror/fields.ts`:
 ```ts
@@ -396,7 +396,7 @@ export function toFrontmatter(values: ManagedValues, p: MappingProfile): { set: 
 }
 ```
 
-- [ ] **Step 4: Grün + Commit** — `feat(mirror): verwaltete Werte aus Kontakt/Termin + Attendee-Wikilinks + Profil-Mapping`.
+ - [x] **Step 4: Grün + Commit** — `feat(mirror): verwaltete Werte aus Kontakt/Termin + Attendee-Wikilinks + Profil-Mapping`.
 
 ---
 
@@ -418,7 +418,7 @@ export function userContent(body: string): string            // before + after, 
 Regeln `mergeBody`: `mode:"none"` → `existing` unverändert. Marker vorhanden → Inhalt ersetzen; leerer `block` → Marker + Inhalt komplett entfernen (inkl. genau einer umgebenden Leerzeile, wenn vorhanden). Keine Marker und `block` nicht leer → an das Ende anhängen: `existing.trimEnd() + "\n\n" + BLOCK_BEGIN + "\n" + block + "\n" + BLOCK_END + "\n"` (bei leerem `existing` ohne führende Leerzeilen). Keine Marker und leerer `block` → `existing` unverändert. Mehrere Marker-Paare: nur das erste wird verwaltet.
 `renderContactBlock`: Zeilen „**Notiz:** …" (note), weitere E-Mails/Telefone (alle außer den in fields gespiegelten — einfach: **alle** typisiert auflisten: `- 📧 work: praxis@…`), Adressen (`- 📍 work: …`), URLs, „📷 Foto vorhanden". `renderEventBlock`: description (roh, Zeilen erhalten), dann `**Teilnehmer:innen:**` Liste `- Name <email> · ACCEPTED`, `**Organisator:in:** …`, `**Link:** url`.
 
-- [ ] **Step 1: Tests**
+ - [x] **Step 1: Tests**
 
 `tests/core/mirror/body.test.ts`:
 ```ts
@@ -494,7 +494,7 @@ describe("render", () => {
 });
 ```
 
-- [ ] **Step 2: Rot sehen**, **Step 3: Implementieren**
+ - [x] **Step 2: Rot sehen**, **Step 3: Implementieren**
 
 `src/core/mirror/body.ts`:
 ```ts
@@ -567,7 +567,7 @@ export function renderContactBlock(c: ContactData): string {
 }
 ```
 
-- [ ] **Step 4: Grün + Commit** — `feat(mirror): verwalteter Body-Block — rendern, splitten, mergen (Nutzerinhalt bleibt)`.
+ - [x] **Step 4: Grün + Commit** — `feat(mirror): verwalteter Body-Block — rendern, splitten, mergen (Nutzerinhalt bleibt)`.
 
 ---
 
@@ -589,7 +589,7 @@ export function managedHash(set: Record<string, FmVal>, unset: string[], block: 
 export function fmEquals(a: unknown, b: unknown): boolean   // normalisiert: Zahlen/Bools vs. Strings ("true"=="true"), Arrays elementweise, sonst String(v)
 ```
 
-- [ ] **Step 1: Tests**
+ - [x] **Step 1: Tests**
 
 `tests/core/mirror/filename.test.ts`:
 ```ts
@@ -650,7 +650,7 @@ describe("fmEquals", () => {
 });
 ```
 
-- [ ] **Step 2: Rot sehen**, **Step 3: Implementieren**
+ - [x] **Step 2: Rot sehen**, **Step 3: Implementieren**
 
 `src/core/mirror/filename.ts`:
 ```ts
@@ -704,7 +704,7 @@ export function fmEquals(a: unknown, b: unknown): boolean {
 }
 ```
 
-- [ ] **Step 4: Grün + Commit** — `feat(mirror): Dateiname (Kit-Template) und Hash/Vergleich verwalteter Werte`.
+ - [x] **Step 4: Grün + Commit** — `feat(mirror): Dateiname (Kit-Template) und Hash/Vergleich verwalteter Werte`.
 
 ---
 
@@ -727,7 +727,7 @@ export function windowFor(now: Date, pastDays: number, futureDays: number): Wind
 export function toDavTimeRange(w: Window): { start: string; end: string }            // "YYYYMMDDTHHMMSSZ"
 ```
 
-- [ ] **Step 1: Tests**
+ - [x] **Step 1: Tests**
 
 `tests/core/ical/recur.test.ts`:
 ```ts
@@ -781,7 +781,7 @@ describe("window", () => {
 });
 ```
 
-- [ ] **Step 2: Rot sehen**, **Step 3: Implementieren**
+ - [x] **Step 2: Rot sehen**, **Step 3: Implementieren**
 
 `src/core/ical/recur.ts`:
 ```ts
@@ -835,7 +835,7 @@ function fmt(d: Date): string {
 export function toDavTimeRange(w: Window): { start: string; end: string } { return { start: fmt(w.start), end: fmt(w.end) }; }
 ```
 
-- [ ] **Step 4: Grün + Commit** — `feat(mirror): Zeitfenster + Wiederholungsprüfung über ical.js`.
+ - [x] **Step 4: Grün + Commit** — `feat(mirror): Zeitfenster + Wiederholungsprüfung über ical.js`.
 
 ---
 
@@ -874,7 +874,7 @@ Regeln `planUpsert`:
 `planRemoval`: `stateField === "deleted"` schon → `skip/already-deleted`; `hasBacklinks || userContent(existing.body) !== ""` → `delete/mark` mit `set`; sonst `delete/trash`.
 `planArchive`: schon `archived` → `skip/already-archived`; sonst `archive`.
 
-- [ ] **Step 1: Tests**
+ - [x] **Step 1: Tests**
 
 `tests/core/mirror/plan.test.ts`:
 ```ts
@@ -957,7 +957,7 @@ describe("planRemoval / planArchive", () => {
 });
 ```
 
-- [ ] **Step 2: Rot sehen**, **Step 3: Implementieren**
+ - [x] **Step 2: Rot sehen**, **Step 3: Implementieren**
 
 `src/core/mirror/plan.ts`:
 ```ts
@@ -1020,7 +1020,7 @@ export function planArchive(profile: MappingProfile, existing: ExistingNote): No
 }
 ```
 
-- [ ] **Step 4: Grün + Commit** — `feat(mirror): Notiz-Plan — create/update/skip mit Feldklassen, Hand-Änderung, Archiv/Löschen`.
+ - [x] **Step 4: Grün + Commit** — `feat(mirror): Notiz-Plan — create/update/skip mit Feldklassen, Hand-Änderung, Archiv/Löschen`.
 
 ---
 
@@ -1066,7 +1066,7 @@ Regeln `applyDelta`:
 5. State: `upsertObject` für jede create/update/skip-Notiz (bei skip bleibt written/hash vom letzten Lauf, etag aktualisieren), `withSnapshot(delta.snapshot)`, `withRun`.
 6. `counts` aus den Plänen; `errors` zählen in `counts.errors`.
 
-- [ ] **Step 1: Tests**
+ - [x] **Step 1: Tests**
 
 `tests/core/state/collection-state.test.ts`:
 ```ts
@@ -1174,7 +1174,7 @@ describe("applyDelta — events", () => {
 });
 ```
 
-- [ ] **Step 2: Rot sehen**, **Step 3: Implementieren**
+ - [x] **Step 2: Rot sehen**, **Step 3: Implementieren**
 
 `src/core/state/collection-state.ts`:
 ```ts
@@ -1280,7 +1280,7 @@ export function applyDelta(i: ApplyInput): ApplyResult {
 ```
 Hinweis: `counts.skipped` zählt `skip`-Pläne jeder Art. `withRun` ruft der Orchestrator in M2b nach dem Ausführen (er kennt `ok`/`error`).
 
-- [ ] **Step 4: Grün + Commit** — `feat(mirror): Sammlungs-Zustand + Delta → Notiz-Pläne (Fenster, Overrides, Löschen/Archiv, Kollisionen)`.
+ - [x] **Step 4: Grün + Commit** — `feat(mirror): Sammlungs-Zustand + Delta → Notiz-Pläne (Fenster, Overrides, Löschen/Archiv, Kollisionen)`.
 
 ---
 
@@ -1289,8 +1289,8 @@ Hinweis: `counts.skipped` zählt `skip`-Pläne jeder Art. `withRun` ruft der Orc
 **Files:**
 - Modify: `CHANGELOG.md`, `AGENTS.md` (Abschnitt „Was M2a liefert": Mirror-Kern-Module, Plan-Typen, wie M2b sie konsumiert), `docs/registry-kandidaten.md` (+ „Notiz-Plan mit Feldklassen (verwaltet/einmalig/frei) + verwalteter Body-Block" und „Wiederholungs-Fensterprüfung über ical.js RecurExpansion")
 
-- [ ] **Step 1:** `npm run gate` grün (0 Warnings), `npm run test:integration` unverändert grün.
-- [ ] **Step 2:** Doku schreiben, Plan-Checkboxen abhaken, Commit `docs: M2a abgeschlossen — Mirror-Kern`.
+ - [x] **Step 1:** `npm run gate` grün (0 Warnings), `npm run test:integration` unverändert grün.
+ - [x] **Step 2:** Doku schreiben, Plan-Checkboxen abhaken, Commit `docs: M2a abgeschlossen — Mirror-Kern`.
 
 ---
 

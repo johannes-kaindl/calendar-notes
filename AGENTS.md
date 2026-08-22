@@ -19,3 +19,11 @@ CalDAV-Termine und CardDAV-Kontakte als Notiz-Spiegel; der Server ist die Wahrhe
 - `fixtures/radicale/collections/collection-root/test/kontakte/c3-1.vcf` weicht im PHOTO-Padding
   bewusst von `tests/fixtures/vcard/v3-full.vcf` ab — Radicale/vobject verlangt gültiges
   Base64-Padding; nicht angleichen.
+
+## Was M2a liefert
+- Mirror-Kern-Module: Mapping-Profile (`src/core/mirror/profile.ts`), verwaltete Werte + Attendee-Links (`src/core/mirror/fields.ts`), Body-Block-Verwaltung (`src/core/mirror/body.ts`), Dateiname + Hash (`src/core/mirror/filename.ts`, `hash.ts`), Zeitfenster-Queries (`src/core/ical/recur.ts`, `src/core/mirror/window.ts`)
+- Plan-Typen für Notiz-Operationen: `create` (Neuanlage), `update` (Frontmatter-Keys), `skip` (außerhalb Fenster), `archive` (gelöschtes Objekt), `delete` (Notiz weg)
+- Collection-State tracking: Snapshot pro Sammlung mit Verlauf und geschriebenen Werten (`src/core/state/collection-state.ts`)
+- M2b (`processFrontMatter` / `vault.process`) führt Pläne aus, nicht M2a selbst
+- `src/core/**` bleibt obsidian-/DOM-/node-frei; `ApplyInput.timeWindow` trägt das Suchfenster
+- 129 Unit-Tests (22 Dateien, 0 Warnings)
