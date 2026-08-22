@@ -110,6 +110,13 @@ describe("suggestProfileFromNote — event", () => {
     expect(unmapped).toEqual(["laenge_minuten"]);
   });
 
+  it("maps 'url' onto the url field (in addition to the existing 'link' synonym)", () => {
+    const fm = { ...frontmatter, url: "https://example.test/meeting" };
+    const { profile, mapped } = suggestProfileFromNote("event", fm, { folder: "Termine", name: "Termine", rand });
+    expect(profile.fields.url).toBe("url");
+    expect(mapped.url).toBe("url");
+  });
+
   it("never maps 'status' into fields — it stays reserved for onCreate, even though it's a valid event synonym", () => {
     const fm = { ...frontmatter, status: "confirmed" };
     const { profile, mapped, unmapped } = suggestProfileFromNote("event", fm, { folder: "Termine", name: "Termine", rand });

@@ -64,6 +64,7 @@ const EVENT_SYNONYMS: Record<string, string> = {
   teilnehmer: "attendees",
   attendees: "attendees",
   link: "url",
+  url: "url",
   title: "title",
   titel: "title",
   status: "status",

@@ -119,6 +119,23 @@ export function candidateNotes(notes: CandidateNote[], profile: MappingProfile):
   });
 }
 
+/** Zaehlt Notizen, die `candidateNotes` NUR wegen eines abweichenden `type` ausschliesst
+ *  (im Profil-Ordner, ohne `sourceField`, `onCreate.type` gesetzt, Notiz-Typ weicht ab).
+ *  Das Adoptions-Modal zeigt diese Zahl an, damit sie nicht stillschweigend uebergangen
+ *  werden (Controller-Entscheidung: sichtbar machen statt automatisch pruefen). */
+export function countTypeExcluded(notes: CandidateNote[], profile: MappingProfile): number {
+  const prefix = profile.folder.length > 0 ? `${profile.folder}/` : "";
+  const onCreateType = profile.onCreate["type"];
+  const requiredType = typeof onCreateType === "string" && onCreateType.length > 0 ? onCreateType : undefined;
+  if (requiredType === undefined) return 0;
+  return notes.filter((n) => {
+    if (prefix.length > 0 && !n.path.startsWith(prefix)) return false;
+    const sourceVal = n.frontmatter[profile.sourceField];
+    if (sourceVal !== undefined && sourceVal !== null && sourceVal !== "") return false;
+    return n.frontmatter["type"] !== requiredType;
+  }).length;
+}
+
 function collectStrings(v: unknown, out: string[]): void {
   if (typeof v === "string" && v.length > 0) out.push(v);
   else if (Array.isArray(v)) for (const x of v) if (typeof x === "string" && x.length > 0) out.push(x);

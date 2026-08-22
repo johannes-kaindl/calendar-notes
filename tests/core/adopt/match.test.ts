@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { parseContact } from "../../../src/core/vcard/contact";
 import { parseEvents } from "../../../src/core/ical/event";
 import { defaultContactProfile, defaultEventProfile } from "../../../src/core/mirror/profile";
-import { candidateNotes, matchItems, nameSimilarity, type CandidateNote, type ServerItem } from "../../../src/core/adopt/match";
+import { candidateNotes, countTypeExcluded, matchItems, nameSimilarity, type CandidateNote, type ServerItem } from "../../../src/core/adopt/match";
 
 const FIXTURES = join(__dirname, "../../fixtures");
 const read = (rel: string): string => readFileSync(join(FIXTURES, rel), "utf8");
@@ -45,7 +45,7 @@ describe("nameSimilarity", () => {
   it("unrelated names score low", () => {
     expect(nameSimilarity("Florian Brandes", "Sandra Meier")).toBeLessThan(0.3);
   });
-  it("boosts to at least 0.7 when all tokens of the shorter string are contained in the longer", () => {
+  it("bigram Dice reaches at least 0.7 for a short name that is a substring of a longer one (\"Zahnärztin\" ⊂ \"Zahnärztin Dr. Müller\") — no separate containment term exists", () => {
     expect(nameSimilarity("Zahnärztin Dr. Müller", "Zahnärztin")).toBeGreaterThanOrEqual(0.7);
   });
 });
@@ -85,6 +85,29 @@ describe("candidateNotes", () => {
   it("keeps notes regardless of type when onCreate has no type", () => {
     const out = candidateNotes(notes, { ...profile, onCreate: {} });
     expect(out.map((n) => n.path)).toContain("Contacts/Wrong Type.md");
+  });
+});
+
+describe("countTypeExcluded", () => {
+  const profile = { ...defaultContactProfile(), folder: "Contacts", uidField: "vcard_uid", onCreate: { type: "👤 Kontakt" } };
+  const notes: CandidateNote[] = [
+    note("Contacts/Florian Brandes.md", { title: "Florian Brandes", type: "👤 Kontakt" }),
+    note("Contacts/Wrong Type.md", { title: "Wrong Type", type: "🏢 Organisation" }),
+    note("Contacts/Also Wrong.md", { title: "Also Wrong", type: "📄 Note" }),
+    // Bereits verknuepft — zaehlt nicht mit, unabhaengig vom Typ.
+    note("Contacts/Already Linked.md", { title: "Already Linked", type: "🏢 Organisation", dav_source: "acc/col1" }),
+    note("Other/Not In Folder.md", { title: "Not In Folder", type: "🏢 Organisation" }),
+  ];
+
+  it("counts notes in the profile folder, without sourceField, whose type differs from onCreate.type", () => {
+    expect(countTypeExcluded(notes, profile)).toBe(2);
+  });
+  it("is 0 when onCreate has no type (nothing is excluded by type)", () => {
+    expect(countTypeExcluded(notes, { ...profile, onCreate: {} })).toBe(0);
+  });
+  it("ignores notes outside the profile folder", () => {
+    const only = [note("Other/X.md", { type: "🏢 Organisation" })];
+    expect(countTypeExcluded(only, profile)).toBe(0);
   });
 });
 

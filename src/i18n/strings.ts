@@ -18,6 +18,7 @@ export const EN: Record<string, string> = {
   "adopt.selectSure": "Adopt all sure matches",
   "adopt.skippedItems": "{0} server item(s) could not be read.",
   "adopt.summary": "{0} suggested match(es), {1} unmatched server item(s), {2} unmatched note(s).",
+  "adopt.typeExcluded": "{0} note(s) in the folder with a differing type were not checked.",
   "adopt.unmatchedItems": "{0} new note(s) will be created on the next sync.",
   "adopt.unmatchedNotes": "{0} note(s) remain untouched.",
 
@@ -128,6 +129,7 @@ export const DE: Record<string, string> = {
   "adopt.selectSure": "Alle sicheren übernehmen",
   "adopt.skippedItems": "{0} Server-Eintrag/-Einträge konnten nicht gelesen werden.",
   "adopt.summary": "{0} vorgeschlagene Zuordnung(en), {1} nicht zugeordnete(r) Server-Eintrag/-Einträge, {2} nicht zugeordnete Notiz(en).",
+  "adopt.typeExcluded": "{0} Notiz(en) im Ordner mit abweichendem Typ wurden nicht geprüft.",
   "adopt.unmatchedItems": "{0} neue Notiz(en) entstehen beim nächsten Sync.",
   "adopt.unmatchedNotes": "{0} Notiz(en) bleiben unberührt.",
 

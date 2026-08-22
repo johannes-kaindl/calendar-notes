@@ -1,4 +1,4 @@
-import { ButtonComponent, DropdownComponent, Modal, type App } from "obsidian";
+import { ButtonComponent, DropdownComponent, Modal, Notice, type App } from "obsidian";
 import type { AdoptDecision, LinkPlan } from "../core/adopt/plan";
 import type { AdoptionSuggestion, CandidateNote, MatchConfidence, ServerItem } from "../core/adopt/match";
 import type { SkippedItem } from "../core/adopt/service";
@@ -29,6 +29,10 @@ export interface AdoptionModalInput {
   unmatchedNotes: CandidateNote[];
   profile: MappingProfile;
   skipped: SkippedItem[];
+  /** Notizen im Profil-Ordner ohne sourceField, die NUR wegen abweichendem `type` nicht
+   *  geprueft wurden (siehe `countTypeExcluded` in `core/adopt/match.ts`). Sichtbar machen
+   *  statt automatisch pruefen — Controller-Entscheidung (Option b, AGENTS.md). */
+  typeExcludedCount: number;
 }
 
 /** Fasst das Ergebnis des Verknuepfens (`main.ts` `confirmAdoption`) fuer die Notice
@@ -67,10 +71,11 @@ export class AdoptionModal extends Modal {
   }
 
   onOpen(): void {
-    const { suggestions, unmatchedItems, unmatchedNotes, skipped } = this.input;
+    const { suggestions, unmatchedItems, unmatchedNotes, skipped, typeExcludedCount } = this.input;
     this.titleEl.setText(t("adopt.heading"));
     this.contentEl.createEl("p", { text: t("adopt.summary", suggestions.length, unmatchedItems.length, unmatchedNotes.length) });
     if (skipped.length > 0) this.contentEl.createEl("p", { text: t("adopt.skippedItems", skipped.length) });
+    if (typeExcludedCount > 0) this.contentEl.createEl("p", { text: t("adopt.typeExcluded", typeExcludedCount) });
 
     if (suggestions.length > 0) {
       const table = this.contentEl.createEl("table", { cls: "calendar-notes-adopt-table" });
@@ -110,7 +115,18 @@ export class AdoptionModal extends Modal {
       .setButtonText(t("adopt.confirm"))
       .setCta()
       .onClick(() => {
-        void this.onConfirm(collectDecisions(suggestions, this.chosen)).then(() => this.close());
+        void this.onConfirm(collectDecisions(suggestions, this.chosen)).then(
+          () => this.close(),
+          (e: unknown) => {
+            new Notice(t("notice.unexpected", "Adoption", e instanceof Error ? e.message : String(e)));
+            this.close();
+          },
+        );
       });
+  }
+
+  onClose(): void {
+    this.contentEl.empty();
+    this.dropdowns.length = 0;
   }
 }

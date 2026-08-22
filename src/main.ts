@@ -1,5 +1,5 @@
 import { FuzzySuggestModal, Notice, Plugin, Platform, TFile, getLanguage, type App } from "obsidian";
-import { candidateNotes, matchItems, type CandidateNote, type ServerItem } from "./core/adopt/match";
+import { candidateNotes, countTypeExcluded, matchItems, type CandidateNote, type ServerItem } from "./core/adopt/match";
 import { planAdoption, stateAfterAdoption, type AdoptDecision, type LinkPlan } from "./core/adopt/plan";
 import { loadServerItems } from "./core/adopt/service";
 import { discover, type DiscoveryResult } from "./core/dav/discovery";
@@ -17,7 +17,6 @@ import { PreviewModal } from "./obsidian/preview-modal";
 import { obsidianSecretStore, type SecretStore } from "./obsidian/secrets";
 import { CalendarNotesSettingTab, type SettingsHost } from "./obsidian/settings-tab";
 import { obsidianTransport } from "./obsidian/transport";
-import { stripFrontmatter } from "./obsidian/vault-notes";
 
 /** Waehlt in der Kommandopalette eine der AKTIVIERTEN Sammlungen fuer einen Einzel-Sync. */
 class CollectionSuggestModal extends FuzzySuggestModal<CollectionConfig> {
@@ -25,9 +24,10 @@ class CollectionSuggestModal extends FuzzySuggestModal<CollectionConfig> {
     app: App,
     private readonly collections: CollectionConfig[],
     private readonly onChoose: (c: CollectionConfig) => void,
+    placeholder: string = t("cmd.syncCollection.placeholder"),
   ) {
     super(app);
-    this.setPlaceholder(t("cmd.syncCollection.placeholder"));
+    this.setPlaceholder(placeholder);
   }
 
   getItems(): CollectionConfig[] {
@@ -214,20 +214,25 @@ export default class CalendarNotesPlugin extends Plugin {
       new Notice(t("notice.noEnabledCollections"));
       return;
     }
-    new CollectionSuggestModal(this.app, enabled, (c) => this.fireAndForget(this.startAdoption(c.id), "Adoption")).open();
+    new CollectionSuggestModal(this.app, enabled, (c) => this.fireAndForget(this.startAdoption(c.id), "Adoption"), t("cmd.adoptCollection.placeholder")).open();
   }
 
   private async startAdoption(collectionId: string): Promise<void> {
     const { items, profile, source, skipped } = await loadServerItems(this.deps, this.settings, collectionId);
     const notes = await this.loadCandidateNotes(profile);
     const { suggestions, unmatchedItems, unmatchedNotes } = matchItems(items, notes, { profile });
-    new AdoptionModal(this.app, { suggestions, unmatchedItems, unmatchedNotes, profile, skipped }, (decisions) => this.confirmAdoption(decisions, profile, source, items)).open();
+    const typeExcludedCount = countTypeExcluded(notes, profile);
+    new AdoptionModal(
+      this.app,
+      { suggestions, unmatchedItems, unmatchedNotes, profile, skipped, typeExcludedCount },
+      (decisions) => this.confirmAdoption(decisions, profile, source, items),
+    ).open();
   }
 
-  /** Kandidaten-Notizen fuer die Adoption: erst per Frontmatter (aus dem `metadataCache`,
-   *  ohne Datei-Zugriff) auf `candidateNotes()` vorfiltern, dann NUR fuer die uebrig
-   *  gebliebenen den Koerper lesen (`cachedRead`) — vaultweites `cachedRead` waere bei
-   *  vielen Notizen unnoetig teuer. */
+  /** Kandidaten-Notizen fuer die Adoption: per Frontmatter (aus dem `metadataCache`, ohne
+   *  Datei-Zugriff) auf `candidateNotes()` vorfiltern. `CandidateNote.body` wird vom Matcher
+   *  nicht ausgewertet — deshalb bleibt er leer, statt fuer jede Kandidatin extra `cachedRead`
+   *  zu bezahlen. */
   private async loadCandidateNotes(profile: MappingProfile): Promise<CandidateNote[]> {
     const files = this.app.vault.getMarkdownFiles();
     const draft: CandidateNote[] = files.map((f) => ({
@@ -236,17 +241,7 @@ export default class CalendarNotesPlugin extends Plugin {
       frontmatter: this.app.metadataCache.getFileCache(f)?.frontmatter ?? {},
       body: "",
     }));
-    const filtered = candidateNotes(draft, profile);
-    const wanted = new Set(filtered.map((n) => n.path));
-    for (const f of files) {
-      if (!wanted.has(f.path)) continue;
-      const note = filtered.find((n) => n.path === f.path);
-      if (!note) continue;
-      const cache = this.app.metadataCache.getFileCache(f);
-      const raw = await this.app.vault.cachedRead(f);
-      note.body = stripFrontmatter(raw, cache?.frontmatterPosition?.end.offset);
-    }
-    return filtered;
+    return candidateNotes(draft, profile);
   }
 
   /** Verknuepft sequentiell (nicht parallel) — ein `processFrontMatter`-Fehlschlag bei
@@ -269,9 +264,17 @@ export default class CalendarNotesPlugin extends Plugin {
         failed.push({ path: link.path, message: e instanceof Error ? e.message : String(e) });
       }
     }
-    const state = await this.deps.stateStore.load(source);
-    const newState = stateAfterAdoption(state, succeeded, items, profile, this.deps.now());
-    await this.deps.stateStore.save(newState);
+    // load/save separat abgesichert: ein State-Store-Fehler (z. B. kaputtes JSON, Disk voll)
+    // darf die bereits geschriebenen Frontmatter-Links nicht verschweigen — die Notice-Zeilen
+    // unten laufen in jedem Fall, und das Promise resolved statt zu werfen (sonst verschluckt
+    // `void ...then()` im Modal den Fehler wieder, s. adoption-modal.ts).
+    try {
+      const state = await this.deps.stateStore.load(source);
+      const newState = stateAfterAdoption(state, succeeded, items, profile, this.deps.now());
+      await this.deps.stateStore.save(newState);
+    } catch (e) {
+      new Notice(t("notice.unexpected", "Adoption", e instanceof Error ? e.message : String(e)));
+    }
     const summary = summarizeAdoption(succeeded, failed);
     new Notice(t("notice.adoptDone", summary.linkedCount, skippedUids.length, createUids.length));
     if (summary.failedCount > 0) new Notice(t("notice.adoptFailed", summary.failedCount, summary.failedPaths.join(", ")));
