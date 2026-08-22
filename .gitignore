@@ -10,3 +10,4 @@ data.json
 .shots.mjs
 # DAV-Befunde dürfen keine Zugangsdaten tragen — Rohantworten mit Auth-Headern hier ablegen:
 docs/dav/befunde/roh/
+.radicale-run/

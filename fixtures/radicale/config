@@ -1,0 +1,16 @@
+[server]
+hosts = 127.0.0.1:5232
+
+[auth]
+type = htpasswd
+htpasswd_filename = __DIR__/users
+htpasswd_encryption = plain
+
+[rights]
+type = owner_only
+
+[storage]
+filesystem_folder = __DIR__/collections
+
+[logging]
+level = warning

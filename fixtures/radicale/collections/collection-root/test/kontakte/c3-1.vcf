@@ -1,0 +1,21 @@
+BEGIN:VCARD
+VERSION:3.0
+UID:c3-1@test
+FN:Dr. Florian Brandes
+N:Brandes;Florian;;Dr.;
+NICKNAME:Flo
+ORG:MVZ am Marktplatz;Allgemeinmedizin
+TITLE:Hausarzt
+EMAIL;TYPE=INTERNET;TYPE=WORK;TYPE=PREF:praxis@example.test
+EMAIL;TYPE=HOME:flo@example.test
+TEL;TYPE=CELL:+49 171 1234567
+TEL;TYPE=WORK;TYPE=VOICE:+49 821 555 0
+ADR;TYPE=WORK:;;Marktplatz 1;Augsburg;;86150;Deutschland
+URL:https://mvz.example.test
+BDAY:1975-04-12
+NOTE:Blutbild nur vormittags\, Karte mitbringen
+CATEGORIES:arzt,gesundheit
+PHOTO;ENCODING=b;TYPE=JPEG:/9j/4AAQSkZJRgABAQAAAQABAAD=
+X-SOCIALPROFILE;type=mastodon:https://m.example/@flo
+REV:2026-08-01T10:00:00Z
+END:VCARD

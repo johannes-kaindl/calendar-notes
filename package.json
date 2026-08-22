@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "test": "vitest run --passWithNoTests --exclude tests/integration/**",
-    "test:integration": "vitest run tests/integration",
+    "test:integration": "vitest run tests/integration --testTimeout 60000",
     "lint": "node scripts/check-no-inline-disables.mjs && eslint src --max-warnings 0",
     "check:pure": "node scripts/check-pure.mjs",
     "gate": "npm run lint && npm run typecheck && npm run typecheck:test && npm test && npm run check:pure && npm run build",
