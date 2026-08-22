@@ -93,6 +93,9 @@ export default class CalendarNotesPlugin extends Plugin {
       },
     });
     this.service = new SyncService(this.deps);
+    // Busy-Guard fuer `executeCommandPlan` (core/sync/execute.ts): `service` existiert erst
+    // NACH `buildSyncDeps`, deshalb hier nachtraeglich gesetzt statt im Host-Objekt.
+    this.deps.isBusy = () => this.service.isRunning();
     await this.hydrateRunCache();
 
     this.settingTab = new CalendarNotesSettingTab(this.app, this, this.settingsHost());

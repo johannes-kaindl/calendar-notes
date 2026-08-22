@@ -51,6 +51,10 @@ export interface SyncDeps {
   notify: Notifier;
   now(): Date;
   resolveAttendee?(): AttendeeResolver | undefined; // aus Kontakt-Index (E-Mail -> Pfad)
+  /** Busy-Guard fuer `executeCommandPlan` (core/sync/execute.ts): true, waehrend ein
+   *  `SyncService`-Lauf laeuft, damit ein Kommando nicht gleichzeitig gegen dasselbe
+   *  Objekt schreibt. Optional, damit bestehende SyncDeps-Erfueller (Tests) nicht brechen. */
+  isBusy?(): boolean;
 }
 
 export interface CollectionRunResult {
