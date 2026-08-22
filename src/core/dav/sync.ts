@@ -4,7 +4,7 @@ import { syncCollectionBody, calendarMultigetBody, addressbookMultigetBody, prop
 import { resolveHref, hrefPath } from "./url";
 
 export interface SyncSnapshot { syncToken?: string; ctag?: string; etags: Record<string, string> }
-export interface SyncDelta { changed: DavObject[]; deleted: string[]; snapshot: SyncSnapshot; strategy: "sync-collection" | "etag-diff"; unchanged: boolean }
+export interface SyncDelta { changed: DavObject[]; deleted: string[]; outOfWindow: string[]; snapshot: SyncSnapshot; strategy: "sync-collection" | "etag-diff"; unchanged: boolean }
 export interface SyncOptions { timeRange?: { start: string; end: string }; batchSize?: number }
 
 const XML = { "Content-Type": "application/xml; charset=utf-8" };
@@ -17,7 +17,7 @@ export async function multiget(t: Transport, col: DavCollection, hrefs: string[]
   for (let i = 0; i < hrefs.length; i += batchSize) {
     const batch = hrefs.slice(i, i + batchSize).map((h) => hrefPath(h));
     const body = col.kind === "calendar" ? calendarMultigetBody(batch) : addressbookMultigetBody(batch);
-    const res = await t({ method: "REPORT", url: col.href, headers: { Depth: "1", ...XML }, body });
+    const res = await t({ method: "REPORT", url: col.href, headers: { Depth: "0", ...XML }, body });
     if (res.status !== 207) throw new DavError(res.status, `multiget ${col.href} → ${res.status}`, col.href);
     for (const r of parseMultistatus(res.text).responses) {
       const data = textOf(r.props["calendar-data"]) ?? textOf(r.props["address-data"]);
@@ -46,7 +46,7 @@ async function listEtags(t: Transport, col: DavCollection, opts: SyncOptions): P
 }
 
 async function viaSyncCollection(t: Transport, col: DavCollection, prev: SyncSnapshot | undefined, opts: SyncOptions): Promise<SyncDelta | undefined> {
-  const res = await t({ method: "REPORT", url: col.href, headers: { Depth: "1", ...XML }, body: syncCollectionBody(prev?.syncToken) });
+  const res = await t({ method: "REPORT", url: col.href, headers: { Depth: "0", ...XML }, body: syncCollectionBody(prev?.syncToken) });
   if (res.status === 403 || res.status === 507 || res.status === 400) return undefined;    // Token ungültig/abgelaufen → Fallback
   if (res.status !== 207) throw new DavError(res.status, `sync-collection ${col.href} → ${res.status}`, col.href);
   const ms = parseMultistatus(res.text);
@@ -66,23 +66,38 @@ async function viaSyncCollection(t: Transport, col: DavCollection, prev: SyncSna
   const snapshot: SyncSnapshot = { etags };
   if (ms.syncToken) snapshot.syncToken = ms.syncToken; else if (prev?.syncToken) snapshot.syncToken = prev.syncToken;
   if (col.ctag) snapshot.ctag = col.ctag;
-  return { changed, deleted, snapshot, strategy: "sync-collection", unchanged: changed.length === 0 && deleted.length === 0 };
+  return { changed, deleted, outOfWindow: [], snapshot, strategy: "sync-collection", unchanged: changed.length === 0 && deleted.length === 0 };
 }
 
 async function viaEtagDiff(t: Transport, col: DavCollection, prev: SyncSnapshot | undefined, opts: SyncOptions): Promise<SyncDelta> {
   if (col.ctag && prev?.ctag === col.ctag) {
-    return { changed: [], deleted: [], snapshot: { ...prev, etags: { ...prev.etags } }, strategy: "etag-diff", unchanged: true };
+    return { changed: [], deleted: [], outOfWindow: [], snapshot: { ...prev, etags: { ...prev.etags } }, strategy: "etag-diff", unchanged: true };
   }
   const current = await listEtags(t, col, opts);
   const prevEtags = prev?.etags ?? {};
   const toFetch = Object.entries(current).filter(([p, e]) => prevEtags[p] !== e).map(([p]) => resolveHref(col.href, p));
-  const deleted = Object.keys(prevEtags).filter((p) => !(p in current)).map((p) => resolveHref(col.href, p));
+  const missing = Object.keys(prevEtags).filter((p) => !(p in current)).map((p) => resolveHref(col.href, p));
+  // Bei aktivem timeRange listet listEtags nur das Fenster: Objekte, die dadurch fehlen, sind nicht
+  // zwangsläufig gelöscht — sie können außerhalb des Fensters liegen. Ohne timeRange ist die Listung
+  // vollständig, "fehlt" bedeutet dort wirklich "gelöscht".
+  const deleted = opts.timeRange ? [] : missing;
+  const outOfWindow = opts.timeRange ? missing : [];
   const changed = toFetch.length ? await multiget(t, col, toFetch, opts.batchSize) : [];
   const snapshot: SyncSnapshot = { etags: current };
   if (col.ctag) snapshot.ctag = col.ctag;
-  return { changed, deleted, snapshot, strategy: "etag-diff", unchanged: changed.length === 0 && deleted.length === 0 };
+  return { changed, deleted, outOfWindow, snapshot, strategy: "etag-diff", unchanged: changed.length === 0 && deleted.length === 0 };
 }
 
+/**
+ * Synct eine Collection gegen den Server.
+ *
+ * (a) Die sync-collection-Strategie ignoriert `opts.timeRange` — sync-collection listet immer
+ *     vollständig (RFC 6578 kennt kein Zeitfenster). Ein Fenster wendet der Aufrufer (M2s Mirror)
+ *     selbst auf die geparsten Daten an; `outOfWindow` ist in diesem Zweig deshalb immer leer.
+ * (b) PRECONDITION: `col.ctag`/`col.syncToken` müssen frisch gelesen sein (PROPFIND Depth 0),
+ *     bevor diese Funktion aufgerufen wird — sonst meldet der ctag-Kurzschluss dauerhaft
+ *     `unchanged`, weil der Vergleich gegen einen veralteten Stand läuft.
+ */
 export async function syncCollection(t: Transport, col: DavCollection, prev: SyncSnapshot | undefined, opts: SyncOptions = {}): Promise<SyncDelta> {
   if (col.syncToken) {
     const d = await viaSyncCollection(t, col, prev, opts);

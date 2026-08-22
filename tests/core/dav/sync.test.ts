@@ -16,13 +16,14 @@ describe("syncCollection — sync-collection strategy", () => {
       { method: "REPORT", url: col.href, status: 207, text: fx("sync-collection.xml"), capture: (r) => { if (!r.body?.includes("sync-collection")) throw new Error("falscher report"); } },
     ]);
     // zweite REPORT-Route für multiget: gleiche URL → nach body verzweigen
-    const t2 = fakeTransport([{ method: "REPORT", url: col.href, status: 207, text: MS(obj("/test/kalender/a.ics", "e1", ICS)) }]);
+    const t2 = fakeTransport([{ method: "REPORT", url: col.href, status: 207, text: MS(obj("/test/kalender/a.ics", "e1", ICS)), capture: (r) => { if (r.headers?.["Depth"] !== "0") throw new Error(`multiget Depth erwartet "0", war ${r.headers?.["Depth"]}`); } }]);
     const byBody = (req: Parameters<typeof t>[0]) => (req.body?.includes("multiget") ? t2(req) : t(req));
     const d = await syncCollection(byBody, col, { syncToken: "http://radicale.org/ns/sync/42", etags: { "/test/kalender/gone.ics": '"old"' } });
     expect(d.strategy).toBe("sync-collection");
     expect(d.changed.map((o) => [o.href, o.etag])).toEqual([["https://dav.example/test/kalender/a.ics", '"e1"']]);
     expect(d.changed[0]!.data).toContain("UID:a");
     expect(d.deleted).toEqual(["https://dav.example/test/kalender/gone.ics"]);
+    expect(d.outOfWindow).toEqual([]);
     expect(d.snapshot.syncToken).toBe("http://radicale.org/ns/sync/43");
     expect(d.snapshot.etags).toEqual({ "/test/kalender/a.ics": '"e1"' });
   });
@@ -63,6 +64,7 @@ describe("syncCollection — etag-diff strategy", () => {
     expect(d.strategy).toBe("etag-diff");
     expect(d.changed.map((o) => o.href)).toEqual(["https://dav.example/test/kalender/c.ics"]);
     expect(d.deleted).toEqual(["https://dav.example/test/kalender/old.ics"]);
+    expect(d.outOfWindow).toEqual([]);
     expect(d.snapshot.ctag).toBe('"c1"');
     expect(Object.keys(d.snapshot.etags).sort()).toEqual(["/test/kalender/a.ics", "/test/kalender/c.ics"]);
   });
@@ -72,6 +74,16 @@ describe("syncCollection — etag-diff strategy", () => {
     const byBody = (req: Parameters<typeof t>[0]) => (req.body?.includes("multiget") ? t2(req) : t(req));
     const d = await syncCollection(byBody, colNoToken, undefined, { timeRange: { start: "20260101T000000Z", end: "20270101T000000Z" } });
     expect(d.changed).toHaveLength(1);
+  });
+  it("mit timeRange: Objekte außerhalb des Fensters landen in outOfWindow, nicht in deleted", async () => {
+    const t = fakeTransport([{ method: "REPORT", url: col.href, status: 207, text: MS(obj("/test/kalender/a.ics", "e1")) }]);
+    const t2 = fakeTransport([{ method: "REPORT", url: col.href, status: 207, text: MS(obj("/test/kalender/a.ics", "e1", ICS)) }]);
+    const byBody = (req: Parameters<typeof t>[0]) => (req.body?.includes("multiget") ? t2(req) : t(req));
+    const prev = { etags: { "/test/kalender/a.ics": '"e1"', "/test/kalender/ausserhalb.ics": '"e9"' } };
+    const d = await syncCollection(byBody, colNoToken, prev, { timeRange: { start: "20260101T000000Z", end: "20270101T000000Z" } });
+    expect(d.deleted).toEqual([]);
+    expect(d.outOfWindow).toEqual(["https://dav.example/test/kalender/ausserhalb.ics"]);
+    expect(d.snapshot.etags).toEqual({ "/test/kalender/a.ics": '"e1"' });
   });
   it("multiget batcht", async () => {
     const many = Array.from({ length: 120 }, (_, i) => obj(`/test/kalender/${i}.ics`, `e${i}`)).join("");
