@@ -46,8 +46,8 @@ export function findCommand(id: string): CommandDescriptor | undefined
 export function commandsFor(ctx: CommandContext): CommandDescriptor[]  // appliesTo-Filter
 export function toolDefinitions(): { name: string; description: string; parameters: ObjectSchema }[]   // für LLM-Tool-Calling (Koda)
 ```
-- [ ] Tests: Validator (required, enum, date-time beide Formen, email, unknown key, array of emails); Registry liefert Deskriptoren mit eindeutigen ids; `toolDefinitions` Form.
-- [ ] Commit `feat(commands): Kommando-Typen, Mini-JSON-Schema-Validator, Registry`.
+- [x] Tests: Validator (required, enum, date-time beide Formen, email, unknown key, array of emails); Registry liefert Deskriptoren mit eindeutigen ids; `toolDefinitions` Form.
+- [x] Commit `feat(commands): Kommando-Typen, Mini-JSON-Schema-Validator, Registry`.
 
 ---
 
@@ -55,8 +55,8 @@ export function toolDefinitions(): { name: string; description: string; paramete
 
 **Files:** Create `src/core/commands/event-commands.ts`; Test `tests/core/commands/event-commands.test.ts`
 Kommandos (ids): `event.move` (start, end?, allDay?, tzid? — Default tzid aus ctx.raw/Profil), `event.set-title`, `event.set-location`, `event.set-url`, `event.set-description`, `event.add-attendee` (email, name?, rsvp=true → `invite: {attendees:[email], method:"REQUEST"}`), `event.remove-attendee` (email → `invite: {…, method:"CANCEL"}` nur wenn Scheduling vorhanden — Flag in ctx.account), `event.set-partstat` (partstat ∈ ACCEPTED|DECLINED|TENTATIVE; eigene Adresse aus `account.calendarUserAddresses`), `event.delete` (Plan mit `newRaw: ""` + `deleteRequest: true` — erweitere CommandPlan um `delete?: true`), `event.create` (title, start, end?, allDay?, location?, description?, url?, calendar=ctx.collection; uid = `${newId}@calendar-notes`; hrefForPut = `${col.href}${uid}.ics`; createsNew). Jedes `plan`: baut `newRaw` via `applyMutation(ctx.raw, …)`/`newEventIcs`, `diff` aus `parseEvents(before/after)` (nur geänderte Felder), `summary` deutsch-neutral („Termin verschoben: 2026-09-02 14:00–15:30").
-- [ ] Tests je Kommando (Fixtures `tests/fixtures/ical`): newRaw parsebar, diff korrekt, SEQUENCE-Regeln, invite-Flags, create-Plan-Form, `appliesTo` (event-Kind, raw vorhanden bzw. `new`).
-- [ ] Commit `feat(commands): Termin-Kommandos (verschieben, Felder, Teilnehmer, Zu-/Absage, löschen, anlegen)`.
+- [x] Tests je Kommando (Fixtures `tests/fixtures/ical`): newRaw parsebar, diff korrekt, SEQUENCE-Regeln, invite-Flags, create-Plan-Form, `appliesTo` (event-Kind, raw vorhanden bzw. `new`).
+- [x] Commit `feat(commands): Termin-Kommandos (verschieben, Felder, Teilnehmer, Zu-/Absage, löschen, anlegen)`.
 
 ---
 
@@ -66,7 +66,7 @@ Kommandos (ids): `event.move` (start, end?, allDay?, tzid? — Default tzid aus 
 Kontakt-Kommandos: `contact.set-name` (fn, given?, family?), `contact.set-email` (index|new, value, types?), `contact.remove-email`, `contact.set-phone`/`remove-phone`, `contact.set-org`, `contact.set-title`, `contact.set-note`, `contact.set-birthday`, `contact.create` (fn, email?, tel?, org?; hrefForPut `${col.href}${uid}.vcf`).
 `push-hand-edits.ts`: `planPushHandEdits(ctx, frontmatter, prevWritten)` → liest `handEdited`-Keys (wie `planUpsert`), kehrt Mapping um (`fmKey → serverField` über Profil) und erzeugt für **unterstützte** Felder Mutationen (event: title/location/url/description/start/end; contact: email/tel_cell/tel_home/tel_work/org/title/note/bday/fn) — nicht unterstützte Felder landen in `skipped: string[]` mit Grund; ein zusammengesetzter Plan.
 `undo.ts`: `planUndoLast(ctx, history: {etag, raw, at}[])` → Plan mit `newRaw = history[0].raw`, diff gegen aktuelles raw, summary „Letzte Änderung zurücknehmen (Stand von <at>)".
-- [ ] Tests; Commit `feat(commands): Kontakt-Kommandos, Handänderungen auf den Server, Undo aus dem Verlauf`.
+- [x] Tests; Commit `feat(commands): Kontakt-Kommandos, Handänderungen auf den Server, Undo aus dem Verlauf`.
 
 ---
 
@@ -79,37 +79,37 @@ export async function executeCommandPlan(deps: SyncDeps, settings: PluginSetting
   // Transport via account+secret; delete → deleteObject(If-Match); create → putObject(If-None-Match); sonst putObject(If-Match: plan.etag) ; 412 → { conflict }; nach Erfolg: resyncObject(collectionId, hrefForPut) (GET Objekt → applyDelta mit Delta { changed:[obj] } → execute Pläne → state save); busy-Guard wie runAll
 export async function resyncObject(deps, settings, collectionId: string, href: string): Promise<{ plans: NotePlan[] }>
 ```
-- [ ] Tests mit Fake-Transport: Erfolg + Resync legt/aktualisiert Notiz; 412 → conflict ohne Resync; create → If-None-Match; delete → DELETE + Notiz-Plan delete; busy.
-- [ ] Commit `feat(sync): Kommandos ausführen (If-Match, 412-Konflikt, gezielter Re-Sync)`.
+- [x] Tests mit Fake-Transport: Erfolg + Resync legt/aktualisiert Notiz; 412 → conflict ohne Resync; create → If-None-Match; delete → DELETE + Notiz-Plan delete; busy.
+- [x] Commit `feat(sync): Kommandos ausführen (If-Match, 412-Konflikt, gezielter Re-Sync)`.
 
 ---
 
 ### Task 5: Scheduling-Discovery + Einladungs-Weg + iMIP (core + obsidian)
 
 **Files:** Create `src/core/dav/scheduling.ts` (`discoverScheduling(t, principalUrl)` → `{ outbox?: string; inbox?: string; addresses: string[] }` via PROPFIND `c:schedule-outbox-URL`, `c:schedule-inbox-URL`, `c:calendar-user-address-set`), `src/core/commands/imip.ts` (`buildImip(plan, method, from) → ImipMessage` — METHOD-Zeile ins VCALENDAR), `src/obsidian/invite.ts` (`InviteRouter`: `route(plan): "server" | "transport" | "ics"`, `send(...)`, `.ics`-Modal mit Textarea + „Kopieren"/„Als Datei speichern" (schreibt `<vault>/…/einladung-<uid>.ics` über vault.create)); Modify `src/core/settings.ts` (`Account.scheduling?: {outbox, inbox, addresses}` — bei Discovery gefüllt), `src/main.ts` (Discovery ruft `discoverScheduling`), `src/obsidian/plugin-host.ts` (Transport-Registry: `registerMailTransport/unregister`, Liste), Tests für core-Teile (Fixture: Nextcloud-Principal-Antwort mit outbox; Radicale ohne).
-- [ ] Commit `feat(invite): Scheduling-Discovery, iMIP-Bau, Einladungs-Weg Server → Transport → .ics`.
+- [x] Commit `feat(invite): Scheduling-Discovery, iMIP-Bau, Einladungs-Weg Server → Transport → .ics`.
 
 ---
 
 ### Task 6: Kommando-UI — Formular-Modal aus Schema, Plan-Vorschau, Obsidian-Kommandos
 
 **Files:** Create `src/obsidian/command-modal.ts` (`SchemaFormModal(app, descriptor, ctx, onSubmit)`: je Feld Setting mit Text/Toggle/Dropdown/TextArea/Datum-Text; Email-Felder mit Suggester über Kontakt-Index; Validierung via `validateInput` vor Submit), `src/obsidian/plan-preview-modal.ts` (summary, diff-Tabelle, Invite-Hinweis mit Route, Buttons „Ausführen"/„Abbrechen"; bei conflict: „Mit frischem Stand erneut öffnen"), Modify `src/main.ts`: Kommandos `command-run` („Termin/Kontakt ändern…": aktive Notiz → target aus Frontmatter (uidField/sourceField des passenden Profils) → Suggester über `commandsFor(ctx)` → Formular → Vorschau → execute → Notice), `command-new-event`, `command-new-contact`, `command-undo` (Verlauf des Objekts der aktiven Notiz), `command-push-hand-edits` (für aktive Notiz), i18n, styles.
-- [ ] Tests: pure Helfer (`targetFromFrontmatter(settings, fm)`), Formular-Modal nur Verdrahtungstest mit Kit-Mock; Rest im Smoke.
-- [ ] Commit `feat(obsidian): Kommandos — Formular aus Schema, Plan-Vorschau, Ausführen, Undo, Handänderungen schreiben`.
+- [x] Tests: pure Helfer (`targetFromFrontmatter(settings, fm)`), Formular-Modal nur Verdrahtungstest mit Kit-Mock; Rest im Smoke.
+- [x] Commit `feat(obsidian): Kommandos — Formular aus Schema, Plan-Vorschau, Ausführen, Undo, Handänderungen schreiben`.
 
 ---
 
 ### Task 7: Plugin-API v1
 
 **Files:** Create `src/obsidian/api.ts` (`createPluginApi(host): CalendarNotesApi`), `src/core/api/types.ts` (öffentliche Typen: `CalendarNotesApi { version: 1; events(q); contacts(q); get(uid); commands(); plan(id, input, targetRef); execute(plan); registerMailTransport(t); unregisterMailTransport(id); on(evt, cb): () => void }`), Modify `src/main.ts` (`this.api = createPluginApi(...)`; `service` feuert `synced`/`changed`-Events über ein kleines Event-Emitter-Objekt in `src/core/sync/events.ts`), `docs/API.md` (Vertrag, Beispiel für Koda/mailstone, Konsumenten-Regel „bei jedem Aufruf frisch lesen"), Tests `tests/obsidian/api.test.ts` mit Fakes (events/contacts aus State, commands() = toolDefinitions, plan/execute Durchreichung, Fehler werden gefangen → `{ error }`, registerMailTransport validiert Form).
-- [ ] Commit `feat(api): Plugin-API v1 — lesen, Kommandos planen/ausführen, Mail-Transport, Events`.
+- [x] Commit `feat(api): Plugin-API v1 — lesen, Kommandos planen/ausführen, Mail-Transport, Events`.
 
 ---
 
 ### Task 8: GUI-Smoke P10/P11 + Abschluss
 
 **Files:** Modify `scripts/gui-smoke.ts` (P10: über `plugin.api.plan("event.move", …)` + `execute` → Radicale-Objekt geändert (GET) → Notiz-Frontmatter aktualisiert; P11: `event.add-attendee` ohne Scheduling/Transport → Route `ics`; P12: `undo` stellt Vorgänger her), `docs/SMOKE.md`, Baseline `docs/smoke/baseline-2026-08-23.md` (Lauf vor und nach M4), CHANGELOG, AGENTS („Was M4 liefert"), `docs/registry-kandidaten.md` (Kommando-Schema-als-Tool, Mini-Schema-Validator, Anbieter-API zweites Exemplar → REGISTRY-Status), Plan-Checkboxen.
-- [ ] `npm run gate && npm run test:integration && npm run typecheck:scripts`; Smoke beide Sektionen; Commit `docs: M4 abgeschlossen`.
+- [x] `npm run gate && npm run test:integration && npm run typecheck:scripts`; Smoke beide Sektionen; Commit `docs: M4 abgeschlossen`.
 
 ## Self-Review
 - Spec §5 Kommando-Satz 2a vollständig (verschieben/verlängern, Ort/URL/Titel, Teilnehmer add/remove, Zu-/Absage, löschen, Kontaktfeld, neu anlegen, Handänderung schreiben) → T2/T3/T6 ✓; If-Match/412/Re-Sync/Verlauf → T4 ✓; Einladungen Server → Transport → .ics → T5 ✓; §5b API (events/contacts/get/commands/plan/execute/registerMailTransport/on; Bestätigung beim Aufrufer; zwei Schritte) → T7 ✓; Stufe 2b bewusst außen vor.
