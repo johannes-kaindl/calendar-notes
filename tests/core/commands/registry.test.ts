@@ -3,6 +3,8 @@ import { commandRegistry, findCommand, commandsFor, toolDefinitions, registerCom
 import type { CommandDescriptor, CommandContext } from "../../../src/core/commands/types";
 import { defaultEventProfile, defaultContactProfile } from "../../../src/core/mirror/profile";
 import type { Account, CollectionConfig } from "../../../src/core/settings";
+import { EVENT_COMMANDS } from "../../../src/core/commands/event-commands";
+import { CONTACT_COMMANDS } from "../../../src/core/commands/contact-commands";
 
 function descriptor(id: string, kind: "event" | "contact", appliesTo: (ctx: CommandContext) => boolean = () => true): CommandDescriptor {
   return {
@@ -69,5 +71,29 @@ describe("commands registry", () => {
     expect(findCommand("x")).toBeUndefined();
     expect(commandsFor(ctx())).toEqual([]);
     expect(toolDefinitions()).toEqual([]);
+  });
+
+  it("registerCommands wirft bei doppelter id (innerhalb eines Aufrufs)", () => {
+    expect(() => registerCommands([descriptor("event.move", "event"), descriptor("event.move", "event")])).toThrow("Doppelte Kommando-ID: event.move");
+  });
+
+  it("registerCommands wirft bei doppelter id (gegen bereits Registriertes)", () => {
+    registerCommands([descriptor("event.move", "event")]);
+    expect(() => registerCommands([descriptor("event.move", "event")])).toThrow("Doppelte Kommando-ID: event.move");
+  });
+
+  it("nach einem Wurf bleibt das Register unveraendert (kein Teil-Effekt)", () => {
+    registerCommands([descriptor("event.move", "event")]);
+    expect(() => registerCommands([descriptor("contact.set-name", "contact"), descriptor("event.move", "event")])).toThrow();
+    expect(commandRegistry().map((c) => c.id)).toEqual(["event.move"]);
+  });
+
+  it("das reale Register (EVENT_COMMANDS ∪ CONTACT_COMMANDS) hat eindeutige ids und eindeutige toolDefinitions-Namen", () => {
+    registerCommands([...EVENT_COMMANDS, ...CONTACT_COMMANDS]);
+    const all = commandRegistry();
+    const ids = all.map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    const names = toolDefinitions().map((d) => d.name);
+    expect(new Set(names).size).toBe(names.length);
   });
 });

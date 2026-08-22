@@ -6,6 +6,11 @@ import type { CommandContext, CommandDescriptor } from "./types";
 let registered: CommandDescriptor[] = [];
 
 export function registerCommands(cmds: CommandDescriptor[]): void {
+  const seen = new Set(registered.map((c) => c.id));
+  for (const c of cmds) {
+    if (seen.has(c.id)) throw new Error(`Doppelte Kommando-ID: ${c.id}`);
+    seen.add(c.id);
+  }
   registered = [...registered, ...cmds];
 }
 

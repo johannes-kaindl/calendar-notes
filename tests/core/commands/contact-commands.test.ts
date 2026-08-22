@@ -77,6 +77,17 @@ describe("contact.set-email / contact.remove-email", () => {
     const after = parseContact(plan.newRaw);
     expect(after.emails.length).toBe(1);
   });
+
+  it("set-email mit Index ausserhalb wirft", () => {
+    const c = ctx(read("v3-full.vcf"), existingTarget("c3-1@test", "v3-full.vcf"));
+    expect(() => find("contact.set-email").plan({ index: "5", value: "x@example.test" }, c)).toThrow("Index außerhalb: 5");
+  });
+
+  it("remove-email mit Index ausserhalb (auch negativ) wirft", () => {
+    const c = ctx(read("v3-full.vcf"), existingTarget("c3-1@test", "v3-full.vcf"));
+    expect(() => find("contact.remove-email").plan({ index: 2 }, c)).toThrow("Index außerhalb: 2");
+    expect(() => find("contact.remove-email").plan({ index: -1 }, c)).toThrow("Index außerhalb: -1");
+  });
 });
 
 describe("contact.set-phone / contact.remove-phone", () => {
@@ -92,6 +103,22 @@ describe("contact.set-phone / contact.remove-phone", () => {
     const plan = find("contact.remove-phone").plan({ index: 0 }, c);
     const after = parseContact(plan.newRaw);
     expect(after.tels.length).toBe(1);
+  });
+
+  it("set-phone mit Index ausserhalb wirft", () => {
+    const c = ctx(read("v3-full.vcf"), existingTarget("c3-1@test", "v3-full.vcf"));
+    expect(() => find("contact.set-phone").plan({ index: "9", value: "+49 1" }, c)).toThrow("Index außerhalb: 9");
+  });
+
+  it("remove-phone mit Index ausserhalb wirft", () => {
+    const c = ctx(read("v3-full.vcf"), existingTarget("c3-1@test", "v3-full.vcf"));
+    expect(() => find("contact.remove-phone").plan({ index: 7 }, c)).toThrow("Index außerhalb: 7");
+  });
+
+  it("set-email/set-phone mit index 'new' pruefen nicht gegen den Bestand", () => {
+    const c = ctx(read("v3-full.vcf"), existingTarget("c3-1@test", "v3-full.vcf"));
+    expect(() => find("contact.set-email").plan({ value: "x@example.test" }, c)).not.toThrow();
+    expect(() => find("contact.set-phone").plan({ value: "+49 1" }, c)).not.toThrow();
   });
 });
 

@@ -193,6 +193,9 @@ const eventSetPartstat: CommandDescriptor = {
     const partstat = str(input["partstat"]) as "ACCEPTED" | "DECLINED" | "TENTATIVE" | undefined;
     if (!partstat) throw new Error("event.set-partstat: partstat fehlt");
     const email = ownAddress(ctx);
+    const beforeEv = primaryEvent(parseEvents(ctx.raw ?? ""));
+    const isAttendee = beforeEv?.attendees.some((a) => a.email.toLowerCase() === email.toLowerCase()) ?? false;
+    if (!isAttendee) throw new Error("Eigene Adresse ist kein Teilnehmer dieses Termins");
     return planForMutation("event.set-partstat", ctx, { kind: "partstat", email, partstat }, `Teilnahmestatus gesetzt: ${partstat}`);
   },
 };

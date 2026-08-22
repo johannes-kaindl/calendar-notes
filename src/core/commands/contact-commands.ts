@@ -68,6 +68,13 @@ function parseIndex(v: unknown): number | "new" {
   return Number.isFinite(n) ? n : "new";
 }
 
+function checkIndex(ctx: CommandContext, kind: "email" | "tel", index: number | "new"): void {
+  if (index === "new") return;
+  const contact = parseContact(ctx.raw ?? "");
+  const len = kind === "email" ? contact.emails.length : contact.tels.length;
+  if (index < 0 || index >= len) throw new Error(`Index außerhalb: ${index}`);
+}
+
 const contactSetName: CommandDescriptor = {
   id: "contact.set-name", kind: "contact", title: "Namen aendern", description: "FN und optional Vor-/Nachname (N) eines Kontakts setzen",
   schema: {
@@ -106,6 +113,7 @@ const contactSetEmail: CommandDescriptor = {
     const value = str(input["value"]);
     if (!value) throw new Error("contact.set-email: value fehlt");
     const index = parseIndex(input["index"]);
+    checkIndex(ctx, "email", index);
     const types = Array.isArray(input["types"]) ? (input["types"] as unknown[]).map(String) : undefined;
     return planForContactMutations("contact.set-email", ctx, [{ kind: "setEmail", index, value, types }], `E-Mail gesetzt: ${value}`);
   },
@@ -117,6 +125,7 @@ const contactRemoveEmail: CommandDescriptor = {
   appliesTo: appliesToExistingContact,
   plan(input, ctx) {
     const index = typeof input["index"] === "number" ? input["index"] : Number(input["index"]);
+    checkIndex(ctx, "email", index);
     return planForContactMutations("contact.remove-email", ctx, [{ kind: "removeEmail", index }], "E-Mail entfernt");
   },
 };
@@ -137,6 +146,7 @@ const contactSetPhone: CommandDescriptor = {
     const value = str(input["value"]);
     if (!value) throw new Error("contact.set-phone: value fehlt");
     const index = parseIndex(input["index"]);
+    checkIndex(ctx, "tel", index);
     const types = Array.isArray(input["types"]) ? (input["types"] as unknown[]).map(String) : undefined;
     return planForContactMutations("contact.set-phone", ctx, [{ kind: "setTel", index, value, types }], `Telefonnummer gesetzt: ${value}`);
   },
@@ -148,6 +158,7 @@ const contactRemovePhone: CommandDescriptor = {
   appliesTo: appliesToExistingContact,
   plan(input, ctx) {
     const index = typeof input["index"] === "number" ? input["index"] : Number(input["index"]);
+    checkIndex(ctx, "tel", index);
     return planForContactMutations("contact.remove-phone", ctx, [{ kind: "removeTel", index }], "Telefonnummer entfernt");
   },
 };

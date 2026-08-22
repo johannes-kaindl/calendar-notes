@@ -10,7 +10,6 @@ export interface ObjectSchema {
   type: "object";
   properties: Record<string, FieldSchema>;
   required?: string[];
-  additionalProperties?: false;
 }
 
 export type ValidationResult = { ok: true; value: Record<string, unknown> } | { ok: false; errors: string[] };

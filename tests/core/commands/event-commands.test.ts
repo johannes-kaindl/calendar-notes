@@ -164,6 +164,12 @@ describe("event.set-partstat", () => {
     const c = ctx(read("attendees.ics"), existingTarget("att-1@test", "attendees.ics"), { account: { ...ACCOUNT, username: "nicht-email" } });
     expect(() => find("event.set-partstat").plan({ partstat: "ACCEPTED" }, c)).toThrow("Eigene Adresse unbekannt");
   });
+
+  it("wirft, wenn die eigene Adresse kein Teilnehmer des Termins ist", () => {
+    // ACCOUNT.username = jay@example.test, aber attendees.ics kennt nur alex@ und sam@example.test
+    const c = ctx(read("attendees.ics"), existingTarget("att-1@test", "attendees.ics"));
+    expect(() => find("event.set-partstat").plan({ partstat: "ACCEPTED" }, c)).toThrow("Eigene Adresse ist kein Teilnehmer dieses Termins");
+  });
 });
 
 describe("event.delete", () => {
