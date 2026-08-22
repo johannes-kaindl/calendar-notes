@@ -37,18 +37,27 @@ export async function startRadicale(opts: { port?: number; fixtureDir?: string }
   else if (await has("uvx")) child = spawn("uvx", ["--from", "radicale", "radicale", "--config", join(dir, "config")], { stdio: ["ignore", "ignore", "pipe"] });
   else throw new Error("Weder `radicale` noch `uvx` gefunden — `pip install radicale` oder `brew install uv`.");
   let stderr = "";
+  let spawnError: Error | undefined;
   child.stderr?.on("data", (d: Buffer) => { stderr += d.toString(); });
+  child.on("error", (err) => { spawnError = err; });
   const baseUrl = `http://127.0.0.1:${port}/`;
   const deadline = Date.now() + 20_000;
   while (Date.now() < deadline) {
+    if (spawnError) throw new Error(`Radicale konnte nicht gestartet werden: ${spawnError.message}`);
     try { const r = await fetch(baseUrl, { method: "GET" }); if (r.status > 0) break; } catch { /* noch nicht da */ }
     if (child.exitCode !== null) throw new Error(`Radicale beendet (${child.exitCode}): ${stderr}`);
     await new Promise((r) => setTimeout(r, 250));
   }
+  if (spawnError) throw new Error(`Radicale konnte nicht gestartet werden: ${spawnError.message}`);
   if (Date.now() >= deadline) { child.kill(); throw new Error(`Radicale antwortet nicht auf ${baseUrl}: ${stderr}`); }
   return {
     baseUrl, user: "test", pass: "test", dir,
-    stop: () => new Promise<void>((ok) => { if (child.exitCode !== null) { ok(); return; } child.once("exit", () => ok()); child.kill("SIGTERM"); setTimeout(() => child.kill("SIGKILL"), 3000).unref(); }),
+    stop: () => new Promise<void>((ok) => {
+      if (child.exitCode !== null || spawnError) { ok(); return; }
+      const killTimer = setTimeout(() => child.kill("SIGKILL"), 3000).unref();
+      child.once("exit", () => { clearTimeout(killTimer); ok(); });
+      child.kill("SIGTERM");
+    }),
   };
 }
 
