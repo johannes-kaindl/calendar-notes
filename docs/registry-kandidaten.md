@@ -5,3 +5,5 @@
 - ical.js-Mutationen, die fremde Properties erhalten (Component-basiert statt Neubau) — `src/core/ical/mutate.ts`, `src/core/vcard/mutate.ts`
 - Notiz-Plan mit Feldklassen (verwaltet/einmalig/frei) + verwalteter Body-Block — `src/core/mirror/plan.ts`, `body.ts`, Schema in Spec §3
 - Wiederholungs-Fensterprüfung über ical.js RecurExpansion — `src/core/ical/recur.ts`, `eventOccursWithin` mit EXDATE + Override-Support
+- `app.secretStorage` + `SecretComponent` für Zugangsdaten (erstes Exemplar im Dach) — `src/obsidian/secrets.ts`, Verifizierung per Rücklesen
+- SyncService mit injizierten Interfaces (Transport/Secret/State/Lookup/Executor/Notifier) — gesamter Ablauf in vitest mit Fakes — `src/core/sync/service.ts`

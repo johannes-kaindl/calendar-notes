@@ -41,7 +41,7 @@ export function sourceOf(c: CollectionConfig): string             // `${accountI
 export function effectiveProfile(s: PluginSettings, c: CollectionConfig): MappingProfile | undefined   // profil + folderOverride angewandt
 ```
 
-- [ ] **Step 1: Tests**
+- [x] **Step 1: Tests**
 ```ts
 import { describe, it, expect } from "vitest";
 import { defaultSettings, normalizeSettings, secretIdFor, newId, sourceOf, effectiveProfile, DEFAULT_SYNC } from "../../src/core/settings";
@@ -75,8 +75,8 @@ describe("settings", () => {
   });
 });
 ```
-- [ ] **Step 2/3: RED → Implementieren** (`mergeSettings` aus `src/vendor/code-kit/settings.ts` — Signatur vor Ort prüfen; `validateProfile`/Defaults aus `src/core/mirror/profile.ts`). `newId`: 8 Zeichen aus `rand()` via `Math.floor(rand()*36).toString(36)`.
-- [ ] **Step 4: Commit** `feat(settings): Settings-Modell mit Normalisierung, Profilen, Konten, Sammlungen`.
+- [x] **Step 2/3: RED → Implementieren** (`mergeSettings` aus `src/vendor/code-kit/settings.ts` — Signatur vor Ort prüfen; `validateProfile`/Defaults aus `src/core/mirror/profile.ts`). `newId`: 8 Zeichen aus `rand()` via `Math.floor(rand()*36).toString(36)`.
+- [x] **Step 4: Commit** `feat(settings): Settings-Modell mit Normalisierung, Profilen, Konten, Sammlungen`.
 
 ---
 
@@ -88,9 +88,9 @@ describe("settings", () => {
 ```ts
 export async function refreshCollection(t: Transport, col: DavCollection): Promise<DavCollection>   // PROPFIND Depth 0 auf col.href mit COLLECTION_PROPS; 207 → neue ctag/syncToken/readOnly/displayName übernommen (fehlende Props lassen alte Werte stehen); 404 → DavError(404); sonst DavError
 ```
-- [ ] **Step 1: Tests** — Fake-Transport: 207 mit neuem `getctag`+`sync-token` → Felder aktualisiert, übrige gleich; 207 ohne `sync-token` → alter Token bleibt; 404 → rejects `{status:404}`.
-- [ ] **Step 2/3:** `sh tools/sync-kit.sh` erweitern und laufen lassen; `refresh.ts` nutzt `propfindBody`, `parseMultistatus`, `collectionFromResponse` (exportiert in `discovery.ts`) — `collectionFromResponse(r, col.href)` liefert eine frische `DavCollection`; merge: `{ ...col, ...fresh }` nur mit definierten Feldern.
-- [ ] **Step 4: Commit** `feat(dav): Collection-Refresh (ctag/sync-token vor jedem Sync) + kit-obsidian vendored`.
+- [x] **Step 1: Tests** — Fake-Transport: 207 mit neuem `getctag`+`sync-token` → Felder aktualisiert, übrige gleich; 207 ohne `sync-token` → alter Token bleibt; 404 → rejects `{status:404}`.
+- [x] **Step 2/3:** `sh tools/sync-kit.sh` erweitern und laufen lassen; `refresh.ts` nutzt `propfindBody`, `parseMultistatus`, `collectionFromResponse` (exportiert in `discovery.ts`) — `collectionFromResponse(r, col.href)` liefert eine frische `DavCollection`; merge: `{ ...col, ...fresh }` nur mit definierten Feldern.
+- [x] **Step 4: Commit** `feat(dav): Collection-Refresh (ctag/sync-token vor jedem Sync) + kit-obsidian vendored`.
 
 ---
 
@@ -112,9 +112,9 @@ export interface StateStore { load(source: string): Promise<CollectionState>; sa
 export function adapterStateStore(adapter: DataAdapter, pluginDir: string): StateStore   // Datei `${pluginDir}/state/${encode(source)}.json`, mkdir bei Bedarf, parseState tolerant; encode: `/` → `__`
 export class MemoryStateStore implements StateStore
 ```
-- [ ] **Step 1: Tests** — transport: Fake-`request` liefert `{status:207, headers:{etag:'"1"'}, text:"x"}` → DavResponse gleich; Fake, das nie auflöst → mit `timeoutMs: 20` Ergebnis `status:0`; Header `throw:false` und Methode/Body werden durchgereicht (capture). secrets: `MemorySecretStore` set/get/has; `obsidianSecretStore` mit Fake-`app.secretStorage` (`setSecret` speichert nicht → `set` wirft). state-store: Fake-Adapter (`exists/mkdir/read/write/remove` auf Map) → save/load roundtrip, load unbekannt → `emptyState(source)`, Pfad `state/acc__col.json`.
-- [ ] **Step 2/3:** Implementieren. Hinweis: `DataAdapter`-Typ aus `obsidian`; im Test eine Attrappe mit denselben Methoden übergeben (kein Import aus `obsidian` nötig).
-- [ ] **Step 4: Commit** `feat(obsidian): requestUrl-Transport mit Timeout, Secret-Store (Schlüsselbund), State-Store (manifest.dir/state)`.
+- [x] **Step 1: Tests** — transport: Fake-`request` liefert `{status:207, headers:{etag:'"1"'}, text:"x"}` → DavResponse gleich; Fake, das nie auflöst → mit `timeoutMs: 20` Ergebnis `status:0`; Header `throw:false` und Methode/Body werden durchgereicht (capture). secrets: `MemorySecretStore` set/get/has; `obsidianSecretStore` mit Fake-`app.secretStorage` (`setSecret` speichert nicht → `set` wirft). state-store: Fake-Adapter (`exists/mkdir/read/write/remove` auf Map) → save/load roundtrip, load unbekannt → `emptyState(source)`, Pfad `state/acc__col.json`.
+- [x] **Step 2/3:** Implementieren. Hinweis: `DataAdapter`-Typ aus `obsidian`; im Test eine Attrappe mit denselben Methoden übergeben (kein Import aus `obsidian` nötig).
+- [x] **Step 4: Commit** `feat(obsidian): requestUrl-Transport mit Timeout, Secret-Store (Schlüsselbund), State-Store (manifest.dir/state)`.
 
 ---
 
@@ -136,9 +136,9 @@ export function vaultPlanExecutor(app: App): PlanExecutor
   // Datei nicht gefunden bei update/archive/delete → Error("Notiz nicht gefunden: path")
 ```
 Wichtig: `NoteLookup` (M2a) ist synchron. Der Lookup cached Bodies über `prime()`; `byPath` für nicht geprimte Pfade liefert `undefined` (→ `applyDelta` meldet dann einen Fehler statt still zu überspringen) — daher ruft der SyncService `prime()` mit allen Pfaden aus `state.objects[*].notes[*].path` **plus** dem Index (alle Treffer des Profils) und prüft danach per Assertion, dass jeder State-Pfad geprimt ist (fehlt eine Datei, wird sie als `missing` markiert, nicht übersprungen).
-- [ ] **Step 1: Tests** — `buildNoteIndex`: drei Fake-Files (eine ohne uid, eine Override) → Map-Keys korrekt. `VaultNoteLookup` mit Kit-`makeFakeApp()`-Attrappe (prüfen, was der Mock an `vault.getMarkdownFiles`/`metadataCache.getFileCache`/`cachedRead`/`resolvedLinks`/`getAbstractFileByPath` bietet — fehlende Teile **im Test** als Objekt-Attrappe ergänzen, nicht den vendored Mock editieren): `byUid` findet, `byPath` nach `prime`, `byPath` ohne `prime` → `undefined`, `exists` findet eine Nicht-Profil-Notiz im selben Pfad, `hasBacklinks` über `resolvedLinks = { "A.md": { "Contacts/X.md": 1 } }`. `vaultPlanExecutor` mit Attrappe, die `create/processFrontMatter/process/trash/createFolder` protokolliert: je Plan-Op genau die erwarteten Aufrufe; `create` in verschachteltem Ordner legt Ordner an; `update` ohne body ruft `process` nicht.
-- [ ] **Step 2/3:** Implementieren. Ordner anlegen: Pfad-Segmente iterativ `getFolderByPath` → fehlt → `createFolder` (try/catch auf „already exists").
-- [ ] **Step 4: Commit** `feat(obsidian): Vault-Adapter — Notiz-Index/Lookup und Plan-Ausführung über processFrontMatter`.
+- [x] **Step 1: Tests** — `buildNoteIndex`: drei Fake-Files (eine ohne uid, eine Override) → Map-Keys korrekt. `VaultNoteLookup` mit Kit-`makeFakeApp()`-Attrappe (prüfen, was der Mock an `vault.getMarkdownFiles`/`metadataCache.getFileCache`/`cachedRead`/`resolvedLinks`/`getAbstractFileByPath` bietet — fehlende Teile **im Test** als Objekt-Attrappe ergänzen, nicht den vendored Mock editieren): `byUid` findet, `byPath` nach `prime`, `byPath` ohne `prime` → `undefined`, `exists` findet eine Nicht-Profil-Notiz im selben Pfad, `hasBacklinks` über `resolvedLinks = { "A.md": { "Contacts/X.md": 1 } }`. `vaultPlanExecutor` mit Attrappe, die `create/processFrontMatter/process/trash/createFolder` protokolliert: je Plan-Op genau die erwarteten Aufrufe; `create` in verschachteltem Ordner legt Ordner an; `update` ohne body ruft `process` nicht.
+- [x] **Step 2/3:** Implementieren. Ordner anlegen: Pfad-Segmente iterativ `getFolderByPath` → fehlt → `createFolder` (try/catch auf „already exists").
+- [x] **Step 4: Commit** `feat(obsidian): Vault-Adapter — Notiz-Index/Lookup und Plan-Ausführung über processFrontMatter`.
 
 ---
 
@@ -171,9 +171,9 @@ export class SyncService {
 }
 ```
 Ablauf je Sammlung: disabled → skipped; Konto/Profil fehlt → skipped; Secret fehlt → skipped `no-secret` (keine Notice, nur Status); Transport bauen; `refreshCollection`; Fenster nur bei `kind==="calendar"` (`windowFor(now, pastDays, futureDays)`, `timeRange = toDavTimeRange`); **Kalender mit Fenster laufen immer über die etag-Diff-Strategie** (`syncCollection(t, { ...col, syncToken: undefined }, state.snapshot, { timeRange, batchSize })`) — nur so kommen Termine, die neu ins Fenster rücken, als `changed` herein und `outOfWindow` wird berechnet; Adressbücher nutzen `sync-collection`, wenn vorhanden; `lookupFor(profile)`; `applyDelta({ profile, source, delta, state, lookup, now, timeWindow, resolveAttendee })` — **`timeWindow` muss mitgegeben werden**, sonst findet die Client-seitige Fensterprüfung nicht statt; **dryRun** → Pläne zurück, nichts ausführen, Zustand nicht speichern; sonst Pläne der Reihe nach `executor.execute` (Fehler je Plan sammeln, weiter), dann `withRun` + `stateStore.save`, Collection-`ctag/syncToken` in Settings aktualisieren + `saveSettings`. Notices: bei **neuem** Fehler (anders als `state.lastRun?.error`) `warn`; bei handEdited `info` einmal je Lauf mit Anzahl. Teil-Anwendung: Pläne eines hrefs, der mitten in der Verarbeitung fehlschlägt, stehen bereits in `ApplyResult.plans`/`state` — sie werden ausgeführt (einzeln gültig), und die Status-Zeile nennt den Fehler je href; `applyDelta` stellt für Fehler-hrefs den alten etag wieder her, sodass der nächste Lauf erneut versucht. Epoch-Guard: `runAll`/`runCollection` während eines Laufs → sofort `skippedReason: "busy"` für alle (kein Warten). Fehler je Sammlung isoliert (try/catch um den ganzen Block → `ok:false, error`).
-- [ ] **Step 1: Tests** (Fakes: `MemorySecretStore`, `MemoryStateStore`, Fake-Transport aus `tests/helpers/fake-transport.ts` mit Radicale-ähnlichen Antworten für PROPFIND Depth 0 (refresh), REPORT sync-collection/multiget oder PROPFIND Depth 1 + multiget, Fake-Lookup (aus M2a-Tests), Fake-Executor protokolliert, Fake-Notifier sammelt): (a) dryRun liefert create-Pläne, Executor nicht gerufen, State nicht gespeichert; (b) echter Lauf: Executor gerufen, State gespeichert mit snapshot + lastRun.ok, Settings-ctag aktualisiert; (c) Secret fehlt → `no-secret`, kein Transport-Aufruf, keine Notice; (d) Transport wirft 401 in Sammlung A, Sammlung B läuft durch; `warn` genau einmal; zweiter Lauf mit gleichem Fehler → keine zweite `warn`; (e) busy: `runAll` zweimal ohne await → zweites Ergebnis nur `busy`.
-- [ ] **Step 2/3:** Implementieren.
-- [ ] **Step 4: Commit** `feat(sync): SyncService — Refresh, Sync, Plan, Ausführen, Zustand, Meldungen, Trockenlauf, Epoch-Guard`.
+- [x] **Step 1: Tests** (Fakes: `MemorySecretStore`, `MemoryStateStore`, Fake-Transport aus `tests/helpers/fake-transport.ts` mit Radicale-ähnlichen Antworten für PROPFIND Depth 0 (refresh), REPORT sync-collection/multiget oder PROPFIND Depth 1 + multiget, Fake-Lookup (aus M2a-Tests), Fake-Executor protokolliert, Fake-Notifier sammelt): (a) dryRun liefert create-Pläne, Executor nicht gerufen, State nicht gespeichert; (b) echter Lauf: Executor gerufen, State gespeichert mit snapshot + lastRun.ok, Settings-ctag aktualisiert; (c) Secret fehlt → `no-secret`, kein Transport-Aufruf, keine Notice; (d) Transport wirft 401 in Sammlung A, Sammlung B läuft durch; `warn` genau einmal; zweiter Lauf mit gleichem Fehler → keine zweite `warn`; (e) busy: `runAll` zweimal ohne await → zweites Ergebnis nur `busy`.
+- [x] **Step 2/3:** Implementieren.
+- [x] **Step 4: Commit** `feat(sync): SyncService — Refresh, Sync, Plan, Ausführen, Zustand, Meldungen, Trockenlauf, Epoch-Guard`.
 
 ---
 
@@ -195,9 +195,9 @@ export class CalendarNotesSettingTab extends PluginSettingTab { constructor(app,
 ```
 Gruppen (Reihenfolge): **Konten** (`type:"list"` je Konto: Name, Server-URL, Benutzername (text), Passwort (render: `SecretComponent` → `secretId`), Button „Verbindung testen & Sammlungen finden" (render) — Ergebnis: Sammlungen werden in `settings.collections` ergänzt/aktualisiert (neue: `enabled:false`, Profil = Default passend zur Art), Notice mit Anzahl/Warnungen; `onDelete` entfernt Konto + seine Sammlungen + Secret; Add-Affordance legt Konto mit `newId("acc", rand)` + `secretIdFor` an) · **Sammlungen** (je aktiviertem Konto eine Gruppe; je Sammlung: Toggle „Spiegeln", Dropdown Profil (nur passende `kind`), Ordner-Override (render: Text + `FolderSuggest`), Statuszeile (letzter Lauf/Zähler/Fehler, desc) und Button „Jetzt synchronisieren") · **Profile** (`type:"list"`: Name + Art; Button „Bearbeiten (JSON)" → Modal mit Textarea, `validateProfile` beim Speichern; Buttons „Exportieren" (Clipboard, `navigator.clipboard`-Guard wie REGISTRY) / „Importieren" (Modal mit Textarea); `onDelete` nur wenn kein Collection-Bezug; Add legt Kopie eines Defaults mit neuer id an) · **Synchronisation** (slider/number: Intervall Desktop, Intervall Mobil, Tage zurück, Tage voraus, Startverzögerung; Sprache dropdown) · **Aktionen** (Buttons „Alle Sammlungen synchronisieren", „Vorschau (Trockenlauf)").
 Hinweise: `getSettingDefinitions()` synchron — Discovery-Ergebnis/Statuszeilen werden im Host gecacht und per `refreshSettingsTab` neu gerendert. Schlüssel-Typen: für `control`-Einträge mit `key` muss `getControlValue/setControlValue` auf `settings.sync.*` zeigen — Tab überschreibt `getControlValue(key)`/`setControlValue(key, v)` mit Pfad-Auflösung (`sync.intervalMinutes`).
-- [ ] **Step 1: Test** — Fake-Host mit einem Konto, zwei Sammlungen (je Art), Defaults: `getSettingDefinitions()` enthält Gruppen-Headings in der Reihenfolge; Konto-Liste hat 1 Item; Sammlungs-Gruppe zeigt Profil-Dropdown nur mit passenden Profilen; ohne Konten erscheint `emptyState`-Text; `setControlValue("sync.intervalMinutes", 5)` schreibt in `settings.sync`.
-- [ ] **Step 2/3:** Implementieren nach `../audio-interface/src/obsidian/settings-tab.ts` (Aufbau, Walker-Aufruf in `display()`, `cleanupPrevious`). Für Modals (`Modal` + `TextAreaComponent`) kleine Klassen in derselben Datei oder `src/obsidian/json-modal.ts`.
-- [ ] **Step 4: Commit** `feat(obsidian): Settings-Tab — Konten mit Schlüsselbund, Discovery, Sammlungen, Profile (JSON), Sync-Optionen`.
+- [x] **Step 1: Test** — Fake-Host mit einem Konto, zwei Sammlungen (je Art), Defaults: `getSettingDefinitions()` enthält Gruppen-Headings in der Reihenfolge; Konto-Liste hat 1 Item; Sammlungs-Gruppe zeigt Profil-Dropdown nur mit passenden Profilen; ohne Konten erscheint `emptyState`-Text; `setControlValue("sync.intervalMinutes", 5)` schreibt in `settings.sync`.
+- [x] **Step 2/3:** Implementieren nach `../audio-interface/src/obsidian/settings-tab.ts` (Aufbau, Walker-Aufruf in `display()`, `cleanupPrevious`). Für Modals (`Modal` + `TextAreaComponent`) kleine Klassen in derselben Datei oder `src/obsidian/json-modal.ts`.
+- [x] **Step 4: Commit** `feat(obsidian): Settings-Tab — Konten mit Schlüsselbund, Discovery, Sammlungen, Profile (JSON), Sync-Optionen`.
 
 ---
 
@@ -210,8 +210,8 @@ Hinweise: `getSettingDefinitions()` synchron — Discovery-Ergebnis/Statuszeilen
 export function summarizeRun(r: RunResult): { perCollection: { id: string; counts: RunInfo["counts"]; error?: string; skippedReason?: string }[]; byOp: Record<NotePlan["op"], { path: string; detail?: string }[]>; total: number }   // pure, exportiert
 export class PreviewModal extends Modal { constructor(app, result: RunResult, onExecute: () => void); onOpen(): void }  // Überschrift mit Gesamtzahl, je Sammlung Zähler/Fehler, Listen je Op (create/update/archive/delete/skip nur als Zahl), handEdited-Hinweise, Buttons „Jetzt ausführen" (ruft onExecute, schließt) / „Schließen"
 ```
-- [ ] **Step 1: Test** — `summarizeRun` gruppiert korrekt; `detail` bei update = `set/unset`-Keys + „Body", bei delete = mode.
-- [ ] **Step 2/3/4:** Implementieren; Commit `feat(obsidian): Vorschau-Modal für den Trockenlauf`.
+- [x] **Step 1: Test** — `summarizeRun` gruppiert korrekt; `detail` bei update = `set/unset`-Keys + „Body", bei delete = mode.
+- [x] **Step 2/3/4:** Implementieren; Commit `feat(obsidian): Vorschau-Modal für den Trockenlauf`.
 
 ---
 
@@ -219,15 +219,15 @@ export class PreviewModal extends Modal { constructor(app, result: RunResult, on
 
 **Files:** Modify `src/main.ts`; Create `src/obsidian/plugin-host.ts` (baut `SyncDeps` aus App/Plugin: Transport-Factory mit `settings.sync.requestTimeoutMs`, Secret-Store, State-Store (`this.manifest.dir`), `lookupFor` (VaultNoteLookup + prime), Executor, Notifier (`Notice`), `resolveAttendee` (Index aller Contact-Profile: E-Mail-Feld → Pfad; Display = Dateiname))
 Kommandos: `sync-all` („Sync all collections"), `sync-preview` („Preview sync (dry run)" → `runAll({dryRun:true})` → `PreviewModal`), `sync-collection` (Suggester über aktivierte Sammlungen → `runCollection`). Auslöser: `app.workspace.onLayoutReady(() => window.setTimeout(() => runAll(), startupDelaySeconds*1000))` nur wenn mind. eine Sammlung aktiv; Intervall `registerInterval(window.setInterval(...))` mit `Platform.isMobile ? mobileIntervalMinutes : intervalMinutes` (0 = aus; bei Settings-Änderung neu setzen). Settings laden: `normalizeSettings(await loadData())`; Sprache: `setLang(pickLang(language==="auto" ? getLanguage() : language))`.
-- [ ] **Step 1:** Verdrahten; `npm run build`; `npm run lint` (0 Warnings); `npm run typecheck`.
-- [ ] **Step 2: Manueller Smoke (Maintainer-lokal, dokumentiert im Report):** `OBSIDIAN_PLUGIN_DIR=<staging-vault>/.obsidian/plugins/calendar-notes npm run deploy` gegen einen Wegwerf-Vault + laufendes Radicale (`npx tsx scripts/dav-server.ts`): Konto anlegen (`http://127.0.0.1:5232/`, test/test), Discovery findet Kalender+Kontakte, Sammlungen aktivieren, Vorschau zeigt 3+2 creates, Ausführen legt Notizen an, zweiter Lauf skip. Ergebnis als Stichpunkte in `docs/smoke/2026-08-22-m2b-manual.md` (was ging, was nicht). **Der automatisierte GUI-Smoke kommt in M3** — hier nur Beleg, dass der Pfad einmal gelaufen ist.
-- [ ] **Step 3: Commit** `feat: Plugin verdrahtet — Kommandos, Start-/Intervall-Sync, Vorschau`.
+- [x] **Step 1:** Verdrahten; `npm run build`; `npm run lint` (0 Warnings); `npm run typecheck`.
+- [x] **Step 2: Manueller Smoke (Maintainer-lokal, dokumentiert im Report):** `OBSIDIAN_PLUGIN_DIR=<staging-vault>/.obsidian/plugins/calendar-notes npm run deploy` gegen einen Wegwerf-Vault + laufendes Radicale (`npx tsx scripts/dav-server.ts`): Konto anlegen (`http://127.0.0.1:5232/`, test/test), Discovery findet Kalender+Kontakte, Sammlungen aktivieren, Vorschau zeigt 3+2 creates, Ausführen legt Notizen an, zweiter Lauf skip. Ergebnis als Stichpunkte in `docs/smoke/2026-08-22-m2b-manual.md` (was ging, was nicht). **Der automatisierte GUI-Smoke kommt in M3** — hier nur Beleg, dass der Pfad einmal gelaufen ist.
+- [x] **Step 3: Commit** `feat: Plugin verdrahtet — Kommandos, Start-/Intervall-Sync, Vorschau`.
 
 ---
 
 ### Task 9: Abschluss M2b — Gate, Doku, Registry-Kandidaten
 
-- [ ] `npm run gate && npm run test:integration` grün; CHANGELOG (M2b-Zeile), AGENTS.md („Was M2b liefert" + Smoke-Anleitung), `docs/registry-kandidaten.md` (+ `secretStorage`-Muster erstes Exemplar, + SyncService-Interface-Injektion), Plan-Checkboxen; Commit `docs: M2b abgeschlossen`.
+- [x] `npm run gate && npm run test:integration` grün; CHANGELOG (M2b-Zeile), AGENTS.md („Was M2b liefert" + Smoke-Anleitung), `docs/registry-kandidaten.md` (+ `secretStorage`-Muster erstes Exemplar, + SyncService-Interface-Injektion), Plan-Checkboxen; Commit `docs: M2b abgeschlossen`.
 
 ---
 
