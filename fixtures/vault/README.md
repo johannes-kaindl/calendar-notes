@@ -1,28 +1,35 @@
-# Staging Vault Fixture
+# Staging-Vault-Fixture
 
-This directory contains a tracked fixture vault for the calendar-notes plugin smoke tests and README screenshots.
+Dieser Ordner enthält ein getracktes Fixture-Vault für die GUI-Smoke-Tests des calendar-notes-Plugins
+und für README-Screenshots.
 
-## Structure
+## Struktur
 
-- **`notes/`** — Markdown files for the staging vault, including:
-  - `Welcome.md` — Welcome note
-  - `Pallas/` — Sample Pallas-style structure with contacts and appointments
-    - `50_Ressourcen/10_Reference/10_Kontakte/` — Contact notes (e.g., Alex Aguado, ADAC)
-    - `30_Chronos/70_Termine/10_Anstehend/` — Appointment notes (e.g., Zahnärztin appointment)
-  - `Contacts/` and `Events/` — Generic structure placeholders
-  
-- **`obsidian/`** — Obsidian vault configuration:
-  - `app.json` — Application settings
-  - `appearance.json` — Visual appearance settings
-  - `community-plugins.json` — Enabled community plugins (calendar-notes)
-  - `core-plugins.json` — Enabled core plugins (file-explorer, global-search, command-palette, page-preview, switcher)
+- **`notes/`** — Markdown-Dateien für das Staging-Vault, darunter:
+  - `Welcome.md` — Willkommens-Notiz
+  - `Pallas/` — Pallas-ähnliche Beispielstruktur mit Kontakten und Terminen
+    - `50_Ressourcen/10_Reference/10_Kontakte/` — Kontakt-Notizen (z. B. Alex Aguado, ADAC)
+    - `30_Chronos/70_Termine/10_Anstehend/` — Termin-Notizen (z. B. Zahnärztin-Termin)
+  - `Contacts/` und `Events/` — generische Struktur-Platzhalter
 
-## Usage
+- **`obsidian/`** — Obsidian-Vault-Konfiguration:
+  - `app.json` — Anwendungseinstellungen
+  - `appearance.json` — Erscheinungsbild-Einstellungen
+  - `community-plugins.json` — aktivierte Community-Plugins (calendar-notes)
+  - `core-plugins.json` — aktivierte Kern-Plugins (file-explorer, global-search, command-palette,
+    page-preview, switcher)
 
-This fixture is used in two contexts:
+## Verwendung
 
-1. **GUI Smoke Tests** — `scripts/gui-smoke.ts --setup` builds the staging vault from this fixture via the `buildVault` function from `tools/obsidian-cdp/vault.ts`. The smoke tests validate plugin functionality against this known vault state.
+Dieses Fixture wird in zwei Kontexten benutzt:
 
-2. **README Screenshots** — `readme-shots` later uses the same vault fixture as a source for generating README documentation images.
+1. **GUI-Smoke-Tests** — `scripts/gui-smoke.ts --setup` baut das Staging-Vault aus diesem Fixture
+   über die Funktion `buildVault` aus `tools/obsidian-cdp/vault.ts` neu auf. Die Smoke-Tests prüfen
+   die Plugin-Funktionalität gegen diesen bekannten Vault-Zustand.
 
-The fixture is designed to be simple yet representative: it includes both Pallas-style organizational structure (for compatibility testing) and generic note types (contacts, events) to demonstrate the plugin's core functionality.
+2. **README-Screenshots** — `readme-shots` nutzt später dasselbe Vault-Fixture als Quelle für die
+   Bebilderung der README.
+
+Das Fixture ist bewusst einfach, aber repräsentativ gehalten: Es enthält sowohl eine
+Pallas-ähnliche Organisationsstruktur (für die Kompatibilitätsprüfung) als auch generische
+Notiz-Typen (Kontakte, Termine), um die Kernfunktionalität des Plugins zu zeigen.
