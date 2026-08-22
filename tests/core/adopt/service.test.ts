@@ -72,6 +72,7 @@ describe("loadServerItems", () => {
     expect(result.items.every((i) => i.kind === "contact")).toBe(true);
     expect(result.items.map((i) => i.uid).sort()).toEqual(["c3-1@test", "urn:uuid:5e2f1a9c-0000-4000-8000-000000000001"].sort());
     expect(result.source).toBe("acc1/ab1");
+    expect(result.skipped).toEqual([]);
     // kein REPORT sync-collection: die Adoption ruft syncCollection immer mit prev=undefined,
     // Zeitfenster spielt fuer Adressbuecher ohnehin keine Rolle.
     expect(calls.some((c) => c.method === "REPORT" && c.body?.includes("sync-collection"))).toBe(false);
@@ -96,6 +97,28 @@ describe("loadServerItems", () => {
     expect(result.items).toHaveLength(3);
     expect(result.items.every((i) => i.kind === "event")).toBe(true);
     expect(result.items.map((i) => i.uid).sort()).toEqual(["allday-1@test", "att-1@test", "simple-1@test"]);
+    expect(result.skipped).toEqual([]);
+  });
+
+  it("returns malformed objects as `skipped` (with href + reason) instead of dropping them silently", async () => {
+    const col: CollectionConfig = { id: "ab1", accountId: "acc1", href: "https://dav.example/ab1/", kind: "addressbook", displayName: "Contacts", enabled: true, profileId: CONTACT_PROFILE.id, readOnly: false };
+    const settings = baseSettings([col]);
+    const entries = [
+      { href: "https://dav.example/ab1/c1.vcf", etag: "e1", data: read("vcard/v4-min.vcf") },
+      { href: "https://dav.example/ab1/broken.vcf", etag: "e2", data: "NOT A VCARD" },
+    ];
+    const t: Transport = async (req) => {
+      if (req.method === "PROPFIND" && req.headers?.["Depth"] === "0") return { status: 207, headers: {}, text: refreshMS(col.href, '<cr:addressbook xmlns:cr="urn:ietf:params:xml:ns:carddav"/>') };
+      if (req.method === "PROPFIND" && req.headers?.["Depth"] === "1") return { status: 207, headers: {}, text: listingMS(col.href, entries) };
+      if (req.method === "REPORT" && req.body?.includes("addressbook-multiget")) return { status: 207, headers: {}, text: addressbookMultigetMS(entries) };
+      return { status: 404, headers: {}, text: "" };
+    };
+    const result = await loadServerItems(makeDeps(t), settings, "ab1");
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]?.uid).toBe("urn:uuid:5e2f1a9c-0000-4000-8000-000000000001");
+    expect(result.skipped).toHaveLength(1);
+    expect(result.skipped[0]?.href).toBe("https://dav.example/ab1/broken.vcf");
+    expect(result.skipped[0]?.reason).toBeTruthy();
   });
 
   it("throws when the collection isn't found", async () => {

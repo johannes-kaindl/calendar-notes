@@ -29,22 +29,28 @@ function baseCollectionOf(col: CollectionConfig): DavCollection {
   };
 }
 
+export interface SkippedItem {
+  href: string;
+  reason: string;
+}
+
 /** Baut aus dem rohen DAV-Objekt ein `ServerItem` — Kontakte 1:1, Termine nur der Master
  *  (`primaryEvent`, kein `recurrenceId`): Adoption verknuepft nur mit der Serien-Notiz,
  *  s. Kommentar in `plan.ts`. Ein Objekt, das nicht parst oder (bei Terminen) keinen
  *  Master enthaelt, wird uebersprungen statt den ganzen Ladevorgang abzubrechen — dieselbe
- *  Toleranz wie bei `applyDelta` (dort landet es als Fehler im Ergebnis, hier ist die
- *  Adoption ein rein optionaler Zusatzschritt ohne eigenen Fehlerkanal). */
-function itemFrom(col: CollectionConfig, href: string, etag: string, raw: string): ServerItem | undefined {
+ *  Toleranz wie bei `applyDelta` (dort landet es als Fehler im Ergebnis) — der Grund wird
+ *  aber NICHT mehr verschluckt: der Aufrufer bekommt ihn ueber `skipped` zurueck und zeigt
+ *  ihn im Modal, statt dass ein kaputtes Objekt spurlos verschwindet. */
+function itemFrom(col: CollectionConfig, href: string, etag: string, raw: string): { item: ServerItem } | { error: string } {
   try {
     if (col.kind === "addressbook") {
       const data = parseContact(raw);
-      return { uid: data.uid, href, kind: "contact", data, raw, etag };
+      return { item: { uid: data.uid, href, kind: "contact", data, raw, etag } };
     }
     const data = primaryEvent(parseEvents(raw));
-    return data ? { uid: data.uid, href, kind: "event", data, raw, etag } : undefined;
-  } catch {
-    return undefined;
+    return data ? { item: { uid: data.uid, href, kind: "event", data, raw, etag } } : { error: "kein Master-Termin in der Serie (nur Overrides)" };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
   }
 }
 
@@ -58,7 +64,7 @@ export async function loadServerItems(
   deps: AdoptDeps,
   settings: PluginSettings,
   collectionId: string,
-): Promise<{ items: ServerItem[]; profile: MappingProfile; source: string; col: DavCollection }> {
+): Promise<{ items: ServerItem[]; profile: MappingProfile; source: string; col: DavCollection; skipped: SkippedItem[] }> {
   const colConfig = settings.collections.find((c) => c.id === collectionId);
   if (!colConfig) throw new Error(`Sammlung nicht gefunden: ${collectionId}`);
   const account = settings.accounts.find((a) => a.id === colConfig.accountId);
@@ -74,9 +80,11 @@ export async function loadServerItems(
   const delta = await syncCollection(transport, fresh, undefined, { batchSize: settings.sync.batchSize });
 
   const items: ServerItem[] = [];
+  const skipped: SkippedItem[] = [];
   for (const obj of delta.changed) {
-    const item = itemFrom(colConfig, obj.href, obj.etag, obj.data);
-    if (item) items.push(item);
+    const result = itemFrom(colConfig, obj.href, obj.etag, obj.data);
+    if ("item" in result) items.push(result.item);
+    else skipped.push({ href: obj.href, reason: result.error });
   }
-  return { items, profile, source, col: fresh };
+  return { items, profile, source, col: fresh, skipped };
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { collectDecisions, defaultAction } from "../../src/obsidian/adoption-modal";
+import { collectDecisions, defaultAction, summarizeAdoption } from "../../src/obsidian/adoption-modal";
 import type { AdoptionSuggestion, CandidateNote, ServerItem } from "../../src/core/adopt/match";
 import { parseContact } from "../../src/core/vcard/contact";
 
@@ -42,5 +42,29 @@ describe("collectDecisions", () => {
     const suggestions = [suggestion("sure"), suggestion("weak")];
     const decisions = collectDecisions(suggestions, []);
     expect(decisions.map((d) => d.action)).toEqual(["link", "skip"]);
+  });
+});
+
+describe("summarizeAdoption", () => {
+  it("counts succeeded links and reports up to 3 failed paths", () => {
+    const succeeded = [
+      { path: "Contacts/A.md", set: {} },
+      { path: "Contacts/B.md", set: {} },
+    ];
+    const failed = [
+      { path: "Contacts/C.md", message: "boom" },
+      { path: "Contacts/D.md", message: "boom" },
+      { path: "Contacts/E.md", message: "boom" },
+      { path: "Contacts/F.md", message: "boom" },
+    ];
+    const summary = summarizeAdoption(succeeded, failed);
+    expect(summary.linkedCount).toBe(2);
+    expect(summary.failedCount).toBe(4);
+    expect(summary.failedPaths).toEqual(["Contacts/C.md", "Contacts/D.md", "Contacts/E.md"]);
+  });
+
+  it("is empty for no links and no failures", () => {
+    const summary = summarizeAdoption([], []);
+    expect(summary).toEqual({ linkedCount: 0, failedCount: 0, failedPaths: [] });
   });
 });

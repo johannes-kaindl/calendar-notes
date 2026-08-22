@@ -1,6 +1,6 @@
 import { FuzzySuggestModal, Notice, Plugin, Platform, TFile, getLanguage, type App } from "obsidian";
 import { candidateNotes, matchItems, type CandidateNote, type ServerItem } from "./core/adopt/match";
-import { planAdoption, stateAfterAdoption, type AdoptDecision } from "./core/adopt/plan";
+import { planAdoption, stateAfterAdoption, type AdoptDecision, type LinkPlan } from "./core/adopt/plan";
 import { loadServerItems } from "./core/adopt/service";
 import { discover, type DiscoveryResult } from "./core/dav/discovery";
 import { withBasicAuth } from "./core/dav/transport";
@@ -11,7 +11,7 @@ import type { RunInfo } from "./core/state/collection-state";
 import { SyncService } from "./core/sync/service";
 import type { CollectionRunResult, SyncDeps } from "./core/sync/types";
 import { initI18n, t } from "./i18n/strings";
-import { AdoptionModal } from "./obsidian/adoption-modal";
+import { AdoptionModal, summarizeAdoption } from "./obsidian/adoption-modal";
 import { buildSyncDeps } from "./obsidian/plugin-host";
 import { PreviewModal } from "./obsidian/preview-modal";
 import { obsidianSecretStore, type SecretStore } from "./obsidian/secrets";
@@ -218,10 +218,10 @@ export default class CalendarNotesPlugin extends Plugin {
   }
 
   private async startAdoption(collectionId: string): Promise<void> {
-    const { items, profile, source } = await loadServerItems(this.deps, this.settings, collectionId);
+    const { items, profile, source, skipped } = await loadServerItems(this.deps, this.settings, collectionId);
     const notes = await this.loadCandidateNotes(profile);
     const { suggestions, unmatchedItems, unmatchedNotes } = matchItems(items, notes, { profile });
-    new AdoptionModal(this.app, { suggestions, unmatchedItems, unmatchedNotes, profile }, (decisions) => this.confirmAdoption(decisions, profile, source, items)).open();
+    new AdoptionModal(this.app, { suggestions, unmatchedItems, unmatchedNotes, profile, skipped }, (decisions) => this.confirmAdoption(decisions, profile, source, items)).open();
   }
 
   /** Kandidaten-Notizen fuer die Adoption: erst per Frontmatter (aus dem `metadataCache`,
@@ -249,19 +249,32 @@ export default class CalendarNotesPlugin extends Plugin {
     return filtered;
   }
 
+  /** Verknuepft sequentiell (nicht parallel) — ein `processFrontMatter`-Fehlschlag bei
+   *  Notiz N darf die uebrigen Notizen nicht verhindern, und `stateAfterAdoption` bekommt
+   *  danach IMMER nur die tatsaechlich erfolgreichen Links, sonst behauptet der State-Eintrag
+   *  eine Verknuepfung, die im Frontmatter gar nicht steht. */
   private async confirmAdoption(decisions: AdoptDecision[], profile: MappingProfile, source: string, items: ServerItem[]): Promise<void> {
     const { links, createUids, skippedUids } = planAdoption(decisions, profile, source);
+    const succeeded: LinkPlan[] = [];
+    const failed: { path: string; message: string }[] = [];
     for (const link of links) {
-      const file = this.app.vault.getAbstractFileByPath(link.path);
-      if (!(file instanceof TFile)) continue;
-      await this.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
-        Object.assign(fm, link.set);
-      });
+      try {
+        const file = this.app.vault.getAbstractFileByPath(link.path);
+        if (!(file instanceof TFile)) throw new Error(`Notiz nicht gefunden: ${link.path}`);
+        await this.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
+          Object.assign(fm, link.set);
+        });
+        succeeded.push(link);
+      } catch (e) {
+        failed.push({ path: link.path, message: e instanceof Error ? e.message : String(e) });
+      }
     }
     const state = await this.deps.stateStore.load(source);
-    const newState = stateAfterAdoption(state, links, items, profile, this.deps.now());
+    const newState = stateAfterAdoption(state, succeeded, items, profile, this.deps.now());
     await this.deps.stateStore.save(newState);
-    new Notice(t("notice.adoptDone", links.length, skippedUids.length, createUids.length));
+    const summary = summarizeAdoption(succeeded, failed);
+    new Notice(t("notice.adoptDone", summary.linkedCount, skippedUids.length, createUids.length));
+    if (summary.failedCount > 0) new Notice(t("notice.adoptFailed", summary.failedCount, summary.failedPaths.join(", ")));
   }
 
   // ── Profil aus Notiz ─────────────────────────────────────────────────────

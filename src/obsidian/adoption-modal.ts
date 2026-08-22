@@ -1,6 +1,7 @@
 import { ButtonComponent, DropdownComponent, Modal, type App } from "obsidian";
-import type { AdoptDecision } from "../core/adopt/plan";
+import type { AdoptDecision, LinkPlan } from "../core/adopt/plan";
 import type { AdoptionSuggestion, CandidateNote, MatchConfidence, ServerItem } from "../core/adopt/match";
+import type { SkippedItem } from "../core/adopt/service";
 import type { ContactData } from "../core/vcard/contact";
 import type { EventData } from "../core/ical/event";
 import type { MappingProfile } from "../core/mirror/profile";
@@ -27,6 +28,21 @@ export interface AdoptionModalInput {
   unmatchedItems: ServerItem[];
   unmatchedNotes: CandidateNote[];
   profile: MappingProfile;
+  skipped: SkippedItem[];
+}
+
+/** Fasst das Ergebnis des Verknuepfens (`main.ts` `confirmAdoption`) fuer die Notice
+ *  zusammen — pure, damit die sequentielle Schleife selbst nur noch Erfolg/Fehlschlag pro
+ *  `LinkPlan` sammeln muss. `failedPaths` ist auf die ersten drei gekappt, damit die Notice
+ *  bei vielen Fehlschlaegen nicht ausufert. */
+export interface AdoptionOutcome {
+  linkedCount: number;
+  failedCount: number;
+  failedPaths: string[];
+}
+
+export function summarizeAdoption(succeeded: LinkPlan[], failed: { path: string; message: string }[]): AdoptionOutcome {
+  return { linkedCount: succeeded.length, failedCount: failed.length, failedPaths: failed.slice(0, 3).map((f) => f.path) };
 }
 
 function itemLabel(item: ServerItem): string {
@@ -51,9 +67,10 @@ export class AdoptionModal extends Modal {
   }
 
   onOpen(): void {
-    const { suggestions, unmatchedItems, unmatchedNotes } = this.input;
+    const { suggestions, unmatchedItems, unmatchedNotes, skipped } = this.input;
     this.titleEl.setText(t("adopt.heading"));
     this.contentEl.createEl("p", { text: t("adopt.summary", suggestions.length, unmatchedItems.length, unmatchedNotes.length) });
+    if (skipped.length > 0) this.contentEl.createEl("p", { text: t("adopt.skippedItems", skipped.length) });
 
     if (suggestions.length > 0) {
       const table = this.contentEl.createEl("table", { cls: "calendar-notes-adopt-table" });

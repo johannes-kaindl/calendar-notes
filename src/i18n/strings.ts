@@ -16,6 +16,7 @@ export const EN: Record<string, string> = {
   "adopt.kind.event": "Event",
   "adopt.profileFromNote.name": "Profile from {0}",
   "adopt.selectSure": "Adopt all sure matches",
+  "adopt.skippedItems": "{0} server item(s) could not be read.",
   "adopt.summary": "{0} suggested match(es), {1} unmatched server item(s), {2} unmatched note(s).",
   "adopt.unmatchedItems": "{0} new note(s) will be created on the next sync.",
   "adopt.unmatchedNotes": "{0} note(s) remain untouched.",
@@ -30,6 +31,7 @@ export const EN: Record<string, string> = {
   "cmd.syncCollection.placeholder": "Choose a collection to sync",
 
   "notice.adoptDone": "{0} note(s) linked, {1} skipped, {2} will be created on the next sync.",
+  "notice.adoptFailed": "{0} note(s) failed: {1}",
   "notice.clipboardUnavailable": "Clipboard unavailable — copy the JSON manually.",
   "notice.copied": "Copied to the clipboard.",
   "notice.copyFailed": "Copying failed: {0}",
@@ -124,6 +126,7 @@ export const DE: Record<string, string> = {
   "adopt.kind.event": "Termin",
   "adopt.profileFromNote.name": "Profil aus {0}",
   "adopt.selectSure": "Alle sicheren übernehmen",
+  "adopt.skippedItems": "{0} Server-Eintrag/-Einträge konnten nicht gelesen werden.",
   "adopt.summary": "{0} vorgeschlagene Zuordnung(en), {1} nicht zugeordnete(r) Server-Eintrag/-Einträge, {2} nicht zugeordnete Notiz(en).",
   "adopt.unmatchedItems": "{0} neue Notiz(en) entstehen beim nächsten Sync.",
   "adopt.unmatchedNotes": "{0} Notiz(en) bleiben unberührt.",
@@ -138,6 +141,7 @@ export const DE: Record<string, string> = {
   "cmd.syncCollection.placeholder": "Sammlung zum Synchronisieren wählen",
 
   "notice.adoptDone": "{0} Notiz(en) verknüpft, {1} übergangen, {2} entstehen beim nächsten Sync.",
+  "notice.adoptFailed": "{0} Notiz(en) fehlgeschlagen: {1}",
   "notice.clipboardUnavailable": "Zwischenablage nicht verfügbar — bitte das JSON manuell kopieren.",
   "notice.copied": "In die Zwischenablage kopiert.",
   "notice.copyFailed": "Kopieren fehlgeschlagen: {0}",
