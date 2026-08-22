@@ -15,7 +15,7 @@ export interface DiscoveryResult {
 }
 
 const PRINCIPAL_PROPS = ["d:current-user-principal", "c:calendar-home-set", "cr:addressbook-home-set"];
-const COLLECTION_PROPS = [
+export const COLLECTION_PROPS = [
   "d:resourcetype", "d:displayname", "cs:getctag", "d:sync-token",
   "c:supported-calendar-component-set", "ical:calendar-color", "d:current-user-privilege-set",
 ];

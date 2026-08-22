@@ -1,0 +1,31 @@
+import { describe, it, expect } from "vitest";
+import { defaultSettings, normalizeSettings, secretIdFor, newId, sourceOf, effectiveProfile, DEFAULT_SYNC } from "../../src/core/settings";
+describe("settings", () => {
+  it("defaults carry both default profiles", () => {
+    const s = defaultSettings();
+    expect(s.profiles.map((p) => p.id)).toEqual(["default-contact", "default-event"]);
+    expect(s.sync).toEqual(DEFAULT_SYNC);
+  });
+  it("normalize: merges, drops invalid profile, re-adds missing defaults, drops orphan collection, clamps", () => {
+    const s = normalizeSettings({ accounts: [{ id: "a1", name: "X", baseUrl: "https://d/", username: "u", secretId: "calendar-notes-a1" }],
+      collections: [{ id: "c1", accountId: "a1", href: "https://d/k/", kind: "calendar", displayName: "K", enabled: true, profileId: "default-event", readOnly: false }, { id: "c2", accountId: "ghost", href: "x", kind: "calendar", displayName: "G", enabled: true, profileId: "default-event", readOnly: false }],
+      profiles: [{ id: "broken" }], sync: { intervalMinutes: -5, requestTimeoutMs: 10 } });
+    expect(s.collections.map((c) => c.id)).toEqual(["c1"]);
+    expect(s.profiles.map((p) => p.id).sort()).toEqual(["default-contact", "default-event"]);
+    expect(s.sync.intervalMinutes).toBe(0); expect(s.sync.requestTimeoutMs).toBe(1000); expect(s.sync.pastDays).toBe(90);
+  });
+  it("normalize(undefined) == defaults; keeps a valid custom profile", () => {
+    expect(normalizeSettings(undefined)).toEqual(defaultSettings());
+    const custom = { ...defaultSettings().profiles[0]!, id: "pallas", name: "Pallas" };
+    expect(normalizeSettings({ profiles: [custom] }).profiles.map((p) => p.id)).toEqual(["pallas", "default-contact", "default-event"]);
+  });
+  it("helpers", () => {
+    expect(secretIdFor("a1")).toBe("calendar-notes-a1");
+    let i = 0; const rand = () => [0.1, 0.5, 0.9][i++ % 3]!;
+    expect(newId("acc", rand)).toMatch(/^acc-[a-z0-9]{8}$/);
+    const s = defaultSettings(); const c = { id: "c1", accountId: "a1", href: "h", kind: "calendar" as const, displayName: "K", enabled: true, profileId: "default-event", readOnly: false, folderOverride: "Termine/2026" };
+    expect(sourceOf(c)).toBe("a1/c1");
+    expect(effectiveProfile(s, c)?.folder).toBe("Termine/2026");
+    expect(effectiveProfile(s, { ...c, profileId: "nope" })).toBeUndefined();
+  });
+});

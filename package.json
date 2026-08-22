@@ -13,6 +13,7 @@
     "lint": "node scripts/check-no-inline-disables.mjs && eslint src --max-warnings 0",
     "check:pure": "node scripts/check-pure.mjs",
     "gate": "npm run lint && npm run typecheck && npm run typecheck:test && npm test && npm run check:pure && npm run build",
+    "deploy": "npm run build && cp main.js manifest.json styles.css \"${OBSIDIAN_PLUGIN_DIR:?set OBSIDIAN_PLUGIN_DIR}\"/",
     "kit:sync": "sh tools/sync-kit.sh"
   },
   "keywords": ["obsidian-plugin", "caldav", "carddav", "calendar", "contacts", "sync"],
