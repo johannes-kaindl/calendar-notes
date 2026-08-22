@@ -40,6 +40,13 @@ const RADICALE_PORT = 5298;
 const ACCOUNT_ID = "acc-smoke";
 const SECRET_ID = `calendar-notes-${ACCOUNT_ID}`;
 
+// Erwartete Reihenfolge der 5 Settings-Gruppen (getSettingDefinitions() in settings-tab.ts:
+// accountsGroup, collectionsGroup, profilesGroup, syncGroup, actionsGroup) — aus
+// src/i18n/strings.ts, Schluessel `settings.*.heading`, DE und EN, weil `initI18n` in
+// main.ts auf `getLanguage()` faellt (systemabhaengig, im Treiber nicht erzwingbar).
+const SETTING_HEADINGS_DE = ["Konten", "Sammlungen", "Profile", "Synchronisation", "Aktionen"];
+const SETTING_HEADINGS_EN = ["Accounts", "Collections", "Profiles", "Sync", "Actions"];
+
 // `import.meta.url` zeigt nach dem esbuild-Buendeln auf `.gui-smoke.mjs` — das liegt im
 // Repo-Root (esbuild schreibt dorthin, `outfile` ohne Pfadpraefix), NICHT in `scripts/`.
 // Ein `resolve(HERE, "..")` waere deshalb ein Verzeichnis zu hoch (wie bei `dav-server.ts`s
@@ -258,8 +265,10 @@ async function checkP1(cdp: Cdp): Promise<void> {
       return tab.getSettingDefinitions().map((d) => d.heading);
     `,
     );
-    const ok = cmds.length === 5 && Array.isArray(headings) && headings.length === 5 && headings.every((h) => typeof h === "string");
-    record("P1", "Laden", ok, `${cmds.length} Kommandos, ${Array.isArray(headings) ? headings.length : 0} Settings-Gruppen: ${JSON.stringify(headings)}`);
+    const matchesOrder = (expected: string[]): boolean => Array.isArray(headings) && headings.length === expected.length && expected.every((h, i) => headings[i] === h);
+    const headingsOk = matchesOrder(SETTING_HEADINGS_DE) || matchesOrder(SETTING_HEADINGS_EN);
+    const ok = cmds.length === 5 && headingsOk;
+    record("P1", "Laden", ok, `${cmds.length} Kommandos, Settings-Gruppen: ${JSON.stringify(headings)} (erwartet DE ${JSON.stringify(SETTING_HEADINGS_DE)} oder EN ${JSON.stringify(SETTING_HEADINGS_EN)})`);
   } catch (e) {
     record("P1", "Laden", false, e instanceof Error ? e.message : String(e));
   }
@@ -322,7 +331,8 @@ async function runAdoption(cdp: Cdp, collectionId: string): Promise<void> {
   const opened = await pollUntil<boolean>(cdp, `return !!document.querySelector(".modal-container .mod-cta") || null;`, 15_000, 300);
   if (!opened) throw new Error(`Adoptions-Modal fuer Sammlung ${collectionId} ist nicht erschienen`);
   await cdp.evaluate(`document.querySelector(".modal-container .mod-cta").click(); return true;`);
-  await pollUntil<boolean>(cdp, `return !document.querySelector(".modal-container") || null;`, 8_000, 200);
+  const closed = await pollUntil<boolean>(cdp, `return !document.querySelector(".modal-container") || null;`, 8_000, 200);
+  if (!closed) throw new Error("Adoption-Modal schließt nicht (8 s)");
 }
 
 async function readFrontmatter(cdp: Cdp, path: string): Promise<Record<string, unknown>> {
