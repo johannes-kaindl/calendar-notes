@@ -1,0 +1,175 @@
+import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { parseContact } from "../../../src/core/vcard/contact";
+import { parseEvents } from "../../../src/core/ical/event";
+import { defaultContactProfile, defaultEventProfile } from "../../../src/core/mirror/profile";
+import { candidateNotes, matchItems, nameSimilarity, type CandidateNote, type ServerItem } from "../../../src/core/adopt/match";
+
+const FIXTURES = join(__dirname, "../../fixtures");
+const read = (rel: string): string => readFileSync(join(FIXTURES, rel), "utf8");
+
+function contactItem(vcf: string, href = "/dav/contacts/c1.vcf"): ServerItem {
+  const data = parseContact(vcf);
+  return { uid: data.uid, href, kind: "contact", data, raw: vcf, etag: "\"e1\"" };
+}
+function eventItem(ics: string, href = "/dav/events/e1.ics"): ServerItem {
+  const data = parseEvents(ics)[0];
+  if (!data) throw new Error("kein Event in Fixture");
+  return { uid: data.uid, href, kind: "event", data, raw: ics, etag: "\"e1\"" };
+}
+function note(path: string, frontmatter: Record<string, unknown>, body = ""): CandidateNote {
+  const basename = path.split("/").pop()?.replace(/\.md$/, "") ?? path;
+  return { path, basename, frontmatter, body };
+}
+
+const vcardFull = read("vcard/v3-full.vcf");
+
+describe("nameSimilarity", () => {
+  it("is 1 for identical names", () => {
+    expect(nameSimilarity("Florian Brandes", "Florian Brandes")).toBe(1);
+  });
+  it("is 1 for two empty strings (trivial equality)", () => {
+    expect(nameSimilarity("", "")).toBe(1);
+  });
+  it("is 0 when one side is empty and the other is not", () => {
+    expect(nameSimilarity("", "Florian Brandes")).toBe(0);
+  });
+  it("ignores diacritics", () => {
+    expect(nameSimilarity("Björn Müller", "Bjorn Muller")).toBeGreaterThanOrEqual(0.95);
+  });
+  it("honorifics don't sink an otherwise-identical name below the likely threshold", () => {
+    const sim = nameSimilarity("Dr. Florian Brandes", "Florian Brandes");
+    expect(sim).toBeGreaterThanOrEqual(0.85);
+  });
+  it("unrelated names score low", () => {
+    expect(nameSimilarity("Florian Brandes", "Sandra Meier")).toBeLessThan(0.3);
+  });
+});
+
+describe("candidateNotes", () => {
+  const profile = { ...defaultContactProfile(), folder: "Contacts", uidField: "vcard_uid", onCreate: { type: "👤 Kontakt" } };
+  const notes: CandidateNote[] = [
+    note("Contacts/Florian Brandes.md", { title: "Florian Brandes", type: "👤 Kontakt" }),
+    note("Contacts/Sub/Alex Aguado.md", { title: "Alex Aguado", type: "👤 Kontakt" }),
+    note("Contacts/Already Linked.md", { title: "Already Linked", type: "👤 Kontakt", vcard_uid: "c3-1@test" }),
+    note("Other/Not In Folder.md", { title: "Not In Folder", type: "👤 Kontakt" }),
+    note("Contacts/Wrong Type.md", { title: "Wrong Type", type: "📄 Note" }),
+  ];
+
+  it("keeps notes in the profile folder (including subfolders) without uidField and with matching onCreate.type", () => {
+    const out = candidateNotes(notes, profile);
+    expect(out.map((n) => n.path)).toEqual(["Contacts/Florian Brandes.md", "Contacts/Sub/Alex Aguado.md"]);
+  });
+  it("keeps everything when folder is empty", () => {
+    const out = candidateNotes(notes, { ...profile, folder: "" });
+    expect(out.map((n) => n.path)).toContain("Other/Not In Folder.md");
+  });
+  it("keeps notes regardless of type when onCreate has no type", () => {
+    const out = candidateNotes(notes, { ...profile, onCreate: {} });
+    expect(out.map((n) => n.path)).toContain("Contacts/Wrong Type.md");
+  });
+});
+
+describe("matchItems — contacts", () => {
+  const profile = defaultContactProfile();
+
+  it("matches by exact email (case-insensitive) with sure confidence", () => {
+    const item = contactItem(vcardFull);
+    const n = note("Contacts/Florian.md", { email: "PRAXIS@example.test" });
+    const { suggestions, unmatchedItems, unmatchedNotes } = matchItems([item], [n], { profile });
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0]?.reason).toBe("email");
+    expect(suggestions[0]?.confidence).toBe("sure");
+    expect(unmatchedItems).toHaveLength(0);
+    expect(unmatchedNotes).toHaveLength(0);
+  });
+
+  it("matches by normalized phone regardless of formatting", () => {
+    const item = contactItem(vcardFull);
+    const n = note("Contacts/Florian.md", { telefon: "0171/1234567" });
+    const { suggestions } = matchItems([item], [n], { profile });
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0]?.reason).toBe("phone");
+    expect(suggestions[0]?.confidence).toBe("sure");
+  });
+
+  it("matches by fuzzy name (title honorific dropped) as likely/sure", () => {
+    const item = contactItem(vcardFull); // FN: Dr. Florian Brandes
+    const n = note("Contacts/Florian Brandes.md", {});
+    const { suggestions } = matchItems([item], [n], { profile });
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0]?.reason).toBe("name");
+    expect(["sure", "likely"]).toContain(suggestions[0]?.confidence);
+  });
+
+  it("does not match unrelated notes", () => {
+    const item = contactItem(vcardFull);
+    const n = note("Contacts/Someone Else.md", { email: "other@example.test" });
+    const { suggestions, unmatchedItems, unmatchedNotes } = matchItems([item], [n], { profile });
+    expect(suggestions).toHaveLength(0);
+    expect(unmatchedItems).toHaveLength(1);
+    expect(unmatchedNotes).toHaveLength(1);
+  });
+
+  it("assigns the note to the best-confidence item when two items compete for one note", () => {
+    const sureItem = contactItem(vcardFull, "/dav/c1.vcf"); // email praxis@example.test
+    const otherVcf = `BEGIN:VCARD\r\nVERSION:3.0\r\nUID:other@test\r\nFN:Sandra Meier\r\nEND:VCARD\r\n`;
+    const weakItem = contactItem(otherVcf, "/dav/c2.vcf");
+    const n = note("Contacts/Florian Brandes.md", { email: "praxis@example.test" });
+    const { suggestions, unmatchedItems } = matchItems([weakItem, sureItem], [n], { profile });
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0]?.item.href).toBe("/dav/c1.vcf");
+    expect(suggestions[0]?.reason).toBe("email");
+    expect(unmatchedItems.map((i) => i.href)).toEqual(["/dav/c2.vcf"]);
+  });
+
+  it("each note and item matches at most once (ties resolved by item order)", () => {
+    const vcf1 = `BEGIN:VCARD\r\nVERSION:3.0\r\nUID:u1@test\r\nFN:Florian Brandes\r\nEND:VCARD\r\n`;
+    const vcf2 = `BEGIN:VCARD\r\nVERSION:3.0\r\nUID:u2@test\r\nFN:Florian Brandes\r\nEND:VCARD\r\n`;
+    const item1 = contactItem(vcf1, "/dav/c1.vcf");
+    const item2 = contactItem(vcf2, "/dav/c2.vcf");
+    const n = note("Contacts/Florian Brandes.md", {});
+    const { suggestions, unmatchedItems } = matchItems([item1, item2], [n], { profile });
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0]?.item.href).toBe("/dav/c1.vcf");
+    expect(unmatchedItems.map((i) => i.href)).toEqual(["/dav/c2.vcf"]);
+  });
+});
+
+describe("matchItems — events", () => {
+  const profile = defaultEventProfile();
+  const ics = read("ical/attendees.ics"); // UID att-1@test, SUMMARY Planung, DTSTART 20260910T120000Z
+
+  it("matches start+title as likely when both align", () => {
+    const item = eventItem(ics);
+    const n = note("Events/2026-09-10 Planung.md", { start: "2026-09-10 12:00" });
+    const { suggestions } = matchItems([item], [n], { profile });
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0]?.reason).toBe("start+title");
+    expect(suggestions[0]?.confidence).toBe("likely");
+  });
+
+  it("matches start only as weak when the title diverges", () => {
+    const item = eventItem(ics);
+    const n = note("Events/2026-09-10 Unrelated.md", { title: "Zahnarzttermin", start: "2026-09-10T12:00" });
+    const { suggestions } = matchItems([item], [n], { profile });
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0]?.confidence).toBe("weak");
+  });
+
+  it("accepts datum+uhrzeit as an alternative to start", () => {
+    const item = eventItem(ics);
+    const n = note("Events/Planung.md", { datum: "2026-09-10", uhrzeit: "12:00" });
+    const { suggestions } = matchItems([item], [n], { profile });
+    expect(suggestions).toHaveLength(1);
+  });
+
+  it("does not match when start differs", () => {
+    const item = eventItem(ics);
+    const n = note("Events/Planung.md", { start: "2026-09-11 12:00" });
+    const { suggestions, unmatchedItems } = matchItems([item], [n], { profile });
+    expect(suggestions).toHaveLength(0);
+    expect(unmatchedItems).toHaveLength(1);
+  });
+});
