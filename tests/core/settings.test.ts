@@ -14,6 +14,16 @@ describe("settings", () => {
     expect(s.profiles.map((p) => p.id).sort()).toEqual(["default-contact", "default-event"]);
     expect(s.sync.intervalMinutes).toBe(0); expect(s.sync.requestTimeoutMs).toBe(1000); expect(s.sync.pastDays).toBe(90);
   });
+  it("normalize: keeps well-formed account.scheduling, drops malformed", () => {
+    const s = normalizeSettings({
+      accounts: [
+        { id: "a1", name: "X", baseUrl: "https://d/", username: "u", secretId: "calendar-notes-a1", scheduling: { outbox: "https://d/outbox/", inbox: "https://d/inbox/", addresses: ["jay@example.test"] } },
+        { id: "a2", name: "Y", baseUrl: "https://d2/", username: "u", secretId: "calendar-notes-a2", scheduling: { outbox: 42, addresses: ["jay@example.test"] } },
+      ],
+    });
+    expect(s.accounts[0]!.scheduling).toEqual({ outbox: "https://d/outbox/", inbox: "https://d/inbox/", addresses: ["jay@example.test"] });
+    expect(s.accounts[1]!.scheduling).toBeUndefined();
+  });
   it("normalize(undefined) == defaults; keeps a valid custom profile", () => {
     expect(normalizeSettings(undefined)).toEqual(defaultSettings());
     const custom = { ...defaultSettings().profiles[0]!, id: "pallas", name: "Pallas" };

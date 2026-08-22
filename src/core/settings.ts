@@ -1,5 +1,6 @@
 import { mergeSettings } from "../vendor/code-kit/settings";
 import { defaultContactProfile, defaultEventProfile, validateProfile, type MappingProfile } from "./mirror/profile";
+import type { SchedulingInfo } from "./dav/scheduling";
 
 export interface Account {
   id: string;
@@ -10,6 +11,7 @@ export interface Account {
   principal?: string;
   calendarHome?: string;
   addressbookHome?: string;
+  scheduling?: SchedulingInfo;
 }
 
 export interface CollectionConfig {
@@ -98,6 +100,18 @@ function normalizeProfiles(raw: unknown): MappingProfile[] {
   return out;
 }
 
+function normalizeScheduling(raw: unknown): SchedulingInfo | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const o = raw as Record<string, unknown>;
+  if (!Array.isArray(o["addresses"]) || !o["addresses"].every((x) => typeof x === "string")) return undefined;
+  if (o["outbox"] !== undefined && typeof o["outbox"] !== "string") return undefined;
+  if (o["inbox"] !== undefined && typeof o["inbox"] !== "string") return undefined;
+  const info: SchedulingInfo = { addresses: o["addresses"] };
+  if (typeof o["outbox"] === "string") info.outbox = o["outbox"];
+  if (typeof o["inbox"] === "string") info.inbox = o["inbox"];
+  return info;
+}
+
 function normalizeAccounts(raw: unknown): Account[] {
   if (!Array.isArray(raw)) return [];
   const out: Account[] = [];
@@ -109,6 +123,8 @@ function normalizeAccounts(raw: unknown): Account[] {
     if (typeof o["principal"] === "string") acc.principal = o["principal"];
     if (typeof o["calendarHome"] === "string") acc.calendarHome = o["calendarHome"];
     if (typeof o["addressbookHome"] === "string") acc.addressbookHome = o["addressbookHome"];
+    const scheduling = normalizeScheduling(o["scheduling"]);
+    if (scheduling) acc.scheduling = scheduling;
     out.push(acc);
   }
   return out;
