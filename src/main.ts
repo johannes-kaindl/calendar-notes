@@ -259,7 +259,7 @@ export default class CalendarNotesPlugin extends Plugin {
       });
     }
     const state = await this.deps.stateStore.load(source);
-    const newState = stateAfterAdoption(state, links, items, this.deps.now());
+    const newState = stateAfterAdoption(state, links, items, profile, this.deps.now());
     await this.deps.stateStore.save(newState);
     new Notice(t("notice.adoptDone", links.length, skippedUids.length, createUids.length));
   }

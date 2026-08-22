@@ -45,16 +45,15 @@ export function planAdoption(
   return { links, createUids, skippedUids };
 }
 
-/** Ordnet jedem LinkPlan das ursprüngliche ServerItem zu (LinkPlan trägt kein Profil-Wissen mehr,
- * also über den Uid-Wert selbst, der unter den `set`-Werten steht) und schreibt einen State-Eintrag
- * mit leerem `written`/`hash` — der erste reguläre Sync-Lauf sieht dadurch kein `prevWritten` und
- * meldet folglich keine handEdited-Kollision. */
-export function stateAfterAdoption(state: CollectionState, links: LinkPlan[], items: ServerItem[], now: Date): CollectionState {
+/** Ordnet jedem LinkPlan das ursprüngliche ServerItem über `profile.uidField` zu und schreibt einen
+ * State-Eintrag mit leerem `written`/`hash` — der erste reguläre Sync-Lauf sieht dadurch kein
+ * `prevWritten` und meldet folglich keine handEdited-Kollision. */
+export function stateAfterAdoption(state: CollectionState, links: LinkPlan[], items: ServerItem[], profile: MappingProfile, now: Date): CollectionState {
   const at = now.toISOString();
   let next = state;
   for (const link of links) {
-    const values = Object.values(link.set);
-    const item = items.find((i) => values.includes(i.uid));
+    const uid = link.set[profile.uidField];
+    const item = items.find((i) => i.uid === uid);
     if (!item) continue;
     next = upsertObject(next, hrefPath(item.href), { uid: item.uid, etag: item.etag, raw: item.raw, written: {}, hash: "", notePath: link.path, at });
   }

@@ -4,6 +4,7 @@ import {
   EVENT_SERVER_FIELDS,
   defaultContactProfile,
   defaultEventProfile,
+  type FmVal,
   type MappingProfile,
   type ProfileKind,
 } from "./profile";
@@ -93,9 +94,14 @@ export function suggestProfileFromNote(
   const fields: Record<string, string | null> = {};
   for (const f of serverFieldsFor(kind)) fields[f] = null;
 
+  // type/status/up sind fürs onCreate reserviert und stehen deshalb nie als Feld-Kandidaten zur
+  // Verfügung — sonst würde z. B. ein Event mit "status: confirmed" gleichzeitig fields.status UND
+  // onCreate.status befüllen. Der Server-Feld "status" bleibt in der Vorschlags-Suggestion also
+  // immer unbelegt (null), auch wenn die Notiz eine literale "status"-Spalte trägt.
   const mapped: Record<string, string> = {};
   const keys = Object.keys(frontmatter);
   for (const key of keys) {
+    if (ON_CREATE_KEYS.includes(key)) continue;
     const serverField = synonyms[key.toLowerCase()];
     if (serverField && Object.hasOwn(fields, serverField) && fields[serverField] === null) {
       fields[serverField] = key;
@@ -111,16 +117,25 @@ export function suggestProfileFromNote(
     }
   }
 
-  const onCreate: Record<string, string> = {};
+  const onCreate: Record<string, FmVal> = {};
+  const onCreateHandled = new Set<string>();
   for (const k of ON_CREATE_KEYS) {
+    if (!Object.hasOwn(frontmatter, k)) continue;
     const v = frontmatter[k];
-    if (typeof v === "string" && v.length > 0) onCreate[k] = v;
+    if (typeof v === "string" && v.length > 0) {
+      onCreate[k] = v;
+      onCreateHandled.add(k);
+    } else if (Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === "string")) {
+      onCreate[k] = v;
+      onCreateHandled.add(k);
+    }
+    // sonst: unzulässiger Typ (z. B. Zahl/Objekt) → fällt unten in unmapped statt stillschweigend zu verschwinden
   }
 
   const unmapped = keys.filter((key) => {
     if (Object.values(mapped).includes(key)) return false;
     if (key === uidField) return false;
-    if (ON_CREATE_KEYS.includes(key)) return false;
+    if (ON_CREATE_KEYS.includes(key)) return !onCreateHandled.has(key);
     return true;
   });
 

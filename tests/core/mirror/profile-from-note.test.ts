@@ -109,4 +109,37 @@ describe("suggestProfileFromNote — event", () => {
     const { unmapped } = suggestProfileFromNote("event", fm, { folder: "Termine", name: "Termine", rand });
     expect(unmapped).toEqual(["laenge_minuten"]);
   });
+
+  it("never maps 'status' into fields — it stays reserved for onCreate, even though it's a valid event synonym", () => {
+    const fm = { ...frontmatter, status: "confirmed" };
+    const { profile, mapped, unmapped } = suggestProfileFromNote("event", fm, { folder: "Termine", name: "Termine", rand });
+    expect(profile.fields.status).toBeNull();
+    expect(mapped.status).toBeUndefined();
+    expect(profile.onCreate).toEqual({ type: "📅 Termin", status: "confirmed" });
+    expect(unmapped).toEqual([]);
+  });
+});
+
+describe("suggestProfileFromNote — onCreate edge cases", () => {
+  it("copies a string[] value of type/status/up into onCreate verbatim", () => {
+    const fm = { email: "a@b.test", up: ["[[10_Kontakte]]", "[[Praxis]]"] };
+    const { profile, unmapped } = suggestProfileFromNote("contact", fm, { folder: "Kontakte", name: "Kontakte", rand });
+    expect(profile.onCreate).toEqual({ up: ["[[10_Kontakte]]", "[[Praxis]]"] });
+    expect(unmapped).toEqual([]);
+  });
+
+  it("puts a non-string/non-string[] onCreate-key value into unmapped instead of onCreate", () => {
+    const fm = { email: "a@b.test", status: 3, up: { nested: true } };
+    const { profile, unmapped } = suggestProfileFromNote("contact", fm, { folder: "Kontakte", name: "Kontakte", rand });
+    expect(profile.onCreate).toEqual({});
+    expect(profile.fields.email).toBe("email");
+    expect(unmapped.sort()).toEqual(["status", "up"]);
+  });
+
+  it("validates when onCreate carries a string[] value", () => {
+    const fm = { email: "a@b.test", up: ["[[10_Kontakte]]"] };
+    const { profile } = suggestProfileFromNote("contact", fm, { folder: "Kontakte", name: "Kontakte", rand });
+    const r = validateProfile(profile);
+    expect(r.ok).toBe(true);
+  });
 });

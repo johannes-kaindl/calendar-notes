@@ -167,29 +167,41 @@ function bestTitleSim(title: string, note: CandidateNote): number {
   return candidates.reduce((max, c) => Math.max(max, nameSimilarity(title, c)), 0);
 }
 
-/** "YYYY-MM-DD" oder "YYYY-MM-DDTHH:mm" — Sekunden/Zeitzonen-Suffixe werden für den Vergleich verworfen. */
-function normalizeEventStart(raw: string): string | null {
+/** Datum + optional Uhrzeit (Minutenauflösung) — Sekunden/Zeitzonen-Suffixe werden verworfen.
+ * Kein Uhrzeit-Anteil (All-Day) → `minutes: null`. */
+interface EventMoment {
+  date: string;
+  minutes: number | null;
+}
+
+function parseEventMoment(raw: string): EventMoment | null {
   const m = /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}):(\d{2})(?::\d{2})?)?/.exec(raw);
   if (!m) return null;
   const [, date, hh, mm] = m;
-  return hh !== undefined && mm !== undefined ? `${date}T${hh}:${mm}` : (date ?? null);
+  if (date === undefined) return null;
+  const minutes = hh !== undefined && mm !== undefined ? Number(hh) * 60 + Number(mm) : null;
+  return { date, minutes };
 }
 
-function noteEventStart(note: CandidateNote, profile: MappingProfile): string | null {
+function noteEventMoment(note: CandidateNote, profile: MappingProfile): EventMoment | null {
   const startKey = fmKeyFor(profile, "start");
   for (const k of [startKey, "termin_start", "start"]) {
     if (!k) continue;
     const v = note.frontmatter[k];
-    if (typeof v === "string" && v.length > 0) return normalizeEventStart(v);
+    if (typeof v === "string" && v.length > 0) return parseEventMoment(v);
   }
   const datum = note.frontmatter["datum"];
   if (typeof datum === "string" && datum.length > 0) {
     const uhrzeit = note.frontmatter["uhrzeit"];
     const combined = typeof uhrzeit === "string" && uhrzeit.length > 0 ? `${datum}T${uhrzeit}` : datum;
-    return normalizeEventStart(combined);
+    return parseEventMoment(combined);
   }
   return null;
 }
+
+/** Toleranzfenster für "vermutlich dieselbe Uhrzeit, nur mit Zeitzonen-Versatz" (z. B. Notiz in
+ * Lokalzeit vs. Server-`start` in UTC): bis zu 2h Differenz am selben Tag zählt noch als `weak`. */
+const START_TOLERANCE_MINUTES = 120;
 
 interface MatchCtx {
   profile: MappingProfile;
@@ -213,14 +225,23 @@ function computeMatch(item: ServerItem, note: CandidateNote, ctx: MatchCtx): { r
     return null;
   }
   const e = item.data as EventData;
-  const noteStart = noteEventStart(note, ctx.profile);
-  const serverStart = normalizeEventStart(e.start);
-  if (!noteStart || !serverStart) return null;
-  const startsMatch = e.allDay ? noteStart.slice(0, 10) === serverStart.slice(0, 10) : noteStart === serverStart;
-  if (!startsMatch) return null;
-  const titleSim = bestTitleSim(e.summary, note);
-  if (titleSim >= 0.6) return { reason: "start+title", confidence: "likely", detail: titleSim.toFixed(2) };
-  return { reason: "start+title", confidence: "weak", detail: titleSim.toFixed(2) };
+  const noteMoment = noteEventMoment(note, ctx.profile);
+  const serverMoment = parseEventMoment(e.start);
+  if (!noteMoment || !serverMoment || noteMoment.date !== serverMoment.date) return null;
+  if (e.allDay) {
+    const titleSim = bestTitleSim(e.summary, note);
+    if (titleSim >= 0.6) return { reason: "start+title", confidence: "likely", detail: titleSim.toFixed(2) };
+    return { reason: "start+title", confidence: "weak", detail: titleSim.toFixed(2) };
+  }
+  if (noteMoment.minutes === null || serverMoment.minutes === null) return null;
+  const diff = Math.abs(noteMoment.minutes - serverMoment.minutes);
+  if (diff === 0) {
+    const titleSim = bestTitleSim(e.summary, note);
+    if (titleSim >= 0.6) return { reason: "start+title", confidence: "likely", detail: titleSim.toFixed(2) };
+    return { reason: "start+title", confidence: "weak", detail: titleSim.toFixed(2) };
+  }
+  if (diff <= START_TOLERANCE_MINUTES) return { reason: "start+title", confidence: "weak", detail: `Δ${diff}min` };
+  return null;
 }
 
 const CONFIDENCE_RANK: Record<MatchConfidence, number> = { sure: 3, likely: 2, weak: 1 };

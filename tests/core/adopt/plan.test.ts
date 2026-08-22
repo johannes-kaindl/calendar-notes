@@ -72,7 +72,7 @@ describe("stateAfterAdoption", () => {
     const { links } = planAdoption(decisions, profile, "acct/col1");
     const before = { ...emptyState("acct/col1"), snapshot: { ctag: "ctag-1", etags: { "/dav/contacts/c1.vcf": '"e0"' } } };
     const now = new Date("2026-08-22T10:00:00Z");
-    const after = stateAfterAdoption(before, links, [item], now);
+    const after = stateAfterAdoption(before, links, [item], profile, now);
     const key = "/dav/contacts/c1.vcf";
     expect(after.objects[key]?.uid).toBe("c3-1@test");
     expect(after.objects[key]?.etag).toBe('"e1"');
@@ -91,9 +91,18 @@ describe("stateAfterAdoption", () => {
       { suggestion: makeSuggestion(item2, makeNote("Contacts/Two.md")), action: "link" },
     ];
     const { links } = planAdoption(decisions, profile, "acct/col1");
-    const after = stateAfterAdoption(emptyState("acct/col1"), links, [item1, item2], new Date("2026-08-22T10:00:00Z"));
+    const after = stateAfterAdoption(emptyState("acct/col1"), links, [item1, item2], profile, new Date("2026-08-22T10:00:00Z"));
     expect(after.objects["/dav/c1.vcf"]?.notes[""]?.path).toBe("Contacts/One.md");
     expect(after.objects["/dav/c2.vcf"]?.notes[""]?.path).toBe("Contacts/Two.md");
+  });
+
+  it("pairs a link with its item via profile.uidField, even with a custom field name", () => {
+    const custom = { ...profile, uidField: "vcard_uid" };
+    const item = makeItem();
+    const decisions: AdoptDecision[] = [{ suggestion: makeSuggestion(item, makeNote("Contacts/Custom.md")), action: "link" }];
+    const { links } = planAdoption(decisions, custom, "acct/col1");
+    const after = stateAfterAdoption(emptyState("acct/col1"), links, [item], custom, new Date("2026-08-22T10:00:00Z"));
+    expect(after.objects["/dav/contacts/c1.vcf"]?.notes[""]?.path).toBe("Contacts/Custom.md");
   });
 
   it("leaves the state unchanged when no matching item is found for a link", () => {
@@ -101,7 +110,7 @@ describe("stateAfterAdoption", () => {
     const decisions: AdoptDecision[] = [{ suggestion: makeSuggestion(item, makeNote()), action: "link" }];
     const { links } = planAdoption(decisions, profile, "acct/col1");
     const before = emptyState("acct/col1");
-    const after = stateAfterAdoption(before, links, [], new Date("2026-08-22T10:00:00Z"));
+    const after = stateAfterAdoption(before, links, [], profile, new Date("2026-08-22T10:00:00Z"));
     expect(after.objects).toEqual({});
   });
 });

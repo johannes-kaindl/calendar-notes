@@ -172,4 +172,21 @@ describe("matchItems — events", () => {
     expect(suggestions).toHaveLength(0);
     expect(unmatchedItems).toHaveLength(1);
   });
+
+  it("matches same date within 120 minutes as weak, regardless of title, with the offset in the detail", () => {
+    const item = eventItem(ics); // DTSTART 2026-09-10T12:00:00Z, SUMMARY Planung
+    const n = note("Events/Planung.md", { start: "2026-09-10 14:00" }); // Δ120min, same date
+    const { suggestions } = matchItems([item], [n], { profile });
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0]?.confidence).toBe("weak");
+    expect(suggestions[0]?.detail).toContain("120");
+  });
+
+  it("does not match same date beyond the 120-minute window", () => {
+    const item = eventItem(ics); // DTSTART 2026-09-10T12:00:00Z
+    const n = note("Events/Planung.md", { start: "2026-09-10 09:00" }); // Δ180min
+    const { suggestions, unmatchedItems } = matchItems([item], [n], { profile });
+    expect(suggestions).toHaveLength(0);
+    expect(unmatchedItems).toHaveLength(1);
+  });
 });
