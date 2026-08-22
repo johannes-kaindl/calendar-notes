@@ -1,0 +1,12 @@
+node_modules/
+main.js
+data.json
+.claude/
+.DS_Store
+.mcp.json
+.superpowers/
+.remember/
+.gui-smoke.mjs
+.shots.mjs
+# DAV-Befunde dürfen keine Zugangsdaten tragen — Rohantworten mit Auth-Headern hier ablegen:
+docs/dav/befunde/roh/
