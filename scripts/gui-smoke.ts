@@ -47,6 +47,12 @@ const SECRET_ID = `calendar-notes-${ACCOUNT_ID}`;
 const SETTING_HEADINGS_DE = ["Konten", "Sammlungen", "Profile", "Synchronisation", "Aktionen"];
 const SETTING_HEADINGS_EN = ["Accounts", "Collections", "Profiles", "Sync", "Actions"];
 
+// `settings.accounts.testButton` aus src/i18n/strings.ts, DE + EN — P8 matcht den
+// Discovery-Button exakt gegen dieses Label, statt per Substring-Regex zu raten.
+const DISCOVER_BUTTON_LABELS = ["Test connection & find collections", "Verbindung testen & Sammlungen finden"];
+
+const ACCOUNT_NAME = "Smoke";
+
 // `import.meta.url` zeigt nach dem esbuild-Buendeln auf `.gui-smoke.mjs` — das liegt im
 // Repo-Root (esbuild schreibt dorthin, `outfile` ohne Pfadpraefix), NICHT in `scripts/`.
 // Ein `resolve(HERE, "..")` waere deshalb ein Verzeichnis zu hoch (wie bei `dav-server.ts`s
@@ -56,6 +62,8 @@ const REPO_ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)));
 const ALEX_PATH = "Pallas/50_Ressourcen/10_Reference/10_Kontakte/Alex Aguado.md";
 const ADAC_PATH = "Pallas/50_Ressourcen/10_Reference/10_Kontakte/ADAC.md";
 const ZAHN_PATH = "Pallas/30_Chronos/70_Termine/10_Anstehend/2026-09-01 Zahnärztin.md";
+const KONTAKTE_FOLDER = "Pallas/50_Ressourcen/10_Reference/10_Kontakte";
+const ANSTEHEND_FOLDER = "Pallas/30_Chronos/70_Termine/10_Anstehend";
 
 interface Check {
   id: string;
@@ -106,10 +114,6 @@ async function waitForWorkspaceWindow(port: number, vault: string, timeoutMs: nu
   return null;
 }
 
-async function evalJson<T>(cdp: Cdp, body: string): Promise<T> {
-  return cdp.evaluate<T>(body);
-}
-
 // ── --setup: Vault aus dem Fixture neu bauen ────────────────────────────────
 async function runSetup(port: number, vault: string): Promise<void> {
   const vaultDir = resolveVaultDir();
@@ -151,8 +155,7 @@ async function runSetup(port: number, vault: string): Promise<void> {
 
 // ── Vault-Snapshot/Restore (Notizen) — funktioniert fuer jeden Abschnitt gleich ────────────
 async function snapshotVault(cdp: Cdp): Promise<Record<string, string>> {
-  return evalJson<Record<string, string>>(
-    cdp,
+  return cdp.evaluate<Record<string, string>>(
     `
     const out = {};
     for (const f of app.vault.getMarkdownFiles()) out[f.path] = await app.vault.cachedRead(f);
@@ -182,8 +185,7 @@ async function restoreVault(cdp: Cdp, snapshot: Record<string, string>): Promise
 }
 
 async function snapshotState(cdp: Cdp): Promise<string[]> {
-  return evalJson<string[]>(
-    cdp,
+  return cdp.evaluate<string[]>(
     `
     const dir = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}].manifest.dir + "/state";
     if (!(await app.vault.adapter.exists(dir))) return [];
@@ -211,7 +213,7 @@ async function seedAccount(cdp: Cdp, radicale: RunningServer): Promise<void> {
     const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
     const account = {
       id: ${JSON.stringify(ACCOUNT_ID)},
-      name: "Smoke",
+      name: ${JSON.stringify(ACCOUNT_NAME)},
       baseUrl: ${JSON.stringify(radicale.baseUrl)},
       username: ${JSON.stringify(radicale.user)},
       secretId: ${JSON.stringify(SECRET_ID)},
@@ -231,8 +233,7 @@ interface DiscoverInfo {
 }
 
 async function discoverAndMerge(cdp: Cdp): Promise<DiscoverInfo> {
-  return evalJson<DiscoverInfo>(
-    cdp,
+  return cdp.evaluate<DiscoverInfo>(
     `
     const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
     const account = plugin.settings.accounts.find((a) => a.id === ${JSON.stringify(ACCOUNT_ID)});
@@ -253,12 +254,10 @@ async function discoverAndMerge(cdp: Cdp): Promise<DiscoverInfo> {
 // ── P1: Laden ────────────────────────────────────────────────────────────
 async function checkP1(cdp: Cdp): Promise<void> {
   try {
-    const cmds = await evalJson<string[]>(
-      cdp,
+    const cmds = await cdp.evaluate<string[]>(
       `return Object.keys(app.commands.commands).filter((k) => k.startsWith(${JSON.stringify(PLUGIN_ID + ":")})).sort();`,
     );
-    const headings = await evalJson<(string | undefined)[] | null>(
-      cdp,
+    const headings = await cdp.evaluate<(string | undefined)[] | null>(
       `
       const tab = app.setting?.pluginTabs?.find?.((t) => t.id === ${JSON.stringify(PLUGIN_ID)});
       if (!tab || typeof tab.getSettingDefinitions !== "function") return null;
@@ -287,8 +286,7 @@ interface ProfileIds {
 }
 
 async function createPallasProfiles(cdp: Cdp): Promise<ProfileIds> {
-  return evalJson<ProfileIds>(
-    cdp,
+  return cdp.evaluate<ProfileIds>(
     `
     const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
     const alex = app.vault.getAbstractFileByPath(${JSON.stringify(ALEX_PATH)});
@@ -336,8 +334,7 @@ async function runAdoption(cdp: Cdp, collectionId: string): Promise<void> {
 }
 
 async function readFrontmatter(cdp: Cdp, path: string): Promise<Record<string, unknown>> {
-  return evalJson<Record<string, unknown>>(
-    cdp,
+  return cdp.evaluate<Record<string, unknown>>(
     `
     const f = app.vault.getAbstractFileByPath(${JSON.stringify(path)});
     if (!f) return {};
@@ -374,19 +371,24 @@ async function checkP3(cdp: Cdp, info: DiscoverInfo): Promise<void> {
   );
 
   // Sync danach: Alex/Zahnärztin werden AKTUALISIERT, nicht neu angelegt — freier Body bleibt.
-  const before = await evalJson<{ alexExists: boolean; zahnExists: boolean; zahnBody: string }>(
-    cdp,
+  // "Nicht neu angelegt" heisst konkret: die Markdown-Dateizahl unter den beiden Pallas-Ordnern
+  // aendert sich nicht (ein Fehlschlag der Verknuepfung wuerde sonst eine Datei mit
+  // Suffix — "Alex Aguado 1.md" — anlegen, ohne dass alexExists/zahnExists das je bemerken).
+  const countFn = `
+    const countMd = (folder) => app.vault.getMarkdownFiles().filter((f) => f.path.startsWith(folder + "/")).length;
+  `;
+  const before = await cdp.evaluate<{ kontakteCount: number; anstehendCount: number; zahnBody: string }>(
     `
+    ${countFn}
     const zahn = app.vault.getAbstractFileByPath(${JSON.stringify(ZAHN_PATH)});
     return {
-      alexExists: !!app.vault.getAbstractFileByPath(${JSON.stringify(ALEX_PATH)}),
-      zahnExists: !!zahn,
+      kontakteCount: countMd(${JSON.stringify(KONTAKTE_FOLDER)}),
+      anstehendCount: countMd(${JSON.stringify(ANSTEHEND_FOLDER)}),
       zahnBody: zahn ? await app.vault.cachedRead(zahn) : "",
     };
   `,
   );
-  const sync = await evalJson<{ created: number; updated: number; ok: boolean }>(
-    cdp,
+  const sync = await cdp.evaluate<{ created: number; updated: number; ok: boolean }>(
     `
     const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
     const r = await plugin.service.runAll();
@@ -397,33 +399,33 @@ async function checkP3(cdp: Cdp, info: DiscoverInfo): Promise<void> {
     };
   `,
   );
-  const after = await evalJson<{ alexExists: boolean; zahnExists: boolean; zahnBody: string }>(
-    cdp,
+  const after = await cdp.evaluate<{ kontakteCount: number; anstehendCount: number; zahnBody: string }>(
     `
+    ${countFn}
     const zahn = app.vault.getAbstractFileByPath(${JSON.stringify(ZAHN_PATH)});
     return {
-      alexExists: !!app.vault.getAbstractFileByPath(${JSON.stringify(ALEX_PATH)}),
-      zahnExists: !!zahn,
+      kontakteCount: countMd(${JSON.stringify(KONTAKTE_FOLDER)}),
+      anstehendCount: countMd(${JSON.stringify(ANSTEHEND_FOLDER)}),
       zahnBody: zahn ? await app.vault.cachedRead(zahn) : "",
     };
   `,
   );
-  const noNewFileForLinked = before.alexExists === after.alexExists && before.zahnExists === after.zahnExists;
+  const noNewFileForLinked = before.kontakteCount === after.kontakteCount && before.anstehendCount === after.anstehendCount;
   const bodyKept = after.zahnBody.includes("Vorbereitung");
   const syncOk = sync.ok && sync.updated >= 2 && noNewFileForLinked && bodyKept;
   record(
     "P3b",
     "Sync nach Adoption aktualisiert statt neu anzulegen",
     syncOk,
-    `created=${sync.created} updated=${sync.updated}, Alex/Zahnärztin unveraendert vorhanden=${noNewFileForLinked}, ` +
+    `created=${sync.created} updated=${sync.updated}, Dateizahl Kontakte ${before.kontakteCount}→${after.kontakteCount}, ` +
+      `Anstehend ${before.anstehendCount}→${after.anstehendCount} unveraendert=${noNewFileForLinked}, ` +
       `Body "Vorbereitung…" erhalten=${bodyKept}`,
   );
 }
 
 // ── P4-P7: Trockenlauf/Sync/Update/Loeschung/2. Discovery (--section generic) ────────
 async function checkP4(cdp: Cdp): Promise<void> {
-  const dry = await evalJson<{ created: number; ok: boolean }>(
-    cdp,
+  const dry = await cdp.evaluate<{ created: number; ok: boolean }>(
     `
     const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
     const r = await plugin.service.runAll({ dryRun: true });
@@ -432,16 +434,14 @@ async function checkP4(cdp: Cdp): Promise<void> {
   );
   record("P4a", "Trockenlauf (3+2 creates)", dry.created === 5 && dry.ok, `${dry.created} creates im Trockenlauf`);
 
-  const real = await evalJson<{ created: number; ok: boolean }>(
-    cdp,
+  const real = await cdp.evaluate<{ created: number; ok: boolean }>(
     `
     const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
     const r = await plugin.service.runAll();
     return { created: r.collections.reduce((n, c) => n + c.counts.created, 0), ok: r.collections.every((c) => c.ok) };
   `,
   );
-  const files = await evalJson<{ events: number; contacts: number; fmKeys: string[] }>(
-    cdp,
+  const files = await cdp.evaluate<{ events: number; contacts: number; fmKeys: string[] }>(
     `
     const ev = app.vault.getMarkdownFiles().filter((f) => f.path.startsWith("Events/") && f.basename !== "_index");
     const co = app.vault.getMarkdownFiles().filter((f) => f.path.startsWith("Contacts/") && f.basename !== "_index");
@@ -505,8 +505,7 @@ async function checkP5(cdp: Cdp, radicale: RunningServer): Promise<void> {
     record("P5", "Update-Pfad (Server-PUT)", false, `PUT simple-1.ics → HTTP ${status}`);
     return;
   }
-  const before = await evalJson<{ etag: string; body: string } | null>(
-    cdp,
+  const before = await cdp.evaluate<{ etag: string; body: string } | null>(
     `
     const ev = app.vault.getMarkdownFiles().find((f) => f.path.startsWith("Events/") && f.basename !== "_index" && f.basename.includes("Zahn"));
     if (!ev) return null;
@@ -519,11 +518,23 @@ async function checkP5(cdp: Cdp, radicale: RunningServer): Promise<void> {
     await plugin.runAll();
     return true;
   `);
-  await new Promise((r) => setTimeout(r, 500));
+  // `plugin.runAll()` ist im Browser bereits vollstaendig durchgelaufen, aber `metadataCache`
+  // aktualisiert `dav_etag` ueber einen eigenen (asynchronen) Vault-Watcher-Zyklus — ein blindes
+  // setTimeout(500) hat das geraten statt geprueft. Stattdessen: pollen, bis die Kondition
+  // eintrifft (etag hat sich vom Vorher-Stand geloest), Ergebnis fliesst unten in `ok` ein.
+  const etagSettled = await pollUntil<boolean>(
+    cdp,
+    `
+    const ev = app.vault.getMarkdownFiles().find((f) => f.path.startsWith("Events/") && f.basename !== "_index" && f.basename.includes("Zahn"));
+    const etag = ev ? String(app.metadataCache.getFileCache(ev)?.frontmatter?.["dav_etag"] ?? "") : "";
+    return etag !== "" && etag !== ${JSON.stringify(before?.etag ?? "")} || null;
+  `,
+    5_000,
+    200,
+  );
   const noticesAfter = await notices(cdp);
 
-  const after = await evalJson<{ etag: string; body: string; updated: number; handEdited: number } | null>(
-    cdp,
+  const after = await cdp.evaluate<{ etag: string; body: string; updated: number; handEdited: number } | null>(
     `
     const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
     const last = plugin.service.lastResult();
@@ -541,47 +552,44 @@ async function checkP5(cdp: Cdp, radicale: RunningServer): Promise<void> {
   const etagChanged = !!before && !!after && before.etag !== after.etag && after.etag !== "";
   const bodyChanged = !!before && !!after && before.body !== after.body && /NEU/.test(after.body);
   const noErrorNotices = !/EXCEPTION|ERROR|fehlgeschlagen|failed/i.test(noticesAfter);
-  const ok = !!after && etagChanged && bodyChanged && after.updated >= 1 && after.handEdited === 0 && noErrorNotices;
+  const ok = !!etagSettled && !!after && etagChanged && bodyChanged && after.updated >= 1 && after.handEdited === 0 && noErrorNotices;
   record(
     "P5",
     "Update-Pfad (Server-PUT → Frontmatter+Body neu, handEdited leer)",
     ok,
-    `etag ${before?.etag ?? "?"} → ${after?.etag ?? "?"}, updated=${after?.updated ?? "?"}, handEdited=${after?.handEdited ?? "?"}, Notices: "${noticesAfter}"`,
+    `etagSettled(pollUntil)=${!!etagSettled}, etag ${before?.etag ?? "?"} → ${after?.etag ?? "?"}, updated=${after?.updated ?? "?"}, handEdited=${after?.handEdited ?? "?"}, Notices: "${noticesAfter}"`,
   );
   record("P9", "Notices nach P5 ohne Fehler", noErrorNotices, `"${noticesAfter}"`);
 }
 
 async function checkP6(cdp: Cdp, radicale: RunningServer): Promise<void> {
-  const before = await evalJson<number>(cdp, `return app.vault.getMarkdownFiles().filter((f) => f.path.startsWith("Events/") && f.basename !== "_index").length;`);
+  const before = await cdp.evaluate<number>( `return app.vault.getMarkdownFiles().filter((f) => f.path.startsWith("Events/") && f.basename !== "_index").length;`);
   const status = await davDelete(radicale, "test/kalender/allday-1.ics");
   if (status < 200 || status >= 300) {
     record("P6", "Loeschung (Server-DELETE)", false, `DELETE allday-1.ics → HTTP ${status}`);
     return;
   }
-  const planned = await evalJson<boolean>(
-    cdp,
+  const planned = await cdp.evaluate<boolean>(
     `
     const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
     const r = await plugin.service.runAll({ dryRun: true });
     return r.collections.some((c) => c.plans.some((p) => p.op === "delete" && p.mode === "trash"));
   `,
   );
-  await evalJson(
-    cdp,
+  await cdp.evaluate(
     `
     const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
     await plugin.service.runAll();
     return true;
   `,
   );
-  const after = await evalJson<number>(cdp, `return app.vault.getMarkdownFiles().filter((f) => f.path.startsWith("Events/") && f.basename !== "_index").length;`);
+  const after = await cdp.evaluate<number>( `return app.vault.getMarkdownFiles().filter((f) => f.path.startsWith("Events/") && f.basename !== "_index").length;`);
   const ok = planned && before - after === 1;
   record("P6", "Loeschung (Papierkorb, delete:trash im Plan)", ok, `Events/ ${before} → ${after}, delete:trash im Trockenlauf-Plan=${planned}`);
 }
 
 async function checkP7(cdp: Cdp): Promise<void> {
-  const result = await evalJson<{ enabledBefore: number; enabledAfter: number; collections: number }>(
-    cdp,
+  const result = await cdp.evaluate<{ enabledBefore: number; enabledAfter: number; collections: number }>(
     `
     const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
     const account = plugin.settings.accounts.find((a) => a.id === ${JSON.stringify(ACCOUNT_ID)});
@@ -597,8 +605,8 @@ async function checkP7(cdp: Cdp): Promise<void> {
 }
 
 // ── P8: Settings-UI (nur --focus) ───────────────────────────────────────
-async function checkP8(port: number): Promise<void> {
-  const workspace = await attachTo("workspace", port);
+async function checkP8(port: number, vault: string): Promise<void> {
+  const workspace = await attachTo("workspace", port, vault);
   if (!workspace) {
     record("P8", "Settings-UI", false, "Workspace-Fenster nicht gefunden");
     return;
@@ -623,13 +631,13 @@ async function checkP8(port: number): Promise<void> {
   }
   try {
     await requireVisible(settingsCdp);
-    const info = await evalJson<{ hasPwLabel: boolean; hasDiscoverBtn: boolean; hasAccountRow: boolean }>(
-      settingsCdp,
+    const info = await settingsCdp.evaluate<{ hasPwLabel: boolean; hasDiscoverBtn: boolean; hasAccountRow: boolean }>(
       `
       const items = [...document.querySelectorAll(".setting-item")];
       const hasPwLabel = items.some((el) => /password|passwort/i.test(el.querySelector(".setting-item-name")?.textContent ?? ""));
-      const hasDiscoverBtn = [...document.querySelectorAll("button")].some((b) => /discover|verbindung|test/i.test(b.textContent ?? ""));
-      const hasAccountRow = items.length > 0;
+      const discoverLabels = ${JSON.stringify(DISCOVER_BUTTON_LABELS)};
+      const hasDiscoverBtn = [...document.querySelectorAll("button")].some((b) => discoverLabels.includes((b.textContent ?? "").trim()));
+      const hasAccountRow = items.some((el) => (el.textContent ?? "").includes(${JSON.stringify(ACCOUNT_NAME)}));
       return { hasPwLabel, hasDiscoverBtn, hasAccountRow };
     `,
     );
@@ -679,10 +687,10 @@ async function main(): Promise<void> {
   let radicale: RunningServer | undefined;
 
   try {
-    const pluginPresent = await evalJson<boolean>(cdp, `return !!app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];`);
+    const pluginPresent = await cdp.evaluate<boolean>( `return !!app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];`);
     if (!pluginPresent) throw new Error(`Plugin "${PLUGIN_ID}" ist im Fenster "${vault}" nicht geladen — deployt & aktiviert?`);
 
-    const settingsSnapshot = await evalJson<string>(cdp, `return JSON.stringify(app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}].settings);`);
+    const settingsSnapshot = await cdp.evaluate<string>( `return JSON.stringify(app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}].settings);`);
     const vaultSnapshot = await snapshotVault(cdp);
     const stateSnapshot = await snapshotState(cdp);
     if (!keep) {
@@ -731,7 +739,7 @@ async function main(): Promise<void> {
       await checkP7(cdp);
     }
 
-    if (focus) await checkP8(port);
+    if (focus) await checkP8(port, vault);
   } catch (e) {
     record("FEHLER", "Lauf abgebrochen", false, e instanceof Error ? e.message : String(e));
   } finally {
