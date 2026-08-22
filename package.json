@@ -1,0 +1,35 @@
+{
+  "name": "calendar-notes",
+  "version": "0.1.0",
+  "description": "Mirror CalDAV events and CardDAV contacts as notes; the server stays the source of truth.",
+  "type": "module",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc --noEmit && node esbuild.config.mjs --production",
+    "typecheck": "tsc --noEmit",
+    "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
+    "test": "vitest run --passWithNoTests --exclude tests/integration/**",
+    "test:integration": "vitest run tests/integration",
+    "lint": "node scripts/check-no-inline-disables.mjs && eslint src --max-warnings 0",
+    "check:pure": "node scripts/check-pure.mjs",
+    "gate": "npm run lint && npm run typecheck && npm run typecheck:test && npm test && npm run check:pure && npm run build",
+    "kit:sync": "sh tools/sync-kit.sh"
+  },
+  "keywords": ["obsidian-plugin", "caldav", "carddav", "calendar", "contacts", "sync"],
+  "author": "Johannes Kaindl",
+  "license": "AGPL-3.0-or-later",
+  "dependencies": {
+    "fast-xml-parser": "^4.5",
+    "ical.js": "^2.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "esbuild": "^0.23",
+    "eslint": "^9",
+    "eslint-plugin-obsidianmd": "^0.4.1",
+    "obsidian": "latest",
+    "typescript": "^5.5",
+    "typescript-eslint": "^8",
+    "vitest": "^2"
+  }
+}
