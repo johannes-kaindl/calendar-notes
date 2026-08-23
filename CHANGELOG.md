@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.2] — 2026-08-23
+
 - Plugin-Name `Calendar & Contact Notes` → **`Calendar and Contact Notes`**: das Developer Dashboard lehnt `&` ab (Manifest-Regel: keine Satzzeichen außer Bindestrich, Plus und Klammern — docs.obsidian.md/Reference/Manifest#name); `eslint-plugin-obsidianmd` prüft das nicht, der Fund kam erst bei der Store-Registrierung.
 ## [0.1.1] — 2026-08-23
 
