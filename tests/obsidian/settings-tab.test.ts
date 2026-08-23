@@ -48,7 +48,7 @@ function fakeHost(settings: PluginSettings): SettingsHost & { saved: PluginSetti
 }
 
 function newTab(host: SettingsHost): CalendarNotesSettingTab {
-  const manifest = { id: "calendar-notes", name: "Calendar & Contact Notes", version: "0.1.0", minAppVersion: "1.13.0", description: "", author: "" };
+  const manifest = { id: "calendar-notes", name: "Calendar and Contact Notes", version: "0.1.0", minAppVersion: "1.13.0", description: "", author: "" };
   return new CalendarNotesSettingTab(new App(), new TestPlugin(new App(), manifest), host);
 }
 

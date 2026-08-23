@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+- Plugin-Name `Calendar & Contact Notes` → **`Calendar and Contact Notes`**: das Developer Dashboard lehnt `&` ab (Manifest-Regel: keine Satzzeichen außer Bindestrich, Plus und Klammern — docs.obsidian.md/Reference/Manifest#name); `eslint-plugin-obsidianmd` prüft das nicht, der Fund kam erst bei der Store-Registrierung.
 ## [0.1.1] — 2026-08-23
 
 - CI-Gate: `tsconfig.test.json` zieht `scripts/` nicht mehr mit — die Treiber importieren die zentrale CDP-Brücke aus dem Dach, die im GitHub-Checkout fehlt; `typecheck:scripts` (mit Existenz-Guard) deckt sie weiterhin ab. 0.1.0 scheiterte genau daran in der Release-Action (kein GitHub-Release, nie im Store) — 0.1.1 ist der erste veröffentlichte Stand.

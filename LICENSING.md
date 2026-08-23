@@ -1,6 +1,6 @@
 # Licensing
 
-Calendar & Contact Notes is **free software under the AGPL-3.0-or-later**
+Calendar and Contact Notes is **free software under the AGPL-3.0-or-later**
 ([`LICENSE`](LICENSE)), and it will stay that way. This file exists for the one case the
 AGPL does not cover: if its copyleft does not fit your use case, a **commercial license is
 available on request**.

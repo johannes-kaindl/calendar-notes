@@ -1,4 +1,4 @@
-# Calendar & Contact Notes
+# Calendar and Contact Notes
 
 > [🇬🇧 English](README.md) · 🇩🇪 Deutsch
 
@@ -61,7 +61,7 @@ hinzufügen — jedes mit einer Diff-Vorschau, bevor irgendetwas gesendet wird.
 
 ### Community Plugins
 Noch nicht im Obsidian-Community-Verzeichnis eingereicht. Sobald gelistet:
-Einstellungen → Community-Plugins → Durchsuchen → „Calendar & Contact Notes" suchen.
+Einstellungen → Community-Plugins → Durchsuchen → „Calendar and Contact Notes" suchen.
 
 ### Manuell
 `main.js`, `manifest.json` und `styles.css` aus dem
@@ -85,7 +85,7 @@ cd calendar-notes && npm install && npm run build
 
 <img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/preview.png" width="584" alt="Das Vorschau-Modal nach dem Trockenlauf: Kalender 3 neu, Kontakte 2 neu, noch nichts geschrieben — Schließen oder Jetzt ausführen">
 
-1. **Einstellungen → Calendar & Contact Notes → Konten → Konto hinzufügen.** Name,
+1. **Einstellungen → Calendar and Contact Notes → Konten → Konto hinzufügen.** Name,
    Server-Basis-URL und Benutzername eintragen, dann **Verbindung testen & Sammlungen
    finden**. Das Passwort landet im eigenen Schlüsselbund von Obsidian — siehe
    [Sicherheit](#sicherheit--datenschutz).

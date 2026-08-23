@@ -1,4 +1,4 @@
-# Calendar & Contact Notes
+# Calendar and Contact Notes
 
 > 🇬🇧 English · [🇩🇪 Deutsch](README.de.md)
 
@@ -54,7 +54,7 @@ phone number, add an attendee — each shown as a diff before anything is sent.
 
 ### Community Plugins
 Not yet submitted to the Obsidian community directory. Once listed:
-Settings → Community plugins → Browse → search "Calendar & Contact Notes".
+Settings → Community plugins → Browse → search "Calendar and Contact Notes".
 
 ### Manual
 Copy `main.js`, `manifest.json` and `styles.css` from the
@@ -78,7 +78,7 @@ cd calendar-notes && npm install && npm run build
 
 <img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/preview.png" width="584" alt="The dry-run preview modal after discovery: Kalender 3 new, Kontakte 2 new, nothing written yet — Close or Run now">
 
-1. **Settings → Calendar & Contact Notes → Accounts → Add account.** Enter a name, the
+1. **Settings → Calendar and Contact Notes → Accounts → Add account.** Enter a name, the
    server's base URL and your username, then **Test connection & find collections**. The
    password goes into Obsidian's own secret storage — see [Security](#security--privacy).
 2. Successful discovery adds every calendar and address book the server reports under
