@@ -49,11 +49,23 @@ GitHub-Release.
 
 ### 3. Registrieren + verifizieren
 
-- `python3 ../tools/mirror_drift_check.py` — Tag-Mirror Forgejo→GitHub synchron.
+- `python3 ../tools/mirror_drift_check.py` — prüft **Tags UND den `main`-Branch**
+  Forgejo→GitHub synchron (nicht nur Tags — ein toter Mirror fällt an Tags gerade nicht
+  auf, weil `release.mjs` sie per Dual-Push ohnehin selbst nachträgt).
 - `python3 ../tools/template_drift_check.py` — vendorte Dateien synchron zum Template.
 - GitHub-Actions-Tab manuell prüfen (Action läuft asynchron, `release.mjs` kann das
   nicht feststellen) — Tag-/`package.json`-/`manifest.json`-Konsistenz +
   `versions.json` deckt den Tag.
+- **Gotcha (Dach-`AGENTS.md`):** meldet `release.mjs` „Store-Release entsteht erst nach
+  manuellem Push", zuerst `git ls-remote --tags github` prüfen, bevor von Hand
+  nachgepusht wird — der native Forgejo-Push-Mirror gewinnt oft das Rennen gegen den
+  eigenen Dual-Push von `release.mjs`, dessen `git push github <tag>` dann mit
+  „cannot lock ref … reference already exists" scheitert. Zeigt der GitHub-Tag schon auf
+  denselben Commit, ist alles in Ordnung und die Meldung ist falsch — nicht blind
+  nachpushen.
+- `npm run release -- 0.1.0 --dry-run` überspringt sowohl `preflight` als auch das
+  CHANGELOG-Rewrite — ein grüner `--dry-run` bestätigt also nicht, dass `preflight` oder
+  die CHANGELOG-Heading-Einfügung beim echten Lauf funktionieren.
 
 ### 4. Community-Store einreichen
 

@@ -205,5 +205,7 @@ Architecture, milestone-by-milestone status and the manual smoke procedure:
 - **Third-party:** [`ical.js`](https://github.com/kewisch/ical.js) (MPL-2.0, iCalendar/vCard
   parsing), [`fast-xml-parser`](https://github.com/NaturalIntelligence/fast-xml-parser) (MIT,
   WebDAV multistatus parsing).
+- Full third-party notices: [`THIRD-PARTY.md`](THIRD-PARTY.md). A commercial license is
+  available on request if AGPL-3.0's copyleft doesn't fit your use case: [`LICENSING.md`](LICENSING.md).
 
 Copyright © 2026 Johannes Kaindl.

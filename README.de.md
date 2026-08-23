@@ -219,5 +219,8 @@ GUI-Smoke-Checkliste (läuft gegen ein laufendes Obsidian per CDP):
 - **Fremdcode:** [`ical.js`](https://github.com/kewisch/ical.js) (MPL-2.0, iCalendar-/
   vCard-Parsing), [`fast-xml-parser`](https://github.com/NaturalIntelligence/fast-xml-parser)
   (MIT, WebDAV-Multistatus-Parsing).
+- Vollständige Drittlizenz-Hinweise: [`THIRD-PARTY.md`](THIRD-PARTY.md). Eine kommerzielle
+  Lizenz ist auf Anfrage erhältlich, falls das AGPL-3.0-Copyleft nicht passt:
+  [`LICENSING.md`](LICENSING.md).
 
 Copyright © 2026 Johannes Kaindl.

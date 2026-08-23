@@ -84,8 +84,7 @@ CalDAV-Termine und CardDAV-Kontakte als Notiz-Spiegel; der Server ist die Wahrhe
   (`npm run shots` gegen ein fokussiertes Obsidian), Erst-Release fahren (Remotes
   anlegen, `npm run release 0.1.0`, Developer Dashboard + Rescan) — s.
   `docs/RELEASE.md` und `docs/STORE.md` § „Checkliste vor dem Erst-Release".
-- 455 Unit-Tests + 4 Integration-Tests (0 Warnings), unverändert gegenüber M4 (M5 fügt
-  keine neue Fachlogik hinzu).
+- 498 Unit-Tests + 4 Integration-Tests (0 Warnings) — M5 fügt keine neue Fachlogik hinzu.
 
 ## Release-Checkliste
 
