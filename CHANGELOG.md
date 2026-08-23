@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+- CI-Gate: `tsconfig.test.json` zieht `scripts/` nicht mehr mit — die Treiber importieren die zentrale CDP-Brücke aus dem Dach, die im GitHub-Checkout fehlt; `typecheck:scripts` (mit Existenz-Guard) deckt sie weiterhin ab. 0.1.0 scheiterte genau daran in der Release-Action (kein GitHub-Release, nie im Store) — 0.1.1 ist der erste veröffentlichte Stand.
 ## [0.1.0] — 2026-08-23
 
 - M1: obsidian-freier DAV-Kern — Discovery (well-known → principal → home-sets), Collection-Sync (sync-collection mit Fallback auf ctag/etag-Diff), Multiget, Objekt-Client mit If-Match/412; VEVENT- und vCard-Parser/Mutationen auf ical.js; Radicale-Integrationstest (`npm run test:integration`).
