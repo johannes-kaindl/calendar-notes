@@ -63,3 +63,38 @@ CalDAV-Termine und CardDAV-Kontakte als Notiz-Spiegel; der Server ist die Wahrhe
 - GUI-Smoke um P10–P13 erweitert (`scripts/gui-smoke.ts`; Protokoll `docs/smoke/baseline-2026-08-23.md`): P10 Kommando via API (`event.move`), P11 Einladung ohne Scheduling/Transport (Route `ics`), P12 Undo (`undo.last` via API, läuft direkt nach P10 — DTSTART zurück auf den Vor-P10-Stand), P13 API-Lesen (`events`/`contacts`/`tools().length === commands().length`). Lauf 3 (2026-08-23, Commit `58b43d0`) fand P10/P11/P13 strukturell rot (`commandRegistry()` blieb zur Laufzeit leer, s. Fix-Runde-1-Absatz oben) und P12 nur `⚠ übersprungen`. **Fix-Runde 1 behebt das** — Lauf 4 (`--section generic` **12/12**, `--section pallas` **4/4**, keine Regression, s. `docs/SMOKE.md` § „Behobener Befund (2026-08-23, Fix-Runde 1)"). Zwei zusätzliche Treiber-eigene Mess-Bugs (kein Plugin-Defekt) dabei behoben: `extractDtstart()` traf zuerst ein `VTIMEZONE`-`DTSTART` statt des `VEVENT`s, und die P11-ATTENDEE-Prüfung scheiterte an RFC5545-Zeilenfaltung.
 - Hinweis für M5 (i18n-Schuld im Kommando-System, Review-Runde 3, M9): `CommandDescriptor.title`/`.description`, `CommandPlan.summary` UND die Schema-Feld-`description`s (`ObjectSchema`/`FieldSchema`, `src/core/commands/schema.ts`) sind fest deutschsprachige Literale in `src/core/**` (kein `t()`-Import erlaubt dort) — nicht nur `event.set-title`s `SUMMARY`-Zugriff. Eine EN-Oberfläche braucht strukturierte Nachfolger statt fertiger Strings: `titleKey`/`descriptionKey` am `CommandDescriptor`, `summaryKey` (+ Parameter) am `CommandPlan`, und `descriptionKey` je Schema-Feld — aufgelöst über `t()` erst in der Obsidian-Schicht (Formular/Vorschau-Modal). Das betrifft NICHT nur die UI: `api.commands()`/`api.tools()` geben `title`/`description`/Schema-`description` unverändert an Fremdplugins/LLM-Tool-Definitionen weiter — ein Wechsel von fertigem Text auf `*Key`-Felder wäre also eine BRECHENDE Änderung des Plugin-API-Vertrags (`CALENDAR_NOTES_API_VERSION` müsste steigen, s. `docs/API.md`), nicht nur ein internes Refactoring.
 - 455 Unit-Tests + 4 Integration-Tests (0 Warnings)
+
+## Was M5 liefert
+- i18n-Abschluss der Kommandos: `CommandDescriptor.titleKey`/`.descriptionKey`,
+  `CommandPlan.summaryKey`/`summaryArgs` (Pflichtfelder, `title`/`description`/`summary`
+  bleiben englischer Fallback) — `src/core/commands/**` bleibt obsidian-/i18n-frei, die
+  Übersetzung passiert erst in der Obsidian-Schicht (`command-flow.ts`,
+  `plan-preview-modal.ts`, `api.ts`); Registry-Test prüft DE/EN-Vollständigkeit jedes
+  Keys. Schließt die in M4 dokumentierte i18n-Schuld.
+- README de/en (`README.md`/`README.de.md`) nach `_docs/readme/readme-spec.json`,
+  Aufnahme-Rezept `scripts/shots.ts` (zentrale CDP-Brücke, Skill `readme-shots`).
+- Release-Infrastruktur nach Dach-Standard: `.github/workflows/release.yml` (vendored),
+  `versions.json`, `package.json`-Scripts `release`/`version-bump`/`preflight`
+  (delegieren an `../tools/release/`), `LICENSE` (AGPL-3.0-or-later) + `LICENSING.md` +
+  `THIRD-PARTY.md`, `docs/AUDIT.md` (npm-audit-Einordnung).
+- Store-Vorbereitung: `docs/STORE.md` (Scorecard-Vorschau, Netzwerk-Erklärung für den
+  Review, Einreichungs-Checkliste), `docs/RELEASE.md` (Maintainer-Handover für Remotes +
+  Erst-Release + Dashboard/Rescan).
+- **Offen (Handover, nicht Teil dieser Planausführung):** README-Bilder aufnehmen
+  (`npm run shots` gegen ein fokussiertes Obsidian), Erst-Release fahren (Remotes
+  anlegen, `npm run release 0.1.0`, Developer Dashboard + Rescan) — s.
+  `docs/RELEASE.md` und `docs/STORE.md` § „Checkliste vor dem Erst-Release".
+- 455 Unit-Tests + 4 Integration-Tests (0 Warnings), unverändert gegenüber M4 (M5 fügt
+  keine neue Fachlogik hinzu).
+
+## Release-Checkliste
+
+Kurzfassung — Details in `docs/RELEASE.md` (Ablauf) und `docs/STORE.md` (Scorecard-
+Vorschau + Checkliste vor dem Erst-Release):
+
+1. `npm run gate && npm run test:integration && npm run typecheck:scripts` grün.
+2. `npm run smoke:gui` (beide Sektionen) gegen ein laufendes, fokussiertes Obsidian.
+3. README-Bilder aufgenommen, `shots:check` grün.
+4. Remotes (Forgejo + GitHub) angelegt, `npm run release 0.1.0` gefahren.
+5. Developer Dashboard: Plugin registriert, Rescan angestoßen, Status geprüft (der Tag
+   ist nicht das Ende).
