@@ -6,8 +6,19 @@ byte-identisch zu `../tools/release-template/`), `versions.json`, `CHANGELOG.md`
 `package.json`-Scripts `release`/`version-bump`/`preflight` (delegieren nach
 `../tools/release/`), `LICENSE`/`LICENSING.md`/`THIRD-PARTY.md`, `docs/AUDIT.md`.
 
-Was noch fehlt, ist ausschließlich Account-/Auth-Territorium — das läuft nicht autonom
-und ist hier für die Übergabe an Johannes festgehalten.
+**Stand 2026-08-23: Erst-Release gelaufen.** Remotes `origin` (Forgejo `jkaindl/calendar-notes`)
+und `github` (`johannes-kaindl/calendar-notes`) existieren; **0.1.1** ist das erste
+veröffentlichte Release (GitHub-Release mit `main.js`/`manifest.json`/`styles.css`, Action grün,
+Mirror synchron). Die Abschnitte unten bleiben als Verfahren für den nächsten Maintainer stehen.
+
+> **Lehre aus 0.1.0 (Tag existiert, aber kein GitHub-Release):** die Release-Action fährt
+> `npm run gate` im **Einzel-Repo-Checkout** — alles, was die zentrale CDP-Brücke
+> `../../tools/obsidian-cdp/` importiert (`scripts/gui-smoke.ts`, `scripts/shots.ts`), darf
+> dort nur hinter einem Existenz-Guard typgeprüft werden. `tsconfig.test.json` zog `scripts/`
+> mit → TS2307 → Gate rot. Lokal war das unsichtbar, weil das Dach da ist. Seit `b065ba2`
+> prüft `typecheck:test` nur `src/` + `tests/`; `typecheck:scripts` (mit Guard) deckt die
+> Treiber ab. **Vor einem Tag einmal so prüfen, wie CI prüft:** `tsc -p tsconfig.test.json`
+> darf nichts aus `scripts/` einschließen, das außerhalb des Repos liegt.
 
 
 > **Hinweis zu `npm run preflight 0.1.0` VOR dem Release:** Er meldet „CHANGELOG.md hat keinen
