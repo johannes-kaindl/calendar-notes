@@ -9,6 +9,13 @@ byte-identisch zu `../tools/release-template/`), `versions.json`, `CHANGELOG.md`
 Was noch fehlt, ist ausschließlich Account-/Auth-Territorium — das läuft nicht autonom
 und ist hier für die Übergabe an Johannes festgehalten.
 
+
+> **Hinweis zu `npm run preflight 0.1.0` VOR dem Release:** Er meldet „CHANGELOG.md hat keinen
+> Eintrag mit Inhalt für 0.1.0" — das ist erwartbar, solange alles unter `[Unreleased]` steht:
+> `release.mjs` setzt die `[0.1.0]`-Überschrift selbst und schiebt den Unreleased-Inhalt darunter,
+> erst danach läuft sein eigener preflight. Eine handgeschriebene `[0.1.0]`-Überschrift wäre
+> dagegen eine Dublette und lässt den echten Lauf scheitern (der dry-run zeigt das nicht).
+
 ## Erst-Release (Maintainer)
 
 ### 1. Remotes anlegen
