@@ -1,0 +1,103 @@
+name: Release
+
+# Baut das Plugin, attestiert die Assets und veröffentlicht ein GitHub-Release.
+# Läuft auf der GitHub-Seite (Mirror von Forgejo (git.jkaindl.de)) bei einem SemVer-Tag (ohne v) oder manuell.
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"   # SemVer ohne v-Praefix (CORE-GIT-03)
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build and release (e.g. 0.1.3)"
+        required: true
+
+permissions:
+  contents: write       # Release anlegen + Assets hochladen
+  id-token: write       # OIDC für die Attestation-Signatur
+  attestations: write   # Attestations schreiben
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      # Werte aus Actions-Ausdruecken (${{ }}) NIE direkt in ein `run:`-Skript
+      # interpolieren — env: haelt sie aus der Shell-Parsing-Stufe raus, das ist
+      # der Unterschied zwischen "Variable" und "Text, den die Shell auswertet".
+      # Zusaetzlich: die SemVer-Validierung hier ist auch der Riegel dafuer, dass
+      # `workflow_dispatch` (frei waehlbarer Tag-Input) keinen beliebigen Ref
+      # zum Checkout weiterreichen kann — nur ein Format, das ohnehin nur der
+      # Maintainer beim echten Release-Tag erzeugt, kommt durch.
+      - name: Resolve and validate tag
+        id: tag
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          tag="${INPUT_TAG:-$GITHUB_REF_NAME}"
+          if ! [[ "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag '$tag' is not a valid SemVer tag (X.Y.Z)"
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Gate
+        # Ruft bewusst NUR npm run gate — eine zweite Gate-Definition hier hat schon zweimal
+        # zu "lokal grün, CI rot" geführt (json_viewer via biome, image-to-markdown 0.6.0).
+        # Die Reihenfolge der Teilschritte gehört in package.json, nicht hierher.
+        run: npm run gate
+
+      - name: Verify tag == package.json == manifest.json and versions.json covers it
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          PKG="$(node -p "require('./package.json').version")"
+          MAN="$(node -p "require('./manifest.json').version")"
+          HAS="$(node -p "require('./versions.json')['$TAG'] ? 'yes' : 'no'")"
+          if [ "$TAG" != "$PKG" ] || [ "$TAG" != "$MAN" ]; then
+            echo "::error::Tag $TAG, package.json $PKG, manifest.json $MAN — must all match"
+            exit 1
+          fi
+          if [ "$HAS" != "yes" ]; then
+            echo "::error::versions.json has no entry for $TAG"
+            exit 1
+          fi
+
+      # Build-Provenance gibt es bei GitHub NICHT fuer private Repos eines
+      # Nutzer-Accounts ("Feature not available for user-owned private
+      # repositories"). Ohne diese Bedingung bricht der Schritt ab, BEVOR das
+      # Release entsteht — der Tag steht dann auf beiden Forgen, das Release
+      # fehlt, und `release.mjs` hat laengst "veroeffentlicht" gemeldet.
+      # Gemessen 2026-08-12 an wikijs-maintainer 0.1.0. Wird das Repo spaeter
+      # oeffentlich, greift die Attestation von selbst.
+      - name: Attest build provenance
+        if: ${{ !github.event.repository.private }}
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
+
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          notes=$(awk -v t="## [$TAG]" 'index($0,t)==1{f=1;next} /^## \[/{f=0} f' CHANGELOG.md)
+          [ -z "$notes" ] && notes="Release $TAG"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" main.js manifest.json styles.css --clobber
+          else
+            gh release create "$TAG" main.js manifest.json styles.css --title "$TAG" --notes "$notes"
+          fi
