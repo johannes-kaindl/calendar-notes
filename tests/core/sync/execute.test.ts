@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { executeCommandPlan, resyncObject } from "../../../src/core/sync/execute";
 import { createBusyGuard, type BusyGuard } from "../../../src/core/sync/busy";
+import { createEmitter, type SyncEvents } from "../../../src/core/sync/events";
 import type { SyncDeps, Notifier, PlanExecutor } from "../../../src/core/sync/types";
 import type { NoteLookup } from "../../../src/core/mirror/apply";
 import type { NotePlan } from "../../../src/core/mirror/plan";
@@ -138,6 +139,26 @@ describe("executeCommandPlan", () => {
     expect(executor.calls[0]?.op).toBe("create");
     const putReq = transport.calls.find((c) => c.method === "PUT");
     expect(putReq?.headers?.["If-Match"]).toBe('"e-old"');
+  });
+
+  it("ein werfender 'changed'-Listener wird geschluckt und zaehlt nicht als Resync-Fehler (Fix-Runde 1, Punkt 1)", async () => {
+    const transport = fakeTransport();
+    const { deps, executor } = makeDeps({ transport });
+    const changed: unknown[] = [];
+    const events = createEmitter<SyncEvents>();
+    events.on("changed", (e) => {
+      changed.push(e);
+      throw new Error("kaputter Listener");
+    });
+    const plan = updatePlan();
+    const res = await executeCommandPlan({ ...deps, events }, baseSettings(), plan);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.resynced).toBe(true);
+      expect(res.resyncError).toBeUndefined();
+    }
+    expect(executor.calls).toHaveLength(1);
+    expect(changed).toHaveLength(1);
   });
 
   it("create: PUT mit If-None-Match statt If-Match", async () => {

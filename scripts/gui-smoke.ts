@@ -79,7 +79,9 @@ function record(id: string, name: string, passed: boolean, detail: string): void
 
 // Fuer Pruefpunkte, die (noch) keinen programmatischen Pfad haben — zaehlt NICHT in
 // checks/exitCode mit (kein Rot fuer etwas, das strukturell fehlt statt kaputt zu sein),
-// erscheint aber sichtbar im Protokoll. S. P12-Befund im Task-8-Report.
+// erscheint aber sichtbar im Protokoll. Seit Fix-Runde 1 (Punkt 0) hat P12 selbst wieder
+// einen programmatischen Pfad (`checkP12`) und ruft das hier nicht mehr auf — bleibt als
+// Infrastruktur fuer kuenftige Pruefpunkte ohne headless-Pfad stehen.
 function recordSkip(id: string, name: string, reason: string): void {
   console.log(`⚠ ${id} ${name} — übersprungen: ${reason}`);
 }
@@ -679,11 +681,12 @@ async function checkP11(cdp: Cdp, radicale: RunningServer, source: string): Prom
     route?: string;
     icsHasMethod?: boolean;
     icsHasAttendee?: boolean;
+    icsSample?: string;
   }>(
     `
     const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
     const plan = await plugin.api.plan("event.add-attendee", { email: "kim@example.test", name: "Kim" }, ${JSON.stringify(target)});
-    if ("error" in plan) return { planOk: false, execOk: false };
+    if ("error" in plan) return { planOk: false, execOk: false, icsSample: "plan-error:" + plan.error };
     const exec = await plugin.api.execute(plan);
     if ("error" in exec) return { planOk: true, inviteRoute: plan.inviteRoute, execOk: false, execError: exec.error };
     const ics = exec.invite?.ics ?? "";
@@ -693,12 +696,17 @@ async function checkP11(cdp: Cdp, radicale: RunningServer, source: string): Prom
       execOk: !!exec.ok,
       route: exec.invite?.route,
       icsHasMethod: ics.includes("METHOD:REQUEST"),
-      icsHasAttendee: /ATTENDEE[^\\n]*kim@example\\.test/i.test(ics),
+      // RFC5545-Zeilenfaltung entfalten (CRLF/LF + Leerzeichen/Tab) — eine lange ATTENDEE-Zeile
+      // (CN + PARTSTAT + ROLE + RSVP) bricht bei 75 Oktetten oft genau vor "mailto:", die
+      // E-Mail landet dann auf der naechsten physischen Zeile.
+      icsHasAttendee: /ATTENDEE[^\\n]*kim@example\\.test/i.test(ics.replace(/\\r?\\n[ \\t]/g, "")),
+      icsSample: ics,
     };
   `,
   );
   const get = await davGet(radicale, "test/kalender/simple-1.ics");
-  const serverHasAttendee = get.status === 200 && /ATTENDEE[^\n]*kim@example\.test/i.test(get.body);
+  const unfold = (ics: string): string => ics.replace(/\r?\n[ \t]/g, "");
+  const serverHasAttendee = get.status === 200 && /ATTENDEE[^\n]*kim@example\.test/i.test(unfold(get.body));
   const ok =
     result.planOk &&
     result.execOk &&
@@ -707,6 +715,7 @@ async function checkP11(cdp: Cdp, radicale: RunningServer, source: string): Prom
     !!result.icsHasMethod &&
     !!result.icsHasAttendee &&
     serverHasAttendee;
+  if (!ok) console.log("DEBUG P11 icsSample:\n" + (result.icsSample ?? "") + "\nDEBUG P11 server body:\n" + get.body);
   record(
     "P11",
     "Einladung ohne Scheduling/Transport (Route ics)",
@@ -715,21 +724,70 @@ async function checkP11(cdp: Cdp, radicale: RunningServer, source: string): Prom
   );
 }
 
-// P12 (Undo): die Spec-Ruling fuer Task 8 sieht vor, `undo` NUR ueber einen programmatischen
-// Pfad zu pruefen (`plugin.commandFlow.planUndoForTarget(...)` o.ae.) — ohne die API-Vertrag
-// in dieser Aufgabe zu erweitern. `CommandFlow.undoLast()`/`runUndo()` (src/obsidian/command-flow.ts)
-// haengen beide an `app.workspace.getActiveFile()` UND oeffnen am Ende immer die
-// PlanPreviewModal (Bestaetigung durch Menschen) — es gibt keine headless-Variante, und die
-// Plugin-API (src/obsidian/api.ts) hat kein `undo` (nur plan/execute fuer die Kommando-Registry,
-// und `undo.last` ist dort NICHT registriert — `findCommand("undo.last")` liefert `undefined`).
-// Also: uebersprungen, nicht "gebaut" — Befund faellt an die Controller-Entscheidung (Report).
-function checkP12(): void {
-  recordSkip(
+/** Extrahiert den DTSTART-Zeitwert (Ganzzahl `YYYYMMDDTHHMMSS`) aus einem VEVENT — verwendet
+ *  von P10/P12, um den Server-Stand VOR/NACH einer Aenderung zu vergleichen, ohne einen
+ *  Fixture-Wert hart zu codieren (`simple-1@test` kann zu Laufzeitbeginn bereits vom
+ *  frueher gelaufenen P5-Update abweichen, s. Kommentar bei `checkP12`). */
+function extractDtstart(ics: string): string | undefined {
+  // NUR innerhalb des VEVENT suchen — ein VTIMEZONE traegt in seinen STANDARD/DAYLIGHT-
+  // Unterkomponenten ebenfalls ein `DTSTART` (die Regelbeginn-Zeit der Zeitzonenregel, z. B.
+  // `DTSTART:20001029T040000`), das sonst als erstes trifft und die Fixture-DTSTART verdeckt.
+  const vevent = /BEGIN:VEVENT[\s\S]*?END:VEVENT/.exec(ics)?.[0] ?? ics;
+  return /DTSTART[^\n]*:(\d{8}T\d{6})/.exec(vevent)?.[1];
+}
+
+// P12 (Undo): seit Fix-Runde 1 (Punkt 0, `src/core/commands/undo.ts::UNDO_LAST_COMMAND`) ist
+// `undo.last` ein regulaerer Registry-Eintrag und damit ueber `plugin.api.plan("undo.last", …)`
+// erreichbar — kein Sonderpfad mehr noetig. Laeuft bewusst DIREKT NACH P10 (nicht nach P11):
+// P10 verschiebt `simple-1@test`, wodurch `state.objects[…].history[0]` genau den
+// VOR-P10-Stand traegt — der Undo-Plan stellt den VOR-P10-DTSTART wieder her. `beforeDtstart`
+// wird vom Aufrufer VOR `checkP10` gemessen (nicht aus der Fixture geraten): P5 laeuft in
+// derselben Sektion vorher und aendert `simple-1.ics` bereits einmal serverseitig — die
+// Fixture-Zeit `20260901T100000` ist zum Zeitpunkt von P10/P12 also NICHT mehr der Ist-Stand.
+// Liefe P12 erst NACH P11 (Teilnehmer-Zusage), waere das letzte Verlauf-Element die
+// Attendee-Aenderung, nicht mehr die Verschiebung — der Test bliebe gueltig, aber "DTSTART
+// zurueck auf VOR-P10" nicht mehr die richtige Formulierung.
+async function checkP12(cdp: Cdp, radicale: RunningServer, source: string, beforeDtstart: string | undefined): Promise<void> {
+  const uid = "simple-1@test";
+  const target = { uid, source };
+  const result = await cdp.evaluate<{ planOk: boolean; planError?: string; execOk: boolean; execError?: string }>(
+    `
+    const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+    const plan = await plugin.api.plan("undo.last", {}, ${JSON.stringify(target)});
+    if ("error" in plan) return { planOk: false, planError: plan.error, execOk: false };
+    const exec = await plugin.api.execute(plan);
+    if ("error" in exec) return { planOk: true, execOk: false, execError: exec.error };
+    return { planOk: true, execOk: !!exec.ok };
+  `,
+  );
+  const get = await davGet(radicale, "test/kalender/simple-1.ics");
+  const serverRestored = get.status === 200 && beforeDtstart !== undefined && get.body.includes(beforeDtstart);
+  if (!serverRestored) console.log(`DEBUG P12 beforeDtstart=${beforeDtstart} get.body:\n` + get.body);
+  // "20260901T113000" → "2026-09-01" (Frontmatter-`start` ist ISO, der Server-Wert Basic-Format).
+  const beforeDatePrefix = beforeDtstart ? `${beforeDtstart.slice(0, 4)}-${beforeDtstart.slice(4, 6)}-${beforeDtstart.slice(6, 8)}` : undefined;
+  const fmRestored = await pollUntil<boolean>(
+    cdp,
+    `
+    const ev = app.vault.getMarkdownFiles().find((f) => f.path.startsWith("Events/") && app.metadataCache.getFileCache(f)?.frontmatter?.["dav_uid"] === ${JSON.stringify(uid)});
+    const start = ev ? String(app.metadataCache.getFileCache(ev)?.frontmatter?.["start"] ?? "") : "";
+    return (${JSON.stringify(beforeDatePrefix)} && start.startsWith(${JSON.stringify(beforeDatePrefix)})) || null;
+  `,
+    5_000,
+    200,
+  );
+  if (!fmRestored) {
+    const dbg = await cdp.evaluate<string>(`
+      const ev = app.vault.getMarkdownFiles().find((f) => f.path.startsWith("Events/") && app.metadataCache.getFileCache(f)?.frontmatter?.["dav_uid"] === ${JSON.stringify(uid)});
+      return JSON.stringify({ path: ev?.path, fm: ev ? app.metadataCache.getFileCache(ev)?.frontmatter : null });
+    `);
+    console.log(`DEBUG P12 beforeDatePrefix=${beforeDatePrefix} fm=` + dbg);
+  }
+  const ok = result.planOk && result.execOk && serverRestored && !!fmRestored;
+  record(
     "P12",
-    "Undo (Letzte Änderung zurücknehmen)",
-    "kein programmatischer Undo-Pfad: CommandFlow.undoLast()/runUndo() brauchen eine aktive Notiz + öffnen immer PlanPreviewModal (Bestätigung), " +
-      "Plugin-API kennt kein undo() und commandRegistry() hat keinen 'undo.last'-Eintrag (undo.ts exportiert nur die reine planUndoLast()-Funktion, " +
-      "nicht ueber die Registry erreichbar) — Nachtrag müsste die API erweitern, was außerhalb dieser Aufgabe liegt (s. Ruling im Task-8-Brief).",
+    "Undo (Letzte Änderung zurücknehmen) — DTSTART zurueck auf Vor-P10-Stand",
+    ok,
+    `plan=${result.planOk} exec=${result.execOk}${result.execError ? ` (${result.execError})` : ""}, Server-GET restored=${serverRestored} (HTTP ${get.status}), Frontmatter restored=${!!fmRestored}`,
   );
 }
 
@@ -905,9 +963,14 @@ async function main(): Promise<void> {
       await checkP7(cdp);
 
       const commandSource = `${ACCOUNT_ID}/${discovery.calendarId}`;
+      // Vor-P10-DTSTART fuer P12 messen (nicht aus der Fixture raten — P5 hat den Server-Stand
+      // von simple-1@test bereits einmal veraendert, s. Kommentar bei `checkP12`).
+      const beforeMove = await davGet(radicale, "test/kalender/simple-1.ics");
+      const beforeDtstart = beforeMove.status === 200 ? extractDtstart(beforeMove.body) : undefined;
       await checkP10(cdp, radicale, commandSource);
+      // P12 laeuft bewusst HIER (direkt nach P10, vor P11) — s. Kommentar bei `checkP12`.
+      await checkP12(cdp, radicale, commandSource, beforeDtstart);
       await checkP11(cdp, radicale, commandSource);
-      checkP12();
       await checkP13(cdp);
     }
 

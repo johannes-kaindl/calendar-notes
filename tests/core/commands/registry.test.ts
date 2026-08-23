@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { commandRegistry, findCommand, commandsFor, toolDefinitions, registerCommands, resetCommands } from "../../../src/core/commands/registry";
+import { commandRegistry, findCommand, commandsFor, toolDefinitions, registerCommands, resetCommands, ensureDefaultCommands } from "../../../src/core/commands/registry";
 import type { CommandDescriptor, CommandContext } from "../../../src/core/commands/types";
 import { defaultEventProfile, defaultContactProfile } from "../../../src/core/mirror/profile";
 import type { Account, CollectionConfig } from "../../../src/core/settings";
 import { EVENT_COMMANDS } from "../../../src/core/commands/event-commands";
 import { CONTACT_COMMANDS } from "../../../src/core/commands/contact-commands";
+import { UNDO_LAST_COMMAND } from "../../../src/core/commands/undo";
 
 function descriptor(id: string, kind: "event" | "contact", appliesTo: (ctx: CommandContext) => boolean = () => true): CommandDescriptor {
   return {
@@ -95,5 +96,34 @@ describe("commands registry", () => {
     expect(new Set(ids).size).toBe(ids.length);
     const names = toolDefinitions().map((d) => d.name);
     expect(new Set(names).size).toBe(names.length);
+  });
+});
+
+describe("ensureDefaultCommands (Fix-Runde 1, Punkt 0)", () => {
+  beforeEach(() => resetCommands());
+
+  it("befuellt die Registry mit EVENT_COMMANDS ∪ CONTACT_COMMANDS ∪ UNDO_LAST_COMMAND", () => {
+    ensureDefaultCommands();
+    const ids = commandRegistry().map((c) => c.id);
+    expect(ids.length).toBe(EVENT_COMMANDS.length + CONTACT_COMMANDS.length + 1);
+    expect(ids).toContain("undo.last");
+    expect(ids).toContain("event.move");
+    expect(ids).toContain("contact.create");
+  });
+
+  it("ist idempotent — zweimal aufgerufen ergibt jede id genau einmal, kein Wurf", () => {
+    ensureDefaultCommands();
+    expect(() => ensureDefaultCommands()).not.toThrow();
+    const ids = commandRegistry().map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids.length).toBe(EVENT_COMMANDS.length + CONTACT_COMMANDS.length + 1);
+  });
+
+  it("laesst bereits (z. B. von einem Test) registrierte Deskriptoren mit derselben id unangetastet", () => {
+    const custom: CommandDescriptor = { ...UNDO_LAST_COMMAND, description: "eigene Fassung" };
+    registerCommands([custom]);
+    ensureDefaultCommands();
+    expect(findCommand("undo.last")?.description).toBe("eigene Fassung");
+    expect(commandRegistry().map((c) => c.id).length).toBe(EVENT_COMMANDS.length + CONTACT_COMMANDS.length + 1);
   });
 });

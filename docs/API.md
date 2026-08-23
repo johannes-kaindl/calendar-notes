@@ -69,7 +69,12 @@ tools(): { name, description, parameters }[]
 `tools()` ist `toolDefinitions()` aus der Kommando-Registry — `name` ersetzt Punkte durch
 Unterstriche (`event.set-title` → `event_set-title`, Bindestriche bleiben), `parameters`
 ist dasselbe Mini-JSON-Schema wie `commands()[i].schema` (flache Untermenge von JSON Schema,
-tool-calling-tauglich).
+tool-calling-tauglich). Die Registry ist mit einem eingebauten Kommando-Satz vorbefüllt
+(`ensureDefaultCommands()`, `src/core/commands/registry.ts` — idempotent, läuft sowohl in
+`main.ts::onload()` als auch defensiv beim Bau der API selbst): alle `event.*`/`contact.*`-
+Kommandos plus `undo.last` (stellt den letzten Verlaufseintrag des Zielobjekts wieder her,
+`kind: "any"` — wirkt auf Termine UND Kontakte, `appliesTo` prüft nur, ob überhaupt ein
+Verlauf vorliegt).
 
 ## Schreiben: `plan()` → `execute()`
 
@@ -78,11 +83,14 @@ plan(commandId: string, input: Record<string, unknown>, target: { uid: string; s
 execute(plan: ApiPlan): Promise<ApiExecuteResult | ApiError>
 ```
 
-`plan()` schreibt NICHTS — sie löst das Ziel im Collection-State auf (ohne Notiz-Frontmatter,
-die API hat keine „aktive Notiz"), baut den `CommandContext` und ruft den Kommando-Deskriptor.
-`ApiPlan` ist ein serialisierbarer `CommandPlan` (Zusammenfassung, Diff, neuer Rohtext,
-Ziel-Etag) plus — falls der Plan eine Einladung auslöst — `inviteRoute` (`"server" | "transport"
-| "ics"`), damit ein Konsument VOR `execute()` weiß, ob eine E-Mail verschickt würde.
+`plan()` schreibt NICHTS — sie prüft die Eingabe zuerst gegen `descriptor.schema`
+(`validateInput()`, `src/core/commands/schema.ts`; ein Verstoß kommt als `{ error: "validation:
+<Meldungen>" }` zurück, BEVOR irgendein Ziel aufgelöst wird), löst dann das Ziel im
+Collection-State auf (ohne Notiz-Frontmatter, die API hat keine „aktive Notiz") und baut den
+`CommandContext`. `ApiPlan` ist ein serialisierbarer `CommandPlan` (Zusammenfassung, Diff,
+neuer Rohtext, Ziel-Etag) plus — falls der Plan eine Einladung auslöst — `inviteRoute`
+(`"server" | "transport" | "ics"`), damit ein Konsument VOR `execute()` weiß, ob eine E-Mail
+verschickt würde.
 
 `execute()` führt den Plan gegen den Server aus (PUT/DELETE mit `If-Match`/`If-None-Match`)
 und synct das Objekt gezielt zurück. Bei Erfolg **und** einer Einladung im Plan:
@@ -92,6 +100,17 @@ und synct das Objekt gezielt zurück. Bei Erfolg **und** einer Einladung im Plan
 - `route: "ics"` — **die API öffnet nie das `.ics`-Modal**: der fertige iMIP-Text kommt im
   Feld `ics` zurück, der Aufrufer entscheidet selbst, was er damit tut (anzeigen, speichern,
   weiterreichen).
+
+**Wann genau `"ics"` gewählt wird** (`InviteRouter.route()`, `src/obsidian/invite.ts` —
+async seit Fix-Runde 1, Punkt 2): der Server hat KEINEN `scheduling.outbox` **UND** entweder
+ist KEIN `MailTransport` registriert **ODER** kein registrierter Transport meldet über
+`accounts()` mindestens eine Absender-Identität. Ein Transport ohne Identitäten (z. B.
+mailstone ohne konfiguriertes Postfach) zählt also NICHT als „Transport verfügbar" — vorher
+genügte allein die Registrierung, `deliver()` scheiterte dann live mit
+„keine Absender-Konten". Ein werfender `accounts()`-Aufruf blockiert die Routen-Wahl
+ebenfalls nicht (naechster Transport bzw. Fallback `ics`). Beim Transport-Weg selbst wählt
+die API (anders als das UI-Modal) die ERSTE verfügbare Identität automatisch — kein Mensch
+da, der wählen könnte.
 
 Fehler laufen über den `ExecuteResult`-Vertrag von `core/sync/execute.ts` (`{ ok: false,
 conflict: true, freshEtag? }` bei einem 412-Konflikt, `{ ok: false, conflict: false, error:
@@ -154,6 +173,10 @@ interface ImipMessage {                 // RFC 6047
 ein unvollständiges Objekt kommt als `{ error: "invalid-mail-transport" }` zurück, ohne
 registriert zu werden. Details/Kontext: `../mailstone/docs/2026-08-22-anforderungen-aus-calendar-notes.md`.
 
+`MailTransport` hat GENAU EINE Deklaration (`src/core/api/types.ts`, pure) — `src/obsidian/
+invite.ts` und `src/obsidian/plugin-host.ts` importieren sie von dort (Fix-Runde 1, Punkt 4;
+vorher trug `invite.ts` eine eigenständige Kopie, die auseinanderdriften konnte).
+
 ## Events
 
 ```ts
@@ -167,6 +190,9 @@ on(event: "changed", cb: (e: { path: string; op: string; uid: string }) => void)
   als auch aus dem gezielten Resync nach einem Kommando (`executeCommandPlan`).
 - Beide geben eine `unsubscribe()`-Funktion zurück. Es gibt keinen `off()` — abbestellen
   über den Rückgabewert von `on()`.
+- Ein werfender Listener wird geschluckt (`src/core/sync/events.ts::createEmitter`,
+  Fix-Runde 1, Punkt 1) — ein kaputter Callback in DEINEM Plugin stoppt weder `emit()` selbst
+  noch (unabhängig davon nochmal abgesichert) den Sync-/Kommando-Lauf, der ihn ausgelöst hat.
 
 ## Fehlerformat
 
@@ -181,3 +207,7 @@ umbenannt, Fehlerform geändert, ein Aufruf öffnet neu doch ein Modal) erhöht 
 altes `version === 1`-Objekt bleibt für bereits ausgelieferte Plugin-Versionen unverändert
 erreichbar, solange `calendar-notes` beide Formen anbietet — oder die Major-Version wird
 angehoben und alte Konsumenten sehen `version !== 1` und behandeln die API als fehlend.
+
+Intern kommt der Wert aus `CALENDAR_NOTES_API_VERSION` (`src/core/api/types.ts`) — `src/
+obsidian/api.ts` setzt `version` darüber, kein Literal `1` (Fix-Runde 1, Punkt 3): eine
+künftige Versionserhöhung ändert genau EINE Konstante.

@@ -1,26 +1,29 @@
 import type { App } from "obsidian";
 import { collectContacts, collectEvents, findByUid, type CollectionStateEntry } from "../core/api/read";
-import type {
-  ApiContact,
-  ApiError,
-  ApiEvent,
-  ApiExecuteResult,
-  ApiPlan,
-  ApiTargetRef,
-  CalendarNotesApi,
-  ContactsQuery,
-  EventsQuery,
-  InviteRouteName,
+import {
+  CALENDAR_NOTES_API_VERSION,
+  type ApiContact,
+  type ApiError,
+  type ApiEvent,
+  type ApiExecuteResult,
+  type ApiPlan,
+  type ApiTargetRef,
+  type CalendarNotesApi,
+  type ContactsQuery,
+  type EventsQuery,
+  type InviteRouteName,
 } from "../core/api/types";
 import { buildImip } from "../core/commands/imip";
-import { commandRegistry, findCommand, toolDefinitions } from "../core/commands/registry";
+import { ensureDefaultCommands, commandRegistry, findCommand, toolDefinitions } from "../core/commands/registry";
+import { validateInput } from "../core/commands/schema";
 import type { CommandContext, CommandPlan, CommandTarget } from "../core/commands/types";
 import { resolveHref } from "../core/dav/url";
 import { effectiveProfile, sourceOf, type Account, type PluginSettings } from "../core/settings";
 import { executeCommandPlan } from "../core/sync/execute";
 import type { SyncEvents } from "../core/sync/events";
 import type { SyncDeps } from "../core/sync/types";
-import { buildAttendeeIndex, isMailTransport, type MailTransportRegistry } from "./plugin-host";
+import { buildCommandContext } from "./command-context";
+import { isMailTransport, type MailTransportRegistry } from "./plugin-host";
 import { imipLabels, type InviteRouter } from "./invite";
 
 /** Was `createPluginApi` braucht — main.ts baut das aus den bereits vorhandenen
@@ -55,6 +58,12 @@ async function loadStates(deps: SyncDeps, settings: PluginSettings): Promise<Col
  */
 export function createPluginApi(host: PluginApiHost): CalendarNotesApi {
   const { app, deps, inviteRouter, mailTransports } = host;
+  // Fix-Runde 1, Punkt 0: defensiv HIER ebenfalls aufrufen (idempotent) — `main.ts` ruft es
+  // schon vor `createPluginApi(...)` auf, aber die API soll auch funktionieren, wenn sie
+  // (z. B. in einem Test) ohne diesen Aufruf konstruiert wird. Kein Risiko fuer bereits von
+  // main.ts oder einem Test registrierte Deskriptoren — `ensureDefaultCommands()` ergaenzt
+  // nur, was unter derselben id noch fehlt.
+  ensureDefaultCommands();
 
   async function accountFor(collectionSource: string): Promise<{ account: Account; settings: PluginSettings } | undefined> {
     const settings = deps.settings();
@@ -72,16 +81,7 @@ export function createPluginApi(host: PluginApiHost): CalendarNotesApi {
     const account = settings.accounts.find((a) => a.id === collection.accountId);
     if (!profile || !account) return { error: "profile-not-found" };
     const target: CommandTarget = { kind: profile.kind, source: sourceOf(collection), new: true };
-    const ctx: CommandContext = {
-      now: deps.now(),
-      rand: Math.random,
-      profile,
-      collection,
-      account,
-      target,
-      ...(account.scheduling ? { scheduling: account.scheduling } : {}),
-      resolveContact: buildAttendeeIndex(app, settings),
-    };
+    const ctx = buildCommandContext({ app, settings, now: deps.now(), profile, collection, account, target });
     return { ctx };
   }
 
@@ -98,18 +98,7 @@ export function createPluginApi(host: PluginApiHost): CalendarNotesApi {
     const [hp, obj] = entry;
     const href = resolveHref(collection.href, hp);
     const target: CommandTarget = { kind: profile.kind, source, href, uid: obj.uid };
-    const ctx: CommandContext = {
-      now: deps.now(),
-      rand: Math.random,
-      profile,
-      collection,
-      account,
-      target,
-      raw: obj.raw,
-      etag: obj.etag,
-      ...(account.scheduling ? { scheduling: account.scheduling } : {}),
-      resolveContact: buildAttendeeIndex(app, settings),
-    };
+    const ctx = buildCommandContext({ app, settings, now: deps.now(), profile, collection, account, target, raw: obj.raw, etag: obj.etag, history: obj.history });
     return { ctx };
   }
 
@@ -121,7 +110,7 @@ export function createPluginApi(host: PluginApiHost): CalendarNotesApi {
    *  eines Modals). */
   async function deliverInvite(plan: CommandPlan, account: Account): Promise<ApiExecuteResult["invite"]> {
     if (!plan.invite) return undefined;
-    const route: InviteRouteName = inviteRouter.route(account, plan);
+    const route: InviteRouteName = await inviteRouter.route(account, plan);
     const now = deps.now();
     if (route === "server") return { route };
     if (route === "transport") {
@@ -155,7 +144,7 @@ export function createPluginApi(host: PluginApiHost): CalendarNotesApi {
   }
 
   return {
-    version: 1,
+    version: CALENDAR_NOTES_API_VERSION,
 
     async events(q?: EventsQuery): Promise<ApiEvent[] | ApiError> {
       try {
@@ -196,6 +185,12 @@ export function createPluginApi(host: PluginApiHost): CalendarNotesApi {
       try {
         const descriptor = findCommand(commandId);
         if (!descriptor) return { error: "command-not-found" };
+        // Fix-Runde 1, Punkt 5: Eingabe VOR der Zielaufloesung gegen das Kommando-Schema
+        // pruefen — ein Fremdplugin/LLM-Tool-Call bekommt eine praezise Fehlermeldung statt
+        // eines Wurfs mitten in `descriptor.plan()` oder eines stillschweigend falsch
+        // interpretierten Feldes.
+        const validation = validateInput(descriptor.schema, input);
+        if (!validation.ok) return { error: `validation: ${validation.errors.join("; ")}` };
         const isCreate = "new" in targetRef;
         const resolved = isCreate ? await resolveCreateTarget(targetRef.collectionId) : await resolveExistingTarget(targetRef.uid, targetRef.source);
         if ("error" in resolved) return resolved;
@@ -207,7 +202,7 @@ export function createPluginApi(host: PluginApiHost): CalendarNotesApi {
         } catch (e) {
           return { error: toErrorMessage(e) };
         }
-        const inviteRoute = plan.invite ? inviteRouter.route(ctx.account, plan) : undefined;
+        const inviteRoute = plan.invite ? await inviteRouter.route(ctx.account, plan) : undefined;
         return { ...plan, ...(inviteRoute ? { inviteRoute } : {}) };
       } catch (e) {
         return { error: toErrorMessage(e) };

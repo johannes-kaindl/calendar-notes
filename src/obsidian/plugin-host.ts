@@ -8,7 +8,7 @@ import { effectiveProfile, sourceOf, type Account, type PluginSettings } from ".
 import { createBusyGuard } from "../core/sync/busy";
 import type { Notifier, SyncDeps } from "../core/sync/types";
 import { t } from "../i18n/strings";
-import type { MailTransport } from "./invite";
+import type { MailTransport } from "../core/api/types";
 import { obsidianSecretStore } from "./secrets";
 import { adapterStateStore } from "./state-store";
 import { obsidianTransport } from "./transport";

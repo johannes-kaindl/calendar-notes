@@ -60,13 +60,26 @@ ausgewählt wird; mehrere offene Vault-Fenster erzwingen eine eindeutige Auswahl
 | P9 | Notices | Nach P5 keine Fehler-Notices (`EXCEPTION`/`ERROR`/„fehlgeschlagen”/„failed”) |
 | P10 | Kommando via API (`generic`) | `plugin.api.plan("event.move", {start,end,tzid}, {uid:"simple-1@test",source})` → `execute` → `ok`; Server-GET auf `test/kalender/simple-1.ics` zeigt das neue `DTSTART`; Notiz-Frontmatter `start` zieht per `pollUntil` nach |
 | P11 | Einladung ohne Scheduling/Transport (`generic`) | `plugin.api.plan("event.add-attendee", {email,name}, target)` → `plan.inviteRoute === "ics"` (Smoke-Konto hat weder `scheduling.outbox` noch registrierten Mail-Transport, s. `InviteRouter.route`) → `execute` → `invite.route === "ics"`, `invite.ics` enthält `METHOD:REQUEST` + `ATTENDEE` mit der neuen Adresse; Server-GET zeigt dasselbe `ATTENDEE` |
-| P12 | Undo (`generic`) | ⚠ P12 übersprungen: kein programmatischer Undo-Pfad; Follow-up: `undo.last` in die Registry + API. Detail: `CommandFlow.undoLast()`/`runUndo()` hängen an `app.workspace.getActiveFile()` und öffnen immer die `PlanPreviewModal`; die Plugin-API kennt kein `undo()`, und `undo.last` steht nicht in der `commandRegistry()` (nur die reine `planUndoLast()`-Funktion existiert, nicht darüber erreichbar). |
+| P12 | Undo (`generic`) | Läuft DIREKT NACH P10 (vor P11) — `plugin.api.plan("undo.last", {}, target)` → `execute` → `ok`; Server-GET zeigt den VOR-P10-`DTSTART` wieder (per `davGet` vor P10 gemessen, nicht aus der Fixture geraten — P5 hat den Server-Stand vorher schon einmal geändert); Notiz-Frontmatter `start` zieht per `pollUntil` nach. Seit Fix-Runde 1 (Punkt 0): `undo.last` ist ein regulärer `commandRegistry()`-Eintrag (`kind: "any"`, `src/core/commands/undo.ts::UNDO_LAST_COMMAND`). |
 | P13 | API-Lesen (`generic`) | `plugin.api.events({from,to})` enthält `simple-1@test`; `plugin.api.contacts({query:"Brandes"})` enthält Florian Brandes; `plugin.api.tools().length === plugin.api.commands().length`, keine Tool-Namen mit `.` (Registry ersetzt `.`→`_` in `toolDefinitions()`) |
 
 Alle Prüfungen laufen über `cdp.evaluate` gegen `app.plugins.plugins["calendar-notes"]` —
 private TS-Methoden (`startAdoption`, `confirmAdoption`, `discoverAccount`,
 `createProfileFromNote`) sind zur Laufzeit ganz normale Objekteigenschaften (TS `private`
 ist ein Compile-Zeit-Konzept) und darüber ohne Änderung an `main.ts` erreichbar.
+
+## Behobener Befund (2026-08-23, Fix-Runde 1)
+
+P10/P11/P13 waren strukturell rot (`commandRegistry()` blieb zur Laufzeit leer, s. „Offener
+Befund" unten — der Abschnitt bleibt als Fundstelle stehen, ist aber KEIN offener Zustand
+mehr). Behoben: `ensureDefaultCommands()` (`src/core/commands/registry.ts`) registriert
+`EVENT_COMMANDS ∪ CONTACT_COMMANDS ∪ UNDO_LAST_COMMAND` idempotent — aufgerufen in
+`main.ts::onload()` VOR `CommandFlow`/`createPluginApi` UND defensiv nochmal in
+`createPluginApi` selbst. Live per CDP bestätigt (zweimal `disablePlugin`/`enablePlugin`
+hintereinander): `commands().length` bleibt stabil bei 21, kein „Doppelte Kommando-ID"-Wurf.
+`undo.last` ist dabei neu als regulärer Registry-Eintrag entstanden (`kind: "any"`,
+`appliesTo` prüft `ctx.history?.length`) — macht P12 erstmals programmatisch prüfbar (lief
+vorher nur als `⚠ übersprungen`). Lauf 4 (s. „Läufe" unten): generic 12/12, pallas 4/4.
 
 ## Behobener Befund (2026-08-22, Commit 14e4506)
 
@@ -79,7 +92,7 @@ Termin-Titelvergleich (aus Live-Smoke)“) behebt beides — Kandidaten werden s
 Datums-Präfix wird vor dem Titelvergleich von der Basename entfernt. Lauf 2 (s. Baseline)
 bestätigt: P3/P3b jetzt grün, kein Regressions-Effekt in `--section generic`.
 
-## Offener Befund (2026-08-23, M4/Task 8) — `commandRegistry()` wird nie befüllt
+## Ehemals offener Befund (2026-08-23, M4/Task 8) — `commandRegistry()` wurde nie befüllt — BEHOBEN (s. Abschnitt oben)
 
 P10/P11/P13 sind strukturell rot: `plugin.api.plan()`/`commands()`/`tools()` finden **keine**
 Kommandos. Ursache: `src/main.ts` importiert `EVENT_COMMANDS`/`CONTACT_COMMANDS` (aus
@@ -108,5 +121,10 @@ selben Obsidian-Prozess, falls das je vorkommt) nicht in die „Doppelte Kommand
   Task-8-Änderungen. `--setup` + `--section generic` (8/11 — P10/P11/P13 rot, Befund oben;
   P12 ⚠ übersprungen, kein Regressions-Effekt auf P1–P9) + `--section pallas` (4/4, keine
   Regression).
+- **2026-08-23, Lauf 4 (Fix-Runde 1)** — Obsidian 1.13.7, macOS, Commit `2672183` + lokale
+  Fix-Runde-1-Änderungen (`ensureDefaultCommands()`, `undo.last`, async `InviteRouter.route()`,
+  RFC5545-Zeilenfaltung im Treiber selbst behoben). `--section generic` **12/12** (P10/P11/P12/
+  P13 jetzt grün) + `--section pallas` **4/4** (keine Regression). Live per CDP zweimal
+  `disablePlugin`/`enablePlugin` — `commandRegistry()` bleibt stabil bei 21 Einträgen.
 
-Vollständiges Protokoll: `docs/smoke/baseline-2026-08-22.md` (Lauf 1+2), `docs/smoke/baseline-2026-08-23.md` (Lauf 3).
+Vollständiges Protokoll: `docs/smoke/baseline-2026-08-22.md` (Lauf 1+2), `docs/smoke/baseline-2026-08-23.md` (Lauf 3+4).

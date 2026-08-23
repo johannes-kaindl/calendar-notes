@@ -1,19 +1,17 @@
 import { ButtonComponent, FuzzySuggestModal, Modal, Notice, TextAreaComponent, type App } from "obsidian";
-import { buildImip, type ImipLabels, type ImipMessage } from "../core/commands/imip";
+import { buildImip, type ImipLabels } from "../core/commands/imip";
+import type { MailTransport } from "../core/api/types";
 import type { CommandPlan } from "../core/commands/types";
 import type { Account } from "../core/settings";
 import { t } from "../i18n/strings";
 import { joinVaultPath, vaultDirname } from "../vendor/kit/vault-path";
 
-/** Transport-Vertrag mit `mailstone` (s. `../mailstone/docs/2026-08-22-anforderungen-aus-calendar-notes.md`
- *  § 2) — mailstone registriert sich defensiv beim Laden ueber `plugin-host.ts`s
- *  `registerMailTransport`, calendar-notes kennt keine Plugin-ID von mailstone. */
-export interface MailTransport {
-  id: string;
-  label: string;
-  accounts(): Promise<{ id: string; address: string; label: string }[]>;
-  send(msg: ImipMessage): Promise<{ ok: true; messageId?: string } | { ok: false; error: string }>;
-}
+/** Fix-Runde 1, Punkt 4: EINE Deklaration statt zweier — vorher trug `invite.ts` eine
+ *  eigenstaendige Kopie neben `src/core/api/types.ts` (dort aus `check:pure`-Gruenden noetig,
+ *  hier war sie es nicht: `src/obsidian/**` darf Obsidian UND core importieren, nur core darf
+ *  nicht obsidian importieren). Re-Export, damit bestehende `from "./invite"`-Importe
+ *  (`command-flow.ts`, `plugin-host.ts`, Tests) unveraendert bleiben. */
+export type { MailTransport };
 
 export type InviteRoute = "server" | "transport" | "ics";
 
@@ -124,15 +122,28 @@ export interface DeliverOpts {
 export class InviteRouter {
   constructor(private readonly transports: () => MailTransport[], private readonly app: App) {}
 
-  route(account: Account, _plan: CommandPlan): InviteRoute {
+  /** Async (Fix-Runde 1, Punkt 2): "transport" gilt nur, wenn IRGENDEIN registrierter
+   *  Transport mindestens eine Absender-Identitaet hat (`accounts()`) — vorher genuegte
+   *  ein Transport OHNE eine einzige Identitaet, `deliver()` fiel dann live auf
+   *  `noSenderAccounts` zurueck, obwohl `plan.inviteRoute` schon "transport" versprochen
+   *  hatte. Ein werfender `accounts()`-Aufruf blockiert die Routen-Wahl nicht — naechster
+   *  Transport bzw. Fallback `ics`. */
+  async route(account: Account, _plan: CommandPlan): Promise<InviteRoute> {
     if (account.scheduling?.outbox) return "server";
-    if (this.transports().length > 0) return "transport";
+    for (const transport of this.transports()) {
+      try {
+        const identities = await transport.accounts();
+        if (identities.length > 0) return "transport";
+      } catch {
+        // ein kaputter Transport darf die Routen-Wahl nicht abbrechen
+      }
+    }
     return "ics";
   }
 
   async deliver(account: Account, plan: CommandPlan, opts: DeliverOpts): Promise<void> {
     if (!plan.invite) return;
-    const routeKind = this.route(account, plan);
+    const routeKind = await this.route(account, plan);
 
     if (routeKind === "server") return; // Server verschickt selbst — nichts zu tun.
 

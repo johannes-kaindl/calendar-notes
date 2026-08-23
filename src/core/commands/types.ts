@@ -18,6 +18,12 @@ export interface CommandContext {
   /** Vorabgriff auf Account.scheduling (Task 5) — hier direkt am Kontext, damit T2/T3 nicht auf T5 warten muessen. */
   scheduling?: { addresses: string[]; outbox?: string };
   resolveContact?(email: string): { path: string; display?: string } | undefined;
+  /** Verlauf des Zielobjekts (`ObjectState.history`, neueste zuerst) — Fix-Runde 1: macht
+   *  `undo.last` zu einem regulaeren Registry-Eintrag statt eines Sonderpfads nur in
+   *  `CommandFlow` (s. `src/core/commands/undo.ts`). Inline statt Import aus
+   *  `state/collection-state.ts`, um `commands/types.ts` nicht an das State-Modul zu koppeln —
+   *  dieselbe Form wie `ObjectState["history"]`. */
+  history?: { etag: string; raw: string; at: string }[];
 }
 
 export interface CommandPlan {
@@ -47,7 +53,9 @@ export interface CommandPlan {
  *  Literale unveraendert an. */
 export interface CommandDescriptor {
   id: string;
-  kind: "event" | "contact";
+  /** "any" fuer Kommandos, die auf BEIDE Arten wirken (aktuell nur `undo.last`) — nichts im
+   *  Code verzweigt auf dieses Feld (rein deskriptiv fuer Anzeige/`commands()`), s. Fix-Runde 1. */
+  kind: "event" | "contact" | "any";
   title: string;
   description: string;
   schema: ObjectSchema;

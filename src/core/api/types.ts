@@ -83,7 +83,7 @@ export type ApiExecuteResult = ExecuteResult & {
 
 export interface ApiCommandDescriptor {
   id: string;
-  kind: "event" | "contact";
+  kind: "event" | "contact" | "any";
   title: string;
   description: string;
   schema: ObjectSchema;

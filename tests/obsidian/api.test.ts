@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { makeFakeApp } from "../vendor/kit/obsidian-mock";
 import { createPluginApi } from "../../src/obsidian/api";
+import { CALENDAR_NOTES_API_VERSION } from "../../src/core/api/types";
 import { InviteRouter, type MailTransport } from "../../src/obsidian/invite";
 import { createMailTransportRegistry } from "../../src/obsidian/plugin-host";
 import { registerCommands, resetCommands } from "../../src/core/commands/registry";
@@ -190,7 +191,7 @@ function eventRenameDescriptor(withInvite = false): CommandDescriptor {
 
 function eventCreateDescriptor(): CommandDescriptor {
   return {
-    id: "event.create",
+    id: "test.event.create",
     kind: "event",
     title: "Neuer Termin",
     description: "Legt einen Termin an",
@@ -199,7 +200,7 @@ function eventCreateDescriptor(): CommandDescriptor {
     plan(input, ctx) {
       const title = typeof input["title"] === "string" ? input["title"] : "Neu";
       return {
-        commandId: "event.create",
+        commandId: "test.event.create",
         target: ctx.target,
         summary: `Termin angelegt: ${title}`,
         diff: [],
@@ -213,6 +214,13 @@ function eventCreateDescriptor(): CommandDescriptor {
 }
 
 beforeEach(() => resetCommands());
+
+describe("createPluginApi — version", () => {
+  it("version ist die zentrale CALENDAR_NOTES_API_VERSION-Konstante, kein Literal (Fix-Runde 1, Punkt 3)", () => {
+    const f = makeFakes();
+    expect(api(f).version).toBe(CALENDAR_NOTES_API_VERSION);
+  });
+});
 
 describe("createPluginApi — events/contacts/get", () => {
   it("events() liefert die Termine aus den Kalender-Sammlungen", async () => {
@@ -266,15 +274,25 @@ describe("createPluginApi — events/contacts/get", () => {
 });
 
 describe("createPluginApi — commands/tools", () => {
-  it("commands() spiegelt das Register, tools() = toolDefinitions()", () => {
+  it("commands()/tools() enthalten sowohl eigene registrierte als auch (defensiv via ensureDefaultCommands) nachgezogene Default-Kommandos", () => {
     registerCommands([eventRenameDescriptor(), eventCreateDescriptor()]);
     const f = makeFakes();
     const a = api(f);
-    expect(a.commands().map((c) => c.id)).toEqual(["event.rename", "event.create"]);
-    expect(a.tools()).toEqual([
-      { name: "event_rename", description: "Titel ändern — Ändert den Titel eines Termins", parameters: eventRenameDescriptor().schema },
-      { name: "event_create", description: "Neuer Termin — Legt einen Termin an", parameters: eventCreateDescriptor().schema },
-    ]);
+    const ids = a.commands().map((c) => c.id);
+    // Fix-Runde 1, Punkt 0: `createPluginApi` ruft `ensureDefaultCommands()` defensiv selbst
+    // auf — die Registry enthaelt danach IMMER auch den eingebauten Kommando-Satz, nicht nur
+    // die von diesem Test registrierten Fakes.
+    expect(ids).toContain("event.rename");
+    expect(ids).toContain("test.event.create");
+    expect(ids).toContain("event.move");
+    expect(ids).toContain("undo.last");
+    expect(new Set(ids).size).toBe(ids.length);
+
+    const tools = a.tools();
+    expect(tools.map((t) => t.name)).toContain("event_rename");
+    expect(tools.map((t) => t.name)).toContain("test_event_create");
+    expect(tools.some((t) => t.name.includes("."))).toBe(false);
+    expect(tools.length).toBe(a.commands().length);
   });
 });
 
@@ -295,7 +313,7 @@ describe("createPluginApi — plan()", () => {
   it("baut einen ApiPlan fuer ein neues Ziel ({ new: true, collectionId })", async () => {
     registerCommands([eventCreateDescriptor()]);
     const f = makeFakes();
-    const result = await api(f).plan("event.create", { title: "Frisch" }, { new: true, collectionId: "cal1" });
+    const result = await api(f).plan("test.event.create", { title: "Frisch" }, { new: true, collectionId: "cal1" });
     expect(result).not.toHaveProperty("error");
     const plan = result as Exclude<typeof result, { error: string }>;
     expect(plan.createsNew).toBe(true);
@@ -332,8 +350,17 @@ describe("createPluginApi — plan()", () => {
       },
     ]);
     const f = makeFakes();
-    const result = await api(f).plan("event.rename", {}, { uid: EVENT_UID, source: EVENT_SOURCE });
+    // gueltige Eingabe (title gesetzt) — sonst schlaegt schon validateInput() zu (Punkt 5),
+    // bevor descriptor.plan() ueberhaupt laeuft.
+    const result = await api(f).plan("event.rename", { title: "x" }, { uid: EVENT_UID, source: EVENT_SOURCE });
     expect(result).toEqual({ error: "kaputtes Kommando" });
+  });
+
+  it("liefert { error: \"validation: …\" }, wenn die Eingabe das Schema nicht erfuellt (Fix-Runde 1, Punkt 5)", async () => {
+    registerCommands([eventRenameDescriptor()]);
+    const f = makeFakes();
+    const result = await api(f).plan("event.rename", {}, { uid: EVENT_UID, source: EVENT_SOURCE });
+    expect(result).toEqual({ error: "validation: title: fehlt (required)" });
   });
 
   it("ergaenzt inviteRoute, wenn der Plan eine Einladung enthaelt", async () => {
@@ -422,6 +449,37 @@ describe("createPluginApi — Mail-Transport-Registrierung", () => {
     api(f).registerMailTransport(transport);
     api(f).unregisterMailTransport("mailstone");
     expect(f.mailTransports.list()).toEqual([]);
+  });
+});
+
+describe("createPluginApi — undo.last (Fix-Runde 1, Punkt 0)", () => {
+  it("ist ohne Verlauf nicht anwendbar", async () => {
+    const f = makeFakes(); // eventState() hat history: []
+    const result = await api(f).plan("undo.last", {}, { uid: EVENT_UID, source: EVENT_SOURCE });
+    expect(result).toEqual({ error: "command-not-applicable" });
+  });
+
+  it("plant und fuehrt die Wiederherstellung des letzten Verlaufseintrags aus (macht P12 moeglich)", async () => {
+    const f = makeFakes();
+    const priorRaw = ICS.replace("Test Event", "Alter Titel");
+    const state = f.states.get(EVENT_SOURCE);
+    if (!state) throw new Error("kein Event-State im Fixture");
+    const withHistory: CollectionState = {
+      ...state,
+      objects: {
+        "evt1.ics": { ...state.objects["evt1.ics"]!, history: [{ etag: '"e0"', raw: priorRaw, at: "2026-08-20T09:00:00Z" }] },
+      },
+    };
+    f.states.set(EVENT_SOURCE, withHistory);
+
+    const plan = await api(f).plan("undo.last", {}, { uid: EVENT_UID, source: EVENT_SOURCE });
+    if ("error" in plan) throw new Error(`plan() fehlgeschlagen: ${plan.error}`);
+    expect(plan.commandId).toBe("undo.last");
+    expect(plan.newRaw).toBe(priorRaw);
+
+    const result = await api(f).execute(plan);
+    expect(result).not.toHaveProperty("error");
+    expect(result).toMatchObject({ ok: true });
   });
 });
 

@@ -113,14 +113,18 @@ export async function resyncObject(deps: SyncDeps, settings: PluginSettings, col
     ...(resolveAttendee ? { resolveAttendee } : {}),
   });
 
+  // `emit("changed", …)` AUSSERHALB des try-Blocks — s. selber Kommentar in `service.ts`
+  // (Fix-Runde 1, Punkt 1): ein werfender Listener darf nicht als Resync-Fehler dieses
+  // Plans gezaehlt werden, obwohl `executor.execute(plan)` erfolgreich war.
   const execErrors: string[] = [];
   for (const plan of applyResult.plans) {
     try {
       await deps.executor.execute(plan);
-      deps.events?.emit("changed", { path: plan.path, op: plan.op, uid: plan.uid });
     } catch (e) {
       execErrors.push(e instanceof Error ? e.message : String(e));
+      continue;
     }
+    deps.events?.emit("changed", { path: plan.path, op: plan.op, uid: plan.uid });
   }
   await deps.stateStore.save(applyResult.state);
 

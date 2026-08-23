@@ -3,17 +3,16 @@ import { commandsFor, findCommand } from "../core/commands/registry";
 import { targetFromFrontmatter } from "../core/commands/target";
 import type { CommandContext, CommandDescriptor, CommandPlan, CommandTarget } from "../core/commands/types";
 import { planPushHandEdits } from "../core/commands/push-hand-edits";
-import { planUndoLast } from "../core/commands/undo";
 import { resolveHref } from "../core/dav/url";
 import { effectiveProfile, sourceOf, type Account, type CollectionConfig } from "../core/settings";
 import type { ObjectState } from "../core/state/collection-state";
 import { executeCommandPlan, resyncObject, type ExecuteResult } from "../core/sync/execute";
 import type { SyncDeps } from "../core/sync/types";
 import { t } from "../i18n/strings";
+import { buildCommandContext } from "./command-context";
 import { SchemaFormModal } from "./command-modal";
 import type { InviteRoute, InviteRouter, MailTransport } from "./invite";
 import { PlanPreviewModal } from "./plan-preview-modal";
-import { buildAttendeeIndex } from "./plugin-host";
 
 /** Waehlt eine AKTIVIERTE Sammlung EINER Art (Kalender/Adressbuch) fuer „neuer Termin/Kontakt". */
 class KindCollectionSuggestModal extends FuzzySuggestModal<CollectionConfig> {
@@ -122,11 +121,7 @@ export class CommandFlow {
       return;
     }
     const target: CommandTarget = { kind, source: sourceOf(collection), new: true };
-    const ctx: CommandContext = {
-      now: this.deps.now(), rand: Math.random, profile, collection, account, target,
-      ...(account.scheduling ? { scheduling: account.scheduling } : {}),
-      resolveContact: buildAttendeeIndex(this.app, settings),
-    };
+    const ctx: CommandContext = buildCommandContext({ app: this.app, settings, now: this.deps.now(), profile, collection, account, target });
     const descriptor = findCommand(kind === "event" ? "event.create" : "contact.create");
     if (!descriptor) {
       new Notice(t("notice.notCommandTarget"));
@@ -140,17 +135,28 @@ export class CommandFlow {
     this.fireAndForget(this.runUndo(false), t("op.undo"));
   }
 
+  /** Laeuft seit Fix-Runde 1 ueber die reguläre Registry statt direkt `planUndoLast()`
+   *  aufzurufen — `undo.last` (`core/commands/undo.ts`) ist damit auf demselben Pfad wie
+   *  jedes andere Kommando erreichbar (`findCommand`/`appliesTo`/`plan`), inklusive der
+   *  Plugin-API (`api.plan("undo.last", …)`), s. GUI-Smoke P12. */
   private async runUndo(fresh: boolean): Promise<void> {
     const file = this.activeFileOrNotice();
     if (!file) return;
     const resolved = fresh ? await this.resolveTargetFresh(file) : await this.resolveTarget(file);
     if (!resolved) return;
-    const plan = planUndoLast(resolved.ctx, resolved.obj.history);
-    if (!plan) {
+    const descriptor = findCommand("undo.last");
+    if (!descriptor || !descriptor.appliesTo(resolved.ctx)) {
       new Notice(t("notice.noHistory"));
       return;
     }
-    this.openPreview(plan, resolved, () => this.fireAndForget(this.runUndo(true), t("op.undo")));
+    let plan: CommandPlan;
+    try {
+      plan = descriptor.plan({}, resolved.ctx);
+    } catch (e) {
+      new Notice(t("notice.unexpected", t("op.undo"), e instanceof Error ? e.message : String(e)));
+      return;
+    }
+    await this.openPreview(plan, resolved, () => this.fireAndForget(this.runUndo(true), t("op.undo")));
   }
 
   // ── command-push-hand-edits ──────────────────────────────────────────────
@@ -170,7 +176,7 @@ export class CommandFlow {
       new Notice(skipped.length > 0 ? t("notice.handEditsSkipped", skipped.map((s) => s.key).join(", ")) : t("notice.handEditsNone"));
       return;
     }
-    this.openPreview(plan, resolved, () => this.fireAndForget(this.runPushHandEdits(true), t("op.pushHandEdits")));
+    await this.openPreview(plan, resolved, () => this.fireAndForget(this.runPushHandEdits(true), t("op.pushHandEdits")));
   }
 
   // ── gemeinsame Bausteine ─────────────────────────────────────────────────
@@ -213,12 +219,10 @@ export class CommandFlow {
     const [hp, obj] = entry;
     const href = resolveHref(collection.href, hp);
     const target: CommandTarget = { kind: profile.kind, source: ft.source, href, uid: obj.uid };
-    const ctx: CommandContext = {
-      now: this.deps.now(), rand: Math.random, profile, collection, account, target,
-      raw: obj.raw, etag: obj.etag,
-      ...(account.scheduling ? { scheduling: account.scheduling } : {}),
-      resolveContact: buildAttendeeIndex(this.app, settings),
-    };
+    const ctx: CommandContext = buildCommandContext({
+      app: this.app, settings, now: this.deps.now(), profile, collection, account, target,
+      raw: obj.raw, etag: obj.etag, history: obj.history,
+    });
     return { ctx, file, account, collection, obj, rid };
   }
 
@@ -254,7 +258,7 @@ export class CommandFlow {
       return;
     }
     const onRetry = file ? () => this.fireAndForget(this.retryForm(descriptor, file), t("op.command")) : undefined;
-    this.openPreview(plan, { ctx, file, account: ctx.account }, onRetry);
+    this.fireAndForget(this.openPreview(plan, { ctx, file, account: ctx.account }, onRetry), t("op.command"));
   }
 
   private async retryForm(descriptor: CommandDescriptor, file: TFile): Promise<void> {
@@ -263,8 +267,8 @@ export class CommandFlow {
     this.openForm(descriptor, resolved);
   }
 
-  private routeHintFor(account: Account, plan: CommandPlan): string {
-    const route: InviteRoute = this.inviteRouter.route(account, plan);
+  private async routeHintFor(account: Account, plan: CommandPlan): Promise<string> {
+    const route: InviteRoute = await this.inviteRouter.route(account, plan);
     if (route === "server") return t("plan.invite.server");
     if (route === "transport") {
       const transport = this.mailTransports()[0];
@@ -273,8 +277,8 @@ export class CommandFlow {
     return t("plan.invite.ics");
   }
 
-  private openPreview(plan: CommandPlan, resolved: { ctx: CommandContext; file?: TFile; account: Account }, onRetry?: () => void): void {
-    const hint = plan.invite ? this.routeHintFor(resolved.account, plan) : undefined;
+  private async openPreview(plan: CommandPlan, resolved: { ctx: CommandContext; file?: TFile; account: Account }, onRetry?: () => void): Promise<void> {
+    const hint = plan.invite ? await this.routeHintFor(resolved.account, plan) : undefined;
     const onExecute = async (): Promise<ExecuteResult> => {
       const settings = this.deps.settings();
       const result = await executeCommandPlan(this.deps, settings, plan);

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { SyncService } from "../../../src/core/sync/service";
 import { createBusyGuard, type BusyGuard } from "../../../src/core/sync/busy";
+import { createEmitter, type SyncEvents } from "../../../src/core/sync/events";
 import type { SyncDeps, Notifier, PlanExecutor } from "../../../src/core/sync/types";
 import type { NoteLookup } from "../../../src/core/mirror/apply";
 import type { NotePlan } from "../../../src/core/mirror/plan";
@@ -205,6 +206,25 @@ describe("SyncService", () => {
     expect(Object.keys(state.snapshot.etags)).toHaveLength(1);
     expect(saved).toHaveLength(1);
     expect(saved[0]!.collections[0]!.ctag).toBe('"c-new"');
+  });
+
+  it("(b2) ein werfender 'changed'-Listener wird geschluckt und zaehlt nicht als Exec-Fehler (Fix-Runde 1, Punkt 1)", async () => {
+    const col = addressbookCollection("ab1");
+    const settings = baseSettings([col]);
+    const t = addressbookTransport(col, { ctag: '"c-new"' });
+    const { deps, executor } = makeDeps(settings, { acc1: t });
+    const changed: unknown[] = [];
+    const events = createEmitter<SyncEvents>();
+    events.on("changed", (e) => {
+      changed.push(e);
+      throw new Error("kaputter Listener");
+    });
+    const service = new SyncService({ ...deps, events });
+    const r = await service.runCollection("ab1");
+    expect(r.ok).toBe(true);
+    expect(r.error).toBeUndefined();
+    expect(executor.calls).toHaveLength(1);
+    expect(changed).toHaveLength(1);
   });
 
   it("(c) fehlendes Secret → skippedReason no-secret, kein Transport-Aufruf, keine Notice", async () => {

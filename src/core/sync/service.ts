@@ -153,14 +153,19 @@ export class SyncService {
         return { collectionId: col.id, ok: true, dryRun: true, plans: applyResult.plans, counts: applyResult.counts, handEdited, strategy: delta.strategy, ...(errorStr ? { error: errorStr } : {}) };
       }
 
+      // `emit("changed", …)` laeuft AUSSERHALB des try-Blocks (Fix-Runde 1, Punkt 1) — `emit()`
+      // faengt Listener-Fehler zwar bereits selbst (core/sync/events.ts), aber ein Aufruf
+      // INNERHALB dieses try haette einen werfenden Listener sonst als Exec-Fehler DIESES
+      // Plans gezaehlt, obwohl `executor.execute(plan)` erfolgreich war.
       const execErrors: { path: string; message: string }[] = [];
       for (const plan of applyResult.plans) {
         try {
           await this.deps.executor.execute(plan);
-          this.deps.events?.emit("changed", { path: plan.path, op: plan.op, uid: plan.uid });
         } catch (e) {
           execErrors.push({ path: plan.path, message: errorMessage(e) });
+          continue;
         }
+        this.deps.events?.emit("changed", { path: plan.path, op: plan.op, uid: plan.uid });
       }
       const errorStr = errorStringOf(applyResult.errors, execErrors);
       const runOk = applyResult.errors.length === 0 && execErrors.length === 0;

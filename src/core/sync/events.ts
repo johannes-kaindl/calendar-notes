@@ -29,7 +29,18 @@ export function createEmitter<E extends Record<string, unknown>>(): Emitter<E> {
       const set = listeners.get(event);
       if (!set) return;
       // Kopie, damit ein `unsubscribe()` aus einem Callback heraus die laufende Iteration nicht stoert.
-      for (const cb of [...set]) cb(payload);
+      for (const cb of [...set]) {
+        // Fix-Runde 1, Punkt 1: ein werfender Listener darf den Aufrufer (SyncService,
+        // executeCommandPlan) nicht stoppen — ein Fremdplugin-Callback (z. B. ueber
+        // `api.on(...)`) soll den eigenen Sync-/Kommando-Lauf nicht kippen koennen. `emit()`
+        // selbst bleibt synchron und ohne Rueckgabewert, ein Fehler hat also nirgends
+        // hinzulaufen — verschluckt statt geworfen.
+        try {
+          cb(payload);
+        } catch {
+          /* Listener-Fehler bewusst verschluckt, s. o. */
+        }
+      }
     },
   };
 }

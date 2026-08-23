@@ -9,6 +9,7 @@ import type { MappingProfile, ProfileKind } from "./core/mirror/profile";
 import { suggestProfileFromNote } from "./core/mirror/profile-from-note";
 import { normalizeSettings, sourceOf, type Account, type CollectionConfig, type PluginSettings } from "./core/settings";
 import type { CalendarNotesApi } from "./core/api/types";
+import { ensureDefaultCommands } from "./core/commands/registry";
 import type { RunInfo } from "./core/state/collection-state";
 import { createEmitter, type SyncEvents } from "./core/sync/events";
 import { SyncService } from "./core/sync/service";
@@ -116,6 +117,12 @@ export default class CalendarNotesPlugin extends Plugin {
     this.service = new SyncService(this.deps);
     this.mailTransports = createMailTransportRegistry();
     this.inviteRouter = new InviteRouter(() => this.mailTransports.list(), this.app);
+    // Fix-Runde 1, Punkt 0: OHNE diesen Aufruf blieb `commandRegistry()` zur Laufzeit leer —
+    // `EVENT_COMMANDS`/`CONTACT_COMMANDS` (+ `undo.last`) wurden nirgends registriert, nur
+    // Tests befuellten die Registry manuell. Vor `CommandFlow`/`createPluginApi`, weil beide
+    // sich auf eine befuellte Registry verlassen (`commandsFor`/`findCommand`). Idempotent —
+    // ein Plugin-Reload im selben Prozess wirft nicht "Doppelte Kommando-ID".
+    ensureDefaultCommands();
     this.commandFlow = new CommandFlow(this.app, this.deps, this.inviteRouter, () => this.mailTransports.list());
     this.api = createPluginApi({ app: this.app, deps: this.deps, inviteRouter: this.inviteRouter, mailTransports: this.mailTransports });
     await this.hydrateRunCache();
