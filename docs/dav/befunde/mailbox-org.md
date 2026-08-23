@@ -50,3 +50,35 @@ Die Fragen 1–3 lassen sich beantworten, sobald in Teilprojekt ④ ein App-Pass
 - Zu Frage 4 (Mobile/CORS): gelöst — der Plugin-Transport ist Obsidians `requestUrl` (kein CORS, läuft auf Desktop und Mobile); der DAV-Kern ist transport-agnostisch und gegen Radicale end-to-end getestet (`npm run test:integration`).
 - Zu Frage 2/3: der Kern läuft die Discovery-Kette generisch (`.well-known` → Principal → Home-Sets → Sammlungen) und nutzt `sync-token` (RFC 6578) mit Fallback auf CTag/ETag — beides wird beim ersten authentifizierten Lauf gegen `dav.mailbox.org` sichtbar. Die 301-Antworten mit absoluter `Location` sind genau der Pfad, den `discover()` erwartet.
 - Offen bleibt Frage 1 (App-Passwort vs. OAuth für DAV) und Punkt C9 der Erhebungsliste (Scheduling-Outbox → verschickt der Server Einladungen?). Beides braucht das App-Passwort aus Teilprojekt ④.
+
+---
+## Nachtrag aus der mailbox-org-Session (2026-08-23, nach Teilprojekt ②)
+
+**Frage 1 und C9 bleiben offen** — beide hängen weiterhin am App-Passwort aus Teilprojekt ④.
+Neu ist nur der Fahrplan: ② (Identität & Adressen) ist seit 2026-08-22 abgeschlossen und
+abgenommen, ③ (Posteingang) ist startbereit, ④ folgt danach. Die Teilprojekte laufen streng
+nacheinander — ④ wird also nicht vorgezogen, um DAV früher testen zu können. Sobald das
+App-Passwort existiert, fallen Discovery-Kette, Collection-URLs, ETag/CTag-Verhalten und die
+Scheduling-Outbox-Frage in einem Zug an; die Antworten kommen hierher.
+
+### Zwei Betriebsbefunde, die den iMIP-Weg betreffen
+
+**1. DMARC ist seit 2026-08-23 durchsetzend (`p=quarantine`, Ziel `p=reject` ab frühestens
+2026-09-05).** Falls der DAV-Server keine Scheduling-Outbox hat und der Weg über den
+registrierten Mail-Transport geht: Dieser Transport **muss** über den authentifizierten SMTP
+des Anbieters laufen. Direkter MX-Versand oder ein lokaler MTA wird nicht DKIM-signiert und
+ist nicht SPF-berechtigt — die Einladung landet dann beim Empfänger im Spam, ab Stufe 2 wird
+sie abgewiesen. Eine Einladung im Spam ist schlechter als gar keine.
+
+**2. `accounts()` darf nur echte Adressen liefern — das ist keine Formalie.** Das Postfach fährt
+einen aktiven **Catch-All**: Post an beliebige, nirgends angelegte Kennungen kommt an. **Von
+solchen Kennungen kann nicht gesendet werden.** Wenn calendar-notes dem Nutzer eine
+Absenderauswahl aus `accounts()` zeigt, muss diese Liste aus den tatsächlich angelegten
+Identitäten stammen, nicht aus beobachteten Empfängeradressen. Live sind zwei Rollen —
+privat (Standard, zugleich Login-Adresse) und öffentlich — plus einige an Logins gebundene
+Funktionsadressen. Der Standard ist bewusst die private Rolle.
+
+Die vollständige Betriebssicht liegt jetzt drüben in
+`mailstone/docs/2026-08-23-anforderungen-aus-mailbox-org-betrieb.md` — dort § 6 (Identitäten
+und Catch-All) und § 7 (Versandweg) sind für die Konsumentenseite des Transport-Vertrags
+ebenso relevant wie für mailstone selbst.

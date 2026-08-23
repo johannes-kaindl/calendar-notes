@@ -170,11 +170,20 @@ if (cn?.version === 1) cn.registerMailTransport(transport);
 cn?.unregisterMailTransport(transport.id);
 ```
 
+**Vertragspflichten für den Transport (Betriebsbefund mailbox.org, 2026-08-23):**
+`accounts()` liefert **nur tatsächlich sendefähige Identitäten** — bei einem Postfach mit
+Catch-All kommen Mails an beliebige Kennungen an, *gesendet* werden kann nur von angelegten
+Identitäten; beobachtete Empfängeradressen gehören nicht in die Liste. `send()` muss über den
+**authentifizierten SMTP des Anbieters** gehen (DMARC `p=quarantine`, Ziel `p=reject`): direkter
+MX-Versand ist unsigniert und landet im Spam oder wird abgewiesen — eine Einladung im Spam ist
+schlechter als keine. calendar-notes zeigt die Absenderauswahl unverändert aus `accounts()` und
+verlässt sich darauf. Details: `mailstone/docs/2026-08-23-anforderungen-aus-mailbox-org-betrieb.md` § 6/§ 7.
+
 ```ts
 interface MailTransport {
   id: string;
   label: string;
-  accounts(): Promise<{ id: string; address: string; label: string }[]>;
+  accounts(): Promise<{ id: string; address: string; label: string }[]>;  // nur sendefaehige Identitaeten
   send(msg: ImipMessage): Promise<{ ok: true; messageId?: string } | { ok: false; error: string }>;
 }
 interface ImipMessage {                 // RFC 6047
