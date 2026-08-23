@@ -23,11 +23,18 @@
     "shots:check": "test -f ../../_docs/readme/readme_lint.py && python3 ../../_docs/readme/readme_lint.py . || echo 'readme_lint.py nicht gefunden (maintainer-lokal) — uebersprungen'",
     "kit:sync": "sh tools/sync-kit.sh"
   },
-  "keywords": ["obsidian-plugin", "caldav", "carddav", "calendar", "contacts", "sync"],
+  "keywords": [
+    "obsidian-plugin",
+    "caldav",
+    "carddav",
+    "calendar",
+    "contacts",
+    "sync"
+  ],
   "author": "Johannes Kaindl",
   "license": "AGPL-3.0-or-later",
   "dependencies": {
-    "fast-xml-parser": "^4.5",
+    "fast-xml-parser": "^5.11.0",
     "ical.js": "^2.2"
   },
   "devDependencies": {

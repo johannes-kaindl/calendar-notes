@@ -58,7 +58,7 @@ XML responses coming back from the configured server. `XMLBuilder` is never impo
 plugin does not construct XML requests via this library at all (CalDAV/CardDAV request
 bodies are built as plain template strings — see `src/core/dav/`).
 
-**Decision:** no code change needed; the vulnerable code path is unreachable. Documented
+**Decision (superseded 2026-08-23):** the reasoning above still holds, but the Store's Developer-Dashboard gate scan judges by **version range**, not by reachable code path — it flagged 0.1.2 with "Dependency has a potential vulnerability advisory … Upgrade to a version outside the vulnerable range (<5.7.0)". Bumped to `^5.11.0` (498 unit + 4 integration tests green, `XMLParser` API unchanged for our usage). Lesson for the next plugin: a shipped dependency with an open advisory costs a Store warning regardless of exploitability — bump it before the first release. Documented
 here per PROF-OBS release-audit convention rather than silently ignored. Revisit if a future
 change starts building XML via `fast-xml-parser` (`XMLBuilder`) instead of parsing it.
 

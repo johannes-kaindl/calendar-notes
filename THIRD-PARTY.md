@@ -20,7 +20,7 @@ licenses that apply to it.
 ### fast-xml-parser — MIT
 
 - Package: [`fast-xml-parser`](https://www.npmjs.com/package/fast-xml-parser), currently
-  `^4.5` (installed: 4.5.7).
+  `^5.11.0` (installed: 5.11.0; raised from 4.5.7 on 2026-08-23 because the Store gate scan flags any version <5.7.0, GHSA-gh4j-gqv2-49f6).
 - Upstream: <https://github.com/NaturalIntelligence/fast-xml-parser>
 - License: MIT.
 - Only `XMLParser` is used (`src/core/dav/xml.ts`) to parse CalDAV/CardDAV multistatus
