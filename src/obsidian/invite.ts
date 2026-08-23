@@ -15,6 +15,17 @@ export type { MailTransport };
 
 export type InviteRoute = "server" | "transport" | "ics";
 
+/** Rueckgabe von `InviteRouter.route()` — traegt bei `route: "transport"` den TATSAECHLICH
+ *  gewaehlten Transport mit (Fix M3, Review-Runde 3): vorher gaben Aufrufer (`deliver()`,
+ *  `api.ts`) die Route-Entscheidung nur als String zurueck und griffen dann selbst wieder auf
+ *  `transports()[0]` zu — bei mehreren registrierten Transporten, von denen der erste KEINE
+ *  Identitaeten hat, waere das ein ANDERER Transport gewesen als der, den `route()` tatsaechlich
+ *  fuer identitaetsfaehig befunden hat. */
+export interface RouteResult {
+  route: InviteRoute;
+  transport?: MailTransport;
+}
+
 /** Uebersetzte Labels fuer `buildImip` (core bleibt i18n-frei, s. `imip.ts`). Exportiert,
  *  weil `src/obsidian/api.ts` (Task 7) denselben iMIP-Bau fuer den `ics`-Rueckgabe-Fall
  *  braucht, ohne das `.ics`-Modal zu oeffnen. */
@@ -102,7 +113,7 @@ class IcsModal extends Modal {
       new Notice(t("invite.saved", path));
       this.close();
     } catch (e) {
-      new Notice(t("notice.unexpected", "Einladung speichern", e instanceof Error ? e.message : String(e)));
+      new Notice(t("notice.unexpected", t("op.saveInvite"), e instanceof Error ? e.message : String(e)));
     }
   }
 }
@@ -128,27 +139,26 @@ export class InviteRouter {
    *  `noSenderAccounts` zurueck, obwohl `plan.inviteRoute` schon "transport" versprochen
    *  hatte. Ein werfender `accounts()`-Aufruf blockiert die Routen-Wahl nicht — naechster
    *  Transport bzw. Fallback `ics`. */
-  async route(account: Account, _plan: CommandPlan): Promise<InviteRoute> {
-    if (account.scheduling?.outbox) return "server";
+  async route(account: Account, _plan: CommandPlan): Promise<RouteResult> {
+    if (account.scheduling?.outbox) return { route: "server" };
     for (const transport of this.transports()) {
       try {
         const identities = await transport.accounts();
-        if (identities.length > 0) return "transport";
+        if (identities.length > 0) return { route: "transport", transport };
       } catch {
         // ein kaputter Transport darf die Routen-Wahl nicht abbrechen
       }
     }
-    return "ics";
+    return { route: "ics" };
   }
 
   async deliver(account: Account, plan: CommandPlan, opts: DeliverOpts): Promise<void> {
     if (!plan.invite) return;
-    const routeKind = await this.route(account, plan);
+    const { route: routeKind, transport } = await this.route(account, plan);
 
     if (routeKind === "server") return; // Server verschickt selbst — nichts zu tun.
 
     if (routeKind === "transport") {
-      const transport = this.transports()[0];
       if (!transport) return; // sollte durch route() ausgeschlossen sein
       const identities = await transport.accounts();
       const send = async (sender: SenderIdentity): Promise<void> => {

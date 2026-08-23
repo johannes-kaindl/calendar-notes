@@ -52,3 +52,29 @@ describe("newEventIcs", () => {
     expect(e).toMatchObject({ uid: "n1@cn", summary: "Neu", start: "2026-10-01T09:00:00", tzid: "Europe/Berlin", location: "Büro", sequence: 0 });
   });
 });
+
+// Fix C1 (Review-Runde 3): `parseIsoParts` band Stunde/Minute/Sekunde bisher an EIN
+// gemeinsames `(?:T..:..:..)?` — fehlten Sekunden ODER stand ein Leerzeichen statt `T`
+// (das Formular-Placeholder-Format ist `YYYY-MM-DD HH:MM`, Obsidians eigene
+// datetime-Frontmatter-Properties liefern `T14:00` ohne Sekunden), griff die Gruppe NICHT
+// und die Uhrzeit wurde still auf 00:00 gerundet. Tabellengetrieben ueber alle akzeptierten
+// Formen (s. `DATE_TIME_RE` in `src/core/commands/schema.ts`).
+describe("parseIsoParts via applyMutation — C1: alle akzeptierten Zeit-Formen behalten die Uhrzeit", () => {
+  it.each([
+    ["2026-09-02T14:00:00", "2026-09-02T14:00:00"],
+    ["2026-09-02T14:00", "2026-09-02T14:00:00"],
+    ["2026-09-02 14:00", "2026-09-02T14:00:00"],
+    ["2026-09-02 14:00:00", "2026-09-02T14:00:00"],
+  ])("start=%j -> EventData.start=%j (nicht 00:00)", (input, expected) => {
+    const out = applyMutation(fx("simple.ics"), { kind: "times", start: input, end: "2026-09-02T15:00:00", tzid: "Europe/Berlin" }, NOW);
+    const [e] = parseEvents(out);
+    expect(e!.start).toBe(expected);
+    expect(e!.start.startsWith("2026-09-02T00:00")).toBe(false);
+  });
+
+  it("Z-Suffix (UTC) bleibt ueber alle Zeit-Formen erhalten", () => {
+    const out = applyMutation(fx("simple.ics"), { kind: "times", start: "2026-09-02T14:00Z", end: "2026-09-02T15:00Z" }, NOW);
+    const [e] = parseEvents(out);
+    expect(e!.start).toBe("2026-09-02T14:00:00Z");
+  });
+});

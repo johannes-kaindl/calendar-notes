@@ -245,7 +245,7 @@ describe("executeCommandPlan", () => {
     expect(res).toEqual({ ok: false, conflict: false, error: "no-secret" });
   });
 
-  it("PUT erfolgreich, aber Resync-GET scheitert nicht-404 → ok:true, resynced:false, resyncError gesetzt; State haelt trotzdem den frischen etag fest", async () => {
+  it("PUT erfolgreich, aber Resync-GET scheitert nicht-404 → ok:true, resynced:false, resyncError gesetzt; State-Snapshot-Etag wird NICHT vorgezogen (Ruling I1b, Review-Runde 3)", async () => {
     const transport = fakeTransport({ getThrows: true, putEtag: '"e-fresh"' });
     const { deps, executor, states } = makeDeps({ transport });
     const res = await executeCommandPlan(deps, baseSettings(), updatePlan());
@@ -256,8 +256,22 @@ describe("executeCommandPlan", () => {
       expect(res.etag).toBe('"e-fresh"');
     }
     expect(executor.calls).toHaveLength(0); // Resync kam nie bis applyDelta/Executor
+    // Kein `persistKnownEtag` mehr auf dem GET-Fehler-Pfad (Fix I1b): der Snapshot bleibt
+    // unveraendert (hier: nie gespeichert), damit der naechste echte Sync-Lauf die Differenz
+    // zum Server-Etag erkennt und das Objekt gezielt nachholt, statt es faelschlich als
+    // "bereits synchron" zu uebergehen — ein sonst dauerhaft versteckter, staler Mirror.
     const state = states.get("acc1/ab1");
-    expect(state?.snapshot.etags["/ab1/card1.vcf"]).toBe('"e-fresh"');
+    expect(state).toBeUndefined();
+  });
+
+  it("mit bereits bestehendem State: der alte Snapshot-Etag bleibt bei einem GET-Fehler unangetastet (nicht auf den frischen PUT-Etag vorgezogen)", async () => {
+    const transport = fakeTransport({ getThrows: true, putEtag: '"e-fresh"' });
+    const { deps, states } = makeDeps({ transport });
+    states.set("acc1/ab1", { ...emptyState("acc1/ab1"), snapshot: { etags: { "/ab1/card1.vcf": '"e-old"' } } });
+    const res = await executeCommandPlan(deps, baseSettings(), updatePlan());
+    expect(res.ok).toBe(true);
+    const state = states.get("acc1/ab1");
+    expect(state?.snapshot.etags["/ab1/card1.vcf"]).toBe('"e-old"');
   });
 
   it("PUT erfolgreich, Executor wirft beim Notiz-Schreiben → ok:true, resynced:false, resyncError gesetzt; State (etag) wird trotzdem gespeichert", async () => {
@@ -311,5 +325,38 @@ describe("resyncObject", () => {
     const { plans, error } = await resyncObject(deps, baseSettings(), "ab1", CARD_HREF);
     expect(plans).toEqual([]);
     expect(error).toBeDefined();
+  });
+
+  // Fix M7 (Review-Runde 3): eine fehlgeschlagene Zielaufloesung (Sammlung/Konto/Profil/Secret
+  // nicht gefunden) lieferte vorher `{ plans: [] }` OHNE `error` — der Aufrufer haette das als
+  // "resynced: true" (Erfolg) gelesen, obwohl gar nichts synchronisiert wurde.
+  it("unbekannte collectionId liefert { plans:[], error: 'collection-not-found' }", async () => {
+    const { deps } = makeDeps({ transport: fakeTransport() });
+    const { plans, error } = await resyncObject(deps, baseSettings(), "unbekannt", CARD_HREF);
+    expect(plans).toEqual([]);
+    expect(error).toBe("collection-not-found");
+  });
+
+  it("fehlendes Konto liefert { plans:[], error: 'account-not-found' }", async () => {
+    const { deps } = makeDeps({ transport: fakeTransport() });
+    const settings = { ...baseSettings(), accounts: [] };
+    const { plans, error } = await resyncObject(deps, settings, "ab1", CARD_HREF);
+    expect(plans).toEqual([]);
+    expect(error).toBe("account-not-found");
+  });
+
+  it("fehlendes Profil liefert { plans:[], error: 'profile-not-found' }", async () => {
+    const { deps } = makeDeps({ transport: fakeTransport() });
+    const settings = { ...baseSettings(), profiles: [] };
+    const { plans, error } = await resyncObject(deps, settings, "ab1", CARD_HREF);
+    expect(plans).toEqual([]);
+    expect(error).toBe("profile-not-found");
+  });
+
+  it("fehlendes Secret liefert { plans:[], error: 'no-secret' }", async () => {
+    const { deps } = makeDeps({ transport: fakeTransport(), secret: null });
+    const { plans, error } = await resyncObject(deps, baseSettings(), "ab1", CARD_HREF);
+    expect(plans).toEqual([]);
+    expect(error).toBe("no-secret");
   });
 });

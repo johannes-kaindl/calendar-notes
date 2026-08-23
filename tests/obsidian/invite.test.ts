@@ -32,46 +32,50 @@ describe("InviteRouter.route", () => {
   it("waehlt 'server', wenn das Konto einen schedule-outbox hat — unabhaengig von Transporten (auch ohne Identitaeten)", async () => {
     const router = new InviteRouter(() => [emptyTransport()], {} as never);
     const acc = account({ scheduling: { outbox: "https://dav.example/outbox/", addresses: [] } });
-    expect(await router.route(acc, PLAN)).toBe("server");
+    expect((await router.route(acc, PLAN)).route).toBe("server");
   });
 
   it("waehlt 'transport', wenn kein outbox aber ein Transport MIT mindestens einer Identitaet registriert ist", async () => {
     const router = new InviteRouter(() => [fakeTransport()], {} as never);
-    expect(await router.route(account(), PLAN)).toBe("transport");
+    expect((await router.route(account(), PLAN)).route).toBe("transport");
   });
 
   it("faellt auf 'ics' zurueck, wenn der registrierte Transport KEINE Identitaeten hat (Fix-Runde 1, Punkt 2)", async () => {
     const router = new InviteRouter(() => [emptyTransport()], {} as never);
-    expect(await router.route(account(), PLAN)).toBe("ics");
+    expect((await router.route(account(), PLAN)).route).toBe("ics");
   });
 
   it("waehlt 'transport', sobald IRGENDEIN registrierter Transport eine Identitaet hat (nicht nur der erste)", async () => {
     const router = new InviteRouter(() => [emptyTransport("a"), fakeTransport("b")], {} as never);
-    expect(await router.route(account(), PLAN)).toBe("transport");
+    const result = await router.route(account(), PLAN);
+    expect(result.route).toBe("transport");
+    // M3 (Review-Runde 3): route() gibt den TATSAECHLICH gewaehlten Transport mit ("b", nicht
+    // "a" — "a" hat keine Identitaeten und waere gar nicht waehlbar) statt eines Index-0-Griffs.
+    expect(result.transport?.id).toBe("b");
   });
 
   it("ein werfender accounts()-Aufruf blockiert die Routen-Wahl nicht", async () => {
     const throwing: MailTransport = { id: "broken", label: "broken", accounts: () => Promise.reject(new Error("kaputt")), send: async () => ({ ok: true }) };
     const router = new InviteRouter(() => [throwing, fakeTransport()], {} as never);
-    expect(await router.route(account(), PLAN)).toBe("transport");
+    expect((await router.route(account(), PLAN)).route).toBe("transport");
   });
 
   it("waehlt 'ics' als letzten Weg (kein outbox, kein Transport)", async () => {
     const router = new InviteRouter(() => [], {} as never);
-    expect(await router.route(account(), PLAN)).toBe("ics");
+    expect((await router.route(account(), PLAN)).route).toBe("ics");
   });
 
   it("scheduling ohne outbox (nur inbox/addresses) zaehlt nicht als 'server'", async () => {
     const router = new InviteRouter(() => [fakeTransport()], {} as never);
     const acc = account({ scheduling: { addresses: ["mailto:a@example.test"] } });
-    expect(await router.route(acc, PLAN)).toBe("transport");
+    expect((await router.route(acc, PLAN)).route).toBe("transport");
   });
 
   it("liest transports() bei jedem Aufruf frisch (An-/Abmelden zur Laufzeit)", async () => {
     let registered: MailTransport[] = [];
     const router = new InviteRouter(() => registered, {} as never);
-    expect(await router.route(account(), PLAN)).toBe("ics");
+    expect((await router.route(account(), PLAN)).route).toBe("ics");
     registered = [fakeTransport()];
-    expect(await router.route(account(), PLAN)).toBe("transport");
+    expect((await router.route(account(), PLAN)).route).toBe("transport");
   });
 });

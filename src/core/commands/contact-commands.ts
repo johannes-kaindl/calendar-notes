@@ -121,10 +121,16 @@ const contactSetEmail: CommandDescriptor = {
 
 const contactRemoveEmail: CommandDescriptor = {
   id: "contact.remove-email", kind: "contact", title: "E-Mail entfernen", description: "E-Mail-Adresse per Index entfernen",
-  schema: { type: "object", properties: { index: { type: "number" } }, required: ["index"] },
+  // Fix M6 (Review-Runde 3): `index` ist jetzt UEBERALL ein String ("0"|"1"|…) — vorher
+  // schrieb dieses Schema `type: "number"`, waehrend set-email/set-phone (und `parseIndex()`
+  // selbst) String-Indizes erwarten/liefern ("new" ist per Definition kein number). Ein
+  // `validateInput()`-Aufruf mit `index: "0"` (die naheliegende Form fuer ein LLM-Tool-Call
+  // oder ein Formularfeld) waere gegen `type: "number"` faelschlich abgelehnt worden.
+  schema: { type: "object", properties: { index: { type: "string", description: "Index eines bestehenden Eintrags (\"0\", \"1\", ...)" } }, required: ["index"] },
   appliesTo: appliesToExistingContact,
   plan(input, ctx) {
-    const index = typeof input["index"] === "number" ? input["index"] : Number(input["index"]);
+    const index = parseIndex(input["index"]);
+    if (index === "new") throw new Error("contact.remove-email: index darf nicht \"new\" sein");
     checkIndex(ctx, "email", index);
     return planForContactMutations("contact.remove-email", ctx, [{ kind: "removeEmail", index }], "E-Mail entfernt");
   },
@@ -154,10 +160,12 @@ const contactSetPhone: CommandDescriptor = {
 
 const contactRemovePhone: CommandDescriptor = {
   id: "contact.remove-phone", kind: "contact", title: "Telefonnummer entfernen", description: "Telefonnummer per Index entfernen",
-  schema: { type: "object", properties: { index: { type: "number" } }, required: ["index"] },
+  // Fix M6 — s. Kommentar bei contact.remove-email oben.
+  schema: { type: "object", properties: { index: { type: "string", description: "Index eines bestehenden Eintrags (\"0\", \"1\", ...)" } }, required: ["index"] },
   appliesTo: appliesToExistingContact,
   plan(input, ctx) {
-    const index = typeof input["index"] === "number" ? input["index"] : Number(input["index"]);
+    const index = parseIndex(input["index"]);
+    if (index === "new") throw new Error("contact.remove-phone: index darf nicht \"new\" sein");
     checkIndex(ctx, "tel", index);
     return planForContactMutations("contact.remove-phone", ctx, [{ kind: "removeTel", index }], "Telefonnummer entfernt");
   },

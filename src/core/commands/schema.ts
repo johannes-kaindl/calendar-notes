@@ -1,5 +1,10 @@
 // Mini-JSON-Schema: flache Untermenge von JSON Schema fuer Kommando-Eingaben (LLM-Tool-Calling-tauglich).
 
+// `description` je Feld ist heute fest deutschsprachig — Teil derselben i18n-Schuld wie
+// `CommandDescriptor.title`/`.description` und `CommandPlan.summary` (s. Sammel-Kommentar
+// bei `CommandDescriptor` in `src/core/commands/types.ts`, M9/Review-Runde 3): fuer eine
+// EN-Oberflaeche braeuchte jedes Feld ein `descriptionKey`, aufgeloest erst in der
+// Obsidian-Schicht — auch hier consumer-sichtbar ueber `api.commands()`/`api.tools()`.
 export type FieldSchema =
   | { type: "string"; format?: "date-time" | "date" | "email" | "uri" | "multiline"; enum?: string[]; minLength?: number; description?: string }
   | { type: "number"; minimum?: number; maximum?: number; description?: string }
@@ -15,7 +20,11 @@ export interface ObjectSchema {
 export type ValidationResult = { ok: true; value: Record<string, unknown> } | { ok: false; errors: string[] };
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const DATE_TIME_RE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2})?(Z|[+-]\d{2}:\d{2})?$/;
+// Ruling (Review-Runde 3, C1): KEINE Zeitzonen-Offsets (`+01:00`) akzeptieren — nur
+// "floating" (kein Suffix, tzid kommt separat aus dem Feld `tzid`) oder `Z` (UTC). Ein
+// Offset waere nur HALB ehrlich: `parseIsoParts`/`isoToTime` (core/ical/mutate.ts) werten
+// ihn nie aus, ein akzeptierter aber ignorierter Offset waere ein stiller Datenverlust.
+const DATE_TIME_RE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2})?Z?$/;
 
 function checkFormat(field: string, format: "date-time" | "date" | "email" | "uri" | "multiline", value: string, errors: string[]): void {
   switch (format) {

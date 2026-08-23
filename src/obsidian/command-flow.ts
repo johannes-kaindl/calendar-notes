@@ -8,10 +8,11 @@ import { effectiveProfile, sourceOf, type Account, type CollectionConfig } from 
 import type { ObjectState } from "../core/state/collection-state";
 import { executeCommandPlan, resyncObject, type ExecuteResult } from "../core/sync/execute";
 import type { SyncDeps } from "../core/sync/types";
+import { describeExecuteError } from "./execute-i18n";
 import { t } from "../i18n/strings";
 import { buildCommandContext } from "./command-context";
 import { SchemaFormModal } from "./command-modal";
-import type { InviteRoute, InviteRouter, MailTransport } from "./invite";
+import type { InviteRouter } from "./invite";
 import { PlanPreviewModal } from "./plan-preview-modal";
 
 /** Waehlt eine AKTIVIERTE Sammlung EINER Art (Kalender/Adressbuch) fuer „neuer Termin/Kontakt". */
@@ -68,7 +69,6 @@ export class CommandFlow {
     private readonly app: App,
     private readonly deps: SyncDeps,
     private readonly inviteRouter: InviteRouter,
-    private readonly mailTransports: () => MailTransport[],
   ) {}
 
   private fireAndForget(p: Promise<unknown>, what: string): void {
@@ -231,16 +231,27 @@ export class CommandFlow {
    *  If-Match-Konflikt, damit der zweite Versuch nicht mit demselben veralteten Etag
    *  scheitert. Ein normaler Aufruf (`fresh: false` in `runUndo`/`runPushHandEdits`) spart
    *  sich diesen Request. */
+  /** M4 (Review-Runde 3): laeuft jetzt unter `deps.busy` — vorher konnte ein `resyncObject()`
+   *  hier PARALLEL zu einem laufenden `SyncService.runAll()` GEGEN denselben Collection-State
+   *  schreiben (der Busy-Guard ist bidirektional zwischen SyncService/`executeCommandPlan`
+   *  geteilt, s. `core/sync/busy.ts` — dieser Aufruf hier war die eine Luecke). Busy → Notice
+   *  statt eines racenden Resyncs. */
   private async resolveTargetFresh(file: TFile): Promise<ResolvedTarget | undefined> {
     const first = await this.resolveTarget(file);
     if (!first) return undefined;
     const href = "href" in first.ctx.target ? first.ctx.target.href : undefined;
     if (!href) return first; // sollte durch resolveTarget() ausgeschlossen sein (baut immer ein href-Target)
+    if (!this.deps.busy.tryAcquire()) {
+      new Notice(describeExecuteError("busy"));
+      return undefined;
+    }
     try {
       await resyncObject(this.deps, this.deps.settings(), first.collection.id, href);
     } catch (e) {
       new Notice(t("notice.unexpected", t("op.command"), e instanceof Error ? e.message : String(e)));
       return undefined;
+    } finally {
+      this.deps.busy.release();
     }
     return this.resolveTarget(file);
   }
@@ -268,12 +279,12 @@ export class CommandFlow {
   }
 
   private async routeHintFor(account: Account, plan: CommandPlan): Promise<string> {
-    const route: InviteRoute = await this.inviteRouter.route(account, plan);
+    const { route, transport } = await this.inviteRouter.route(account, plan);
     if (route === "server") return t("plan.invite.server");
-    if (route === "transport") {
-      const transport = this.mailTransports()[0];
-      return t("plan.invite.transport", transport?.label ?? "");
-    }
+    // M3 (Review-Runde 3): den TATSAECHLICH von route() gewaehlten Transport anzeigen, nicht
+    // pauschal transports()[0] — bei mehreren registrierten Transporten kann das ein anderer
+    // sein (der erste ohne Identitaeten waere gar nicht waehlbar gewesen).
+    if (route === "transport") return t("plan.invite.transport", transport?.label ?? "");
     return t("plan.invite.ics");
   }
 
@@ -283,7 +294,11 @@ export class CommandFlow {
       const settings = this.deps.settings();
       const result = await executeCommandPlan(this.deps, settings, plan);
       if (result.ok) {
-        new Notice(t("notice.commandDone", plan.summary));
+        // I1a (Review-Runde 3): ein erfolgreicher Server-Schreibvorgang OHNE erfolgreichen
+        // Resync (`resynced: false`) ist KEIN reiner Erfolg — die lokale Notiz spiegelt den
+        // neuen Server-Stand (noch) nicht. Eine stille "Erledigt"-Notice waere irrefuehrend.
+        if (!result.resynced) new Notice(t("notice.commandDoneNoResync", result.resyncError ?? ""));
+        else new Notice(t("notice.commandDone", plan.summary));
         if (plan.invite) {
           this.fireAndForget(
             this.inviteRouter.deliver(resolved.account, plan, { now: this.deps.now(), ...(resolved.file ? { notePath: resolved.file.path } : {}) }),

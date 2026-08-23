@@ -75,6 +75,24 @@ describe("planPushHandEdits: event", () => {
     expect(afterEv.start).toBe("2026-09-01T11:00:00");
     expect(afterEv.tzid).toBe("Europe/Berlin");
   });
+
+  // Fix C1 (Review-Runde 3): Obsidians eigene datetime-Frontmatter-Properties liefern beim
+  // Editieren ueber den nativen Picker `T14:00` OHNE Sekunden — genau die Form, die vorher
+  // still auf 00:00 gerundet wurde, WEIL sie eine Hand-Aenderung ist (kommt direkt aus dem
+  // Frontmatter, nicht ueber ein Formular mit erzwungenem Format).
+  it.each([
+    ["2026-09-01T11:00:00", "2026-09-01T11:00:00"],
+    ["2026-09-01T11:00", "2026-09-01T11:00:00"],
+    ["2026-09-01 11:00", "2026-09-01T11:00:00"],
+    ["2026-09-01 11:00:00", "2026-09-01T11:00:00"],
+  ])("start-Handaenderung mit Frontmatter-Wert %j -> DTSTART=%j", (fmValue, expected) => {
+    const ctx = eventCtx();
+    const prevWritten = { start: "2026-09-01T10:00:00" };
+    const frontmatter = { start: fmValue };
+    const { plan } = planPushHandEdits(ctx, frontmatter, prevWritten);
+    const afterEv = primaryEvent(parseEvents(plan!.newRaw))!;
+    expect(afterEv.start).toBe(expected);
+  });
 });
 
 describe("planPushHandEdits: contact", () => {

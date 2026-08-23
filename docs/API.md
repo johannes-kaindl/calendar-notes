@@ -58,6 +58,12 @@ get(ref: { uid: string; source?: string }): Promise<ApiEvent | ApiContact | null
   `emails[].value`.
 - `get()` sucht über `uid` (+ optional `source` zur Eingrenzung) über alle Sammlungen;
   `null` ist ein regulärer „nichts gefunden"-Wert, kein `ApiError`.
+- **Deaktivierte Sammlungen werden übersprungen** (`events()`/`contacts()`/`get()`, Fix
+  Review-Runde 3, Punkt M8): eine abgeschaltete Sammlung wird nicht mehr synchronisiert, ihr
+  gespeicherter State kann veraltet sein — die Lese-API liefert also nur, was aus aktuell
+  aktivierten Sammlungen stammt. Genauso lehnt `plan()` ein Ziel in einer deaktivierten
+  Sammlung ab (`{ error: "collection-disabled" }`) — sowohl für ein bestehendes Objekt
+  (`{ uid, source }`) als auch für ein neues (`{ new: true, collectionId }`).
 
 ## Kommandos / Tool-Calling
 

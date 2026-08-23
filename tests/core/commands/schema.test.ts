@@ -39,8 +39,8 @@ describe("validateInput", () => {
     if (!r.ok) expect(r.errors.some((e) => e.includes("partstat"))).toBe(true);
   });
 
-  it("date-time: ISO mit T und Sekunden/Zone", () => {
-    for (const v of ["2026-09-02T14:00", "2026-09-02T14:00:00", "2026-09-02T14:00Z", "2026-09-02T14:00:00Z", "2026-09-02T14:00+02:00", "2026-09-02T14:00:00+02:00"]) {
+  it("date-time: ISO mit T und Sekunden/Zone (floating oder Z — kein Offset)", () => {
+    for (const v of ["2026-09-02T14:00", "2026-09-02T14:00:00", "2026-09-02T14:00Z", "2026-09-02T14:00:00Z"]) {
       const r = validateInput(SCHEMA, { title: "x", start: v });
       expect(r.ok, v).toBe(true);
     }
@@ -49,6 +49,13 @@ describe("validateInput", () => {
   it("date-time: Form mit Leerzeichen statt T", () => {
     const r = validateInput(SCHEMA, { title: "x", start: "2026-09-02 14:00" });
     expect(r.ok).toBe(true);
+  });
+
+  it("date-time: Zeitzonen-Offset wird abgelehnt (Ruling Review-Runde 3, C1 — nur floating/Z, kein Offset)", () => {
+    for (const v of ["2026-09-02T14:00+02:00", "2026-09-02T14:00:00+02:00", "2026-09-02T14:00-05:00"]) {
+      const r = validateInput(SCHEMA, { title: "x", start: v });
+      expect(r.ok, v).toBe(false);
+    }
   });
 
   it("date-time: ungueltig -> Fehler", () => {

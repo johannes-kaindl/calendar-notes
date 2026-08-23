@@ -178,11 +178,20 @@ const eventRemoveAttendee: CommandDescriptor = {
   },
 };
 
-function ownAddress(ctx: CommandContext): string {
-  const fromScheduling = ctx.scheduling?.addresses[0];
-  if (fromScheduling) return fromScheduling;
-  if (ctx.account.username.includes("@")) return ctx.account.username;
-  throw new Error("Eigene Adresse unbekannt");
+/** ALLE eigenen Adressen (Fix M5, Review-Runde 3) — vorher nahm `ownAddress()` NUR
+ *  `scheduling.addresses[0]` (oder ersatzweise das Login-`username`) und verglich GENAU
+ *  diese eine gegen die Attendee-Liste. Steht die eigene Adresse, unter der man tatsaechlich
+ *  eingeladen ist, an einer anderen Stelle in `scheduling.addresses` (RFC 6638
+ *  `calendar-user-address-set` liefert oft mehrere Aliase) oder nur im Login-`username`
+ *  waehrend `addresses[0]` ein ANDERER Alias ist, warf das Kommando faelschlich "kein
+ *  Teilnehmer". Jetzt: Vereinigungsmenge aus `scheduling.addresses` ∪ `username` (falls eine
+ *  E-Mail-Form), case-insensitiv gegen jeden Attendee geprueft — die tatsaechlich passende
+ *  Attendee-Adresse (nicht die erstbeste eigene) geht in die Mutation. */
+function ownAddresses(ctx: CommandContext): string[] {
+  const addrs = new Set<string>();
+  for (const a of ctx.scheduling?.addresses ?? []) addrs.add(a.toLowerCase());
+  if (ctx.account.username.includes("@")) addrs.add(ctx.account.username.toLowerCase());
+  return [...addrs];
 }
 
 const eventSetPartstat: CommandDescriptor = {
@@ -192,11 +201,12 @@ const eventSetPartstat: CommandDescriptor = {
   plan(input, ctx) {
     const partstat = str(input["partstat"]) as "ACCEPTED" | "DECLINED" | "TENTATIVE" | undefined;
     if (!partstat) throw new Error("event.set-partstat: partstat fehlt");
-    const email = ownAddress(ctx);
+    const ownSet = ownAddresses(ctx);
+    if (ownSet.length === 0) throw new Error("Eigene Adresse unbekannt");
     const beforeEv = primaryEvent(parseEvents(ctx.raw ?? ""));
-    const isAttendee = beforeEv?.attendees.some((a) => a.email.toLowerCase() === email.toLowerCase()) ?? false;
-    if (!isAttendee) throw new Error("Eigene Adresse ist kein Teilnehmer dieses Termins");
-    return planForMutation("event.set-partstat", ctx, { kind: "partstat", email, partstat }, `Teilnahmestatus gesetzt: ${partstat}`);
+    const matched = beforeEv?.attendees.find((a) => ownSet.includes(a.email.toLowerCase()));
+    if (!matched) throw new Error("Eigene Adresse ist kein Teilnehmer dieses Termins");
+    return planForMutation("event.set-partstat", ctx, { kind: "partstat", email: matched.email, partstat }, `Teilnahmestatus gesetzt: ${partstat}`);
   },
 };
 

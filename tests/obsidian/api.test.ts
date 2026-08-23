@@ -263,6 +263,16 @@ describe("createPluginApi — events/contacts/get", () => {
     expect(missing).toBeNull();
   });
 
+  // Fix M8 (Review-Runde 3): events()/contacts()/get() ueberspringen deaktivierte
+  // Sammlungen — deren State wird nicht mehr synchronisiert und kann stale sein.
+  it("events()/contacts()/get() ueberspringen eine deaktivierte Sammlung", async () => {
+    const settings = baseSettings({ collections: [{ ...EVENT_COL, enabled: false }, { ...CONTACT_COL, enabled: false }] });
+    const f = makeFakes({ settings });
+    expect(await api(f).events()).toEqual([]);
+    expect(await api(f).contacts()).toEqual([]);
+    expect(await api(f).get({ uid: EVENT_UID })).toBeNull();
+  });
+
   it("faengt unerwartete Fehler und liefert { error }", async () => {
     const f = makeFakes();
     f.deps.stateStore.load = async () => {
@@ -338,6 +348,24 @@ describe("createPluginApi — plan()", () => {
     const f = makeFakes();
     const result = await api(f).plan("event.rename", { title: "x" }, { new: true, collectionId: "cal1" });
     expect(result).toEqual({ error: "command-not-applicable" });
+  });
+
+  // Fix M8 (Review-Runde 3): plan() lehnt eine deaktivierte Sammlung als Ziel ab — sowohl
+  // fuer ein bestehendes als auch fuer ein neues Objekt.
+  it("liefert { error: 'collection-disabled' } fuer ein bestehendes Ziel in einer deaktivierten Sammlung", async () => {
+    registerCommands([eventRenameDescriptor()]);
+    const settings = baseSettings({ collections: [{ ...EVENT_COL, enabled: false }, CONTACT_COL] });
+    const f = makeFakes({ settings });
+    const result = await api(f).plan("event.rename", { title: "x" }, { uid: EVENT_UID, source: EVENT_SOURCE });
+    expect(result).toEqual({ error: "collection-disabled" });
+  });
+
+  it("liefert { error: 'collection-disabled' } fuer ein neues Ziel in einer deaktivierten Sammlung", async () => {
+    registerCommands([eventCreateDescriptor()]);
+    const settings = baseSettings({ collections: [{ ...EVENT_COL, enabled: false }, CONTACT_COL] });
+    const f = makeFakes({ settings });
+    const result = await api(f).plan("test.event.create", { title: "x" }, { new: true, collectionId: "cal1" });
+    expect(result).toEqual({ error: "collection-disabled" });
   });
 
   it("faengt einen werfenden Kommando-plan() ab", async () => {

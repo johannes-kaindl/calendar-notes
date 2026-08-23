@@ -92,6 +92,7 @@ export const EN: Record<string, string> = {
   "notice.adoptFailed": "{0} note(s) failed: {1}",
   "notice.clipboardUnavailable": "Clipboard unavailable — copy the JSON manually.",
   "notice.commandDone": "Done: {0}",
+  "notice.commandDoneNoResync": "Saved on the server, but the local note could not be updated: {0}",
   "notice.copied": "Copied to the clipboard.",
   "notice.copyFailed": "Copying failed: {0}",
   "notice.discoverFailed": "Connection test failed: {0}",
@@ -118,6 +119,7 @@ export const EN: Record<string, string> = {
   "op.command": "Command",
   "op.invite": "Invitation",
   "op.pushHandEdits": "Write hand edits",
+  "op.saveInvite": "Save invitation",
   "op.undo": "Undo",
 
   "plan.cancel": "Cancel",
@@ -286,6 +288,7 @@ export const DE: Record<string, string> = {
   "notice.adoptFailed": "{0} Notiz(en) fehlgeschlagen: {1}",
   "notice.clipboardUnavailable": "Zwischenablage nicht verfügbar — bitte das JSON manuell kopieren.",
   "notice.commandDone": "Erledigt: {0}",
+  "notice.commandDoneNoResync": "Auf dem Server gespeichert, lokale Notiz konnte nicht aktualisiert werden: {0}",
   "notice.copied": "In die Zwischenablage kopiert.",
   "notice.copyFailed": "Kopieren fehlgeschlagen: {0}",
   "notice.discoverFailed": "Verbindungstest fehlgeschlagen: {0}",
@@ -312,6 +315,7 @@ export const DE: Record<string, string> = {
   "op.command": "Kommando",
   "op.invite": "Einladung",
   "op.pushHandEdits": "Handänderungen übertragen",
+  "op.saveInvite": "Einladung speichern",
   "op.undo": "Rückgängig machen",
 
   "plan.cancel": "Abbrechen",

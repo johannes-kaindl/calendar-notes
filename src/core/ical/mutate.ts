@@ -14,8 +14,15 @@ export type EventMutation =
 const PRODID = "-//Johannes Kaindl//calendar-notes//DE";
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Akzeptiert `YYYY-MM-DD`, optional gefolgt von Zeit — `T` ODER Leerzeichen als Trenner
+ *  (Fix C1, Review-Runde 3: das Formular-Placeholder-Format ist `YYYY-MM-DD HH:MM`, Obsidians
+ *  eigene datetime-Frontmatter-Properties liefern `T14:00` OHNE Sekunden), Sekunden optional,
+ *  ein trailing `Z` wird separat in `isoToTime` ausgewertet (nicht Teil dieser Regex). Vorher
+ *  band die Regex Stunde/Minute/Sekunde an EIN gemeinsames optionales `(?:T..:..:..)?` —
+ *  fehlten Sekunden oder stand ein Leerzeichen statt `T`, griff die Gruppe NICHT, und die Zeit
+ *  wurde still auf 00:00 gerundet (schrieb die falsche Uhrzeit auf den Server). */
 function parseIsoParts(iso: string): { year: number; month: number; day: number; hour: number; minute: number; second: number } {
-  const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}):(\d{2}))?/.exec(iso);
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/.exec(iso);
   if (!m) throw new Error(`ungueltiges ISO-Datum: ${iso}`);
   return {
     year: Number(m[1]), month: Number(m[2]), day: Number(m[3]),

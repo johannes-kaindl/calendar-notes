@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { CONTACT_COMMANDS } from "../../../src/core/commands/contact-commands";
+import { validateInput } from "../../../src/core/commands/schema";
 import { parseContact } from "../../../src/core/vcard/contact";
 import { defaultContactProfile } from "../../../src/core/mirror/profile";
 import type { Account, CollectionConfig } from "../../../src/core/settings";
@@ -88,6 +89,26 @@ describe("contact.set-email / contact.remove-email", () => {
     expect(() => find("contact.remove-email").plan({ index: 2 }, c)).toThrow("Index außerhalb: 2");
     expect(() => find("contact.remove-email").plan({ index: -1 }, c)).toThrow("Index außerhalb: -1");
   });
+
+  // Fix M6 (Review-Runde 3): index ist bei allen vier Kontakt-Kommandos konsistent ein
+  // String-Schema — vorher schrieb remove-email/remove-phone `type: "number"`, obwohl
+  // set-email/set-phone (und parseIndex()) String-Indizes erwarten.
+  it("remove-email: schema akzeptiert einen String-Index (validateInput)", () => {
+    const schema = find("contact.remove-email").schema;
+    expect(validateInput(schema, { index: "1" }).ok).toBe(true);
+  });
+
+  it("remove-email: index='1' (String statt Number) funktioniert identisch zu index=1", () => {
+    const c = ctx(read("v3-full.vcf"), existingTarget("c3-1@test", "v3-full.vcf"));
+    const plan = find("contact.remove-email").plan({ index: "1" }, c);
+    const after = parseContact(plan.newRaw);
+    expect(after.emails.length).toBe(1);
+  });
+
+  it("remove-email mit index='new' wirft (nichts zu entfernen)", () => {
+    const c = ctx(read("v3-full.vcf"), existingTarget("c3-1@test", "v3-full.vcf"));
+    expect(() => find("contact.remove-email").plan({ index: "new" }, c)).toThrow("index darf nicht \"new\" sein");
+  });
 });
 
 describe("contact.set-phone / contact.remove-phone", () => {
@@ -113,6 +134,17 @@ describe("contact.set-phone / contact.remove-phone", () => {
   it("remove-phone mit Index ausserhalb wirft", () => {
     const c = ctx(read("v3-full.vcf"), existingTarget("c3-1@test", "v3-full.vcf"));
     expect(() => find("contact.remove-phone").plan({ index: 7 }, c)).toThrow("Index außerhalb: 7");
+  });
+
+  // Fix M6 — s. Kommentar bei contact.remove-email oben.
+  it("remove-phone: schema akzeptiert einen String-Index (validateInput)", () => {
+    const schema = find("contact.remove-phone").schema;
+    expect(validateInput(schema, { index: "0" }).ok).toBe(true);
+  });
+
+  it("remove-phone mit index='new' wirft (nichts zu entfernen)", () => {
+    const c = ctx(read("v3-full.vcf"), existingTarget("c3-1@test", "v3-full.vcf"));
+    expect(() => find("contact.remove-phone").plan({ index: "new" }, c)).toThrow("index darf nicht \"new\" sein");
   });
 
   it("set-email/set-phone mit index 'new' pruefen nicht gegen den Bestand", () => {

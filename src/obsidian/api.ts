@@ -11,7 +11,6 @@ import {
   type CalendarNotesApi,
   type ContactsQuery,
   type EventsQuery,
-  type InviteRouteName,
 } from "../core/api/types";
 import { buildImip } from "../core/commands/imip";
 import { ensureDefaultCommands, commandRegistry, findCommand, toolDefinitions } from "../core/commands/registry";
@@ -39,9 +38,14 @@ function toErrorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+/** Fix M8 (Review-Runde 3): ueberspringt DEAKTIVIERTE Sammlungen — deren State wird seit dem
+ *  Deaktivieren nicht mehr synchronisiert und kann veraltet sein; `events()`/`contacts()`/
+ *  `get()` sollen keinen stillen, potenziell stalen Stand ausliefern. Dokumentiert in
+ *  `docs/API.md`. */
 async function loadStates(deps: SyncDeps, settings: PluginSettings): Promise<CollectionStateEntry[]> {
   const entries: CollectionStateEntry[] = [];
   for (const collection of settings.collections) {
+    if (!collection.enabled) continue;
     const state = await deps.stateStore.load(sourceOf(collection));
     entries.push({ collection, state });
   }
@@ -77,6 +81,9 @@ export function createPluginApi(host: PluginApiHost): CalendarNotesApi {
     const settings = deps.settings();
     const collection = settings.collections.find((c) => c.id === collectionId);
     if (!collection) return { error: "collection-not-found" };
+    // Fix M8 (Review-Runde 3): eine deaktivierte Sammlung ist fuer Schreibvorgaenge kein
+    // gueltiges Ziel — s. `loadStates()` oben (Lesen) und `docs/API.md`.
+    if (!collection.enabled) return { error: "collection-disabled" };
     const profile = effectiveProfile(settings, collection);
     const account = settings.accounts.find((a) => a.id === collection.accountId);
     if (!profile || !account) return { error: "profile-not-found" };
@@ -89,6 +96,7 @@ export function createPluginApi(host: PluginApiHost): CalendarNotesApi {
     const settings = deps.settings();
     const collection = settings.collections.find((c) => sourceOf(c) === source);
     if (!collection) return { error: "collection-not-found" };
+    if (!collection.enabled) return { error: "collection-disabled" };
     const profile = effectiveProfile(settings, collection);
     const account = settings.accounts.find((a) => a.id === collection.accountId);
     if (!profile || !account) return { error: "profile-not-found" };
@@ -110,11 +118,13 @@ export function createPluginApi(host: PluginApiHost): CalendarNotesApi {
    *  eines Modals). */
   async function deliverInvite(plan: CommandPlan, account: Account): Promise<ApiExecuteResult["invite"]> {
     if (!plan.invite) return undefined;
-    const route: InviteRouteName = await inviteRouter.route(account, plan);
+    // M3 (Review-Runde 3): den von route() TATSAECHLICH gewaehlten Transport nutzen statt
+    // `mailTransports.list()[0]` — bei mehreren registrierten Transporten waere das ein
+    // anderer, falls der erste keine Identitaeten hat (den haette route() gar nicht gewaehlt).
+    const { route, transport } = await inviteRouter.route(account, plan);
     const now = deps.now();
     if (route === "server") return { route };
     if (route === "transport") {
-      const transport = mailTransports.list()[0];
       if (transport) {
         const identities = await transport.accounts();
         const sender = identities[0];
@@ -202,7 +212,7 @@ export function createPluginApi(host: PluginApiHost): CalendarNotesApi {
         } catch (e) {
           return { error: toErrorMessage(e) };
         }
-        const inviteRoute = plan.invite ? await inviteRouter.route(ctx.account, plan) : undefined;
+        const inviteRoute = plan.invite ? (await inviteRouter.route(ctx.account, plan)).route : undefined;
         return { ...plan, ...(inviteRoute ? { inviteRoute } : {}) };
       } catch (e) {
         return { error: toErrorMessage(e) };

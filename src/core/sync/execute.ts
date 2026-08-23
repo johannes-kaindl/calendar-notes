@@ -33,25 +33,6 @@ function resolve(deps: SyncDeps, settings: PluginSettings, plan: CommandPlan): R
   return { collectionId: col.id, transport };
 }
 
-/** Schreibt den vom Server soeben bestaetigten etag direkt in `state.snapshot.etags` — der
- *  Fallback, wenn `resyncObject` selbst nicht bis zum Speichern kommt (GET dort scheitert
- *  nicht-404, s. unten): der PUT/DELETE ist bereits durch, der naechste echte Sync-Lauf soll
- *  dieses Objekt trotzdem nicht erneut als "geaendert" auffassen. `null`/gelöscht → Eintrag
- *  entfernt; ein PUT ohne zurueckgegebenen etag laesst den vorhandenen Eintrag unangetastet
- *  (kein besserer Wert bekannt, lieber stehen lassen als raten). */
-async function persistKnownEtag(deps: SyncDeps, settings: PluginSettings, collectionId: string, href: string, isDelete: boolean, etag: string | null): Promise<void> {
-  const col = settings.collections.find((c) => c.id === collectionId);
-  if (!col) return;
-  const source = sourceOf(col);
-  const state = await deps.stateStore.load(source);
-  const hp = hrefPath(href);
-  const etags = { ...state.snapshot.etags };
-  if (isDelete) delete etags[hp];
-  else if (etag !== null) etags[hp] = etag;
-  else return;
-  await deps.stateStore.save({ ...state, snapshot: { ...state.snapshot, etags } });
-}
-
 /**
  * Fragt genau EIN Objekt frisch vom Server ab und speist es als gezielten
  * (Ein-Objekt-)Delta durch `applyDelta` — statt eines vollen Collection-Sync-Laufs
@@ -60,20 +41,30 @@ async function persistKnownEtag(deps: SyncDeps, settings: PluginSettings, collec
  *
  * Robust gegen Fehler NACH dem bereits erfolgreichen Server-Schreiben (PUT/DELETE laufen
  * VOR `resyncObject`): ein nicht-404-GET-Fehler liefert `{ plans: [], error }` ohne zu werfen
- * (kein State-Update moeglich — der Aufrufer haelt den bekannten neuen etag separat fest,
- * s. `persistKnownEtag`); ein Executor-Fehler bei einzelnen Notiz-Plaenen wird gesammelt,
+ * und OHNE `state.snapshot.etags` anzufassen (Ruling Review-Runde 3, I1b — der frueher hier
+ * aufgerufene `persistKnownEtag` schrieb den vom PUT/DELETE bestaetigten etag direkt in den
+ * Snapshot, OHNE `state.objects`/die Notiz zu aktualisieren; der naechste echte Sync-Lauf haette
+ * dann `etags[hp]` == Server-Etag gesehen und das Objekt faelschlich als "bereits synchron"
+ * uebersprungen — ein staler lokaler Mirror waere dauerhaft versteckt geblieben, nie repariert.
+ * Der alte Snapshot-Wert bleibt also stehen: der naechste Sync erkennt die Differenz und holt
+ * das Objekt gezielt nach); ein Executor-Fehler bei einzelnen Notiz-Plaenen wird gesammelt,
  * der State (etag/raw/written, aus `applyDelta` unabhaengig vom Notiz-Schreiben) wird
  * TROTZDEM gespeichert — der naechste echte Sync-Lauf soll das Objekt nicht nochmal als
  * "geaendert" sehen, nur weil der lokale Notiz-Schreibvorgang stolperte.
  */
 export async function resyncObject(deps: SyncDeps, settings: PluginSettings, collectionId: string, href: string): Promise<{ plans: NotePlan[]; error?: string }> {
   const col = settings.collections.find((c) => c.id === collectionId);
-  if (!col) return { plans: [] };
+  // Fix M7 (Review-Runde 3): fruehere Version gab hier `{ plans: [] }` OHNE `error` zurueck —
+  // der Aufrufer (`executeCommandPlanLocked`) liest `!resync.error` als `resynced: true` und
+  // haette einen fehlgeschlagenen Resync faelschlich als Erfolg gemeldet. Dieselben neutralen
+  // Codes wie `ExecuteErrorCode` (`resolve()` oben) — `src/core/**` bleibt i18n-frei.
+  if (!col) return { plans: [], error: "collection-not-found" };
   const account = settings.accounts.find((a) => a.id === col.accountId);
   const profile = effectiveProfile(settings, col);
-  if (!account || !profile) return { plans: [] };
+  if (!account) return { plans: [], error: "account-not-found" };
+  if (!profile) return { plans: [], error: "profile-not-found" };
   const secret = deps.secrets.get(account.secretId);
-  if (secret === null || secret === "") return { plans: [] };
+  if (secret === null || secret === "") return { plans: [], error: "no-secret" };
   const transport = deps.transportFor(account, secret);
   const source = sourceOf(col);
   const state = await deps.stateStore.load(source);
@@ -168,7 +159,6 @@ async function executeCommandPlanLocked(deps: SyncDeps, settings: PluginSettings
       return { ok: false, conflict: false, error: "transport-error" };
     }
     const resync = await resyncObject(deps, settings, collectionId, plan.hrefForPut);
-    if (resync.error && resync.plans.length === 0) await persistKnownEtag(deps, settings, collectionId, plan.hrefForPut, true, res.etag);
     return { ok: true, uid: targetUid, etag: res.etag, resynced: !resync.error, ...(resync.error ? { resyncError: resync.error } : {}) };
   }
 
@@ -188,7 +178,6 @@ async function executeCommandPlanLocked(deps: SyncDeps, settings: PluginSettings
   }
 
   const resync = await resyncObject(deps, settings, collectionId, plan.hrefForPut);
-  if (resync.error && resync.plans.length === 0) await persistKnownEtag(deps, settings, collectionId, plan.hrefForPut, false, res.etag);
   const uid = resync.plans[0]?.uid ?? targetUid;
   return { ok: true, uid, etag: res.etag, resynced: !resync.error, ...(resync.error ? { resyncError: resync.error } : {}) };
 }

@@ -33,7 +33,10 @@ export interface CommandPlan {
    *  fest Deutsch, weil er aus den Server-Rohdaten gebaut wird und `src/core/**` kein i18n
    *  kennt. Fuer eine EN-Oberflaeche (M5) braucht es einen strukturierten Nachfolger
    *  (`summaryKey` + Parameter statt eines fertigen Strings), damit die Obsidian-Schicht
-   *  uebersetzen kann — nicht Teil dieses Tasks. */
+   *  uebersetzen kann — nicht Teil dieses Tasks. Dieselbe Schuld traegt `CommandDescriptor.
+   *  title`/`.description` UND jede Schema-Feld-`description` (`FieldSchema`,
+   *  `src/core/commands/schema.ts`) — s. den Sammel-Kommentar bei `CommandDescriptor` unten,
+   *  der die volle Konsequenz (inkl. `api.commands()`/`api.tools()`) beschreibt. */
   summary: string;
   diff: { field: string; before?: string; after?: string }[];
   newRaw: string;
@@ -45,12 +48,20 @@ export interface CommandPlan {
   delete?: true;
 }
 
-/** `title`/`description` sind heute fest deutschsprachige Literale (Kommando-Register wird
- *  einmalig in event-commands.ts/contact-commands.ts befuellt, kein i18n-Import erlaubt in
- *  `src/core/**`). Fuer eine EN-Oberflaeche (M5) braucht der Descriptor stattdessen
- *  `titleKey`/`descriptionKey`, die die Obsidian-Schicht ueber `t()` aufloest — dieser Task
- *  fuehrt das noch nicht ein, die Formular-/Vorschau-Modals zeigen bis dahin die deutschen
- *  Literale unveraendert an. */
+/** i18n-Schuld (M9, Review-Runde 3 — Sammel-Kommentar, gilt fuer `title`/`description` hier,
+ *  `CommandPlan.summary` oben UND jede Schema-Feld-`description` in `FieldSchema`/
+ *  `ObjectSchema`, `src/core/commands/schema.ts`): alle drei sind heute fest deutschsprachige
+ *  Literale (Kommando-Register wird einmalig in event-commands.ts/contact-commands.ts
+ *  befuellt, kein i18n-Import erlaubt in `src/core/**`). Fuer eine EN-Oberflaeche (M5) braucht
+ *  es strukturierte Nachfolger statt fertiger Strings — `titleKey`/`descriptionKey` hier,
+ *  `summaryKey` (+ Parameter) an `CommandPlan`, `descriptionKey` je Schema-Feld — jeweils erst
+ *  in der Obsidian-Schicht (Formular-/Vorschau-Modal) ueber `t()` aufgeloest; dieser Task
+ *  fuehrt das noch nicht ein, alle drei zeigen bis dahin unveraendert die deutschen Literale.
+ *  WICHTIG, ueber die UI hinaus: `api.commands()`/`api.tools()` (`src/obsidian/api.ts`, Spec
+ *  §5b) geben `title`/`description`/Schema-`description` unveraendert an Fremdplugins/
+ *  LLM-Tool-Definitionen weiter — ein Wechsel von fertigem Text auf `*Key`-Felder ist also
+ *  eine BRECHENDE Aenderung des Plugin-API-Vertrags (`CALENDAR_NOTES_API_VERSION` muesste
+ *  steigen, s. `docs/API.md`), kein rein internes Refactoring. */
 export interface CommandDescriptor {
   id: string;
   /** "any" fuer Kommandos, die auf BEIDE Arten wirken (aktuell nur `undo.last`) — nichts im

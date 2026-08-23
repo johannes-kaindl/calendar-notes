@@ -123,7 +123,7 @@ export default class CalendarNotesPlugin extends Plugin {
     // sich auf eine befuellte Registry verlassen (`commandsFor`/`findCommand`). Idempotent —
     // ein Plugin-Reload im selben Prozess wirft nicht "Doppelte Kommando-ID".
     ensureDefaultCommands();
-    this.commandFlow = new CommandFlow(this.app, this.deps, this.inviteRouter, () => this.mailTransports.list());
+    this.commandFlow = new CommandFlow(this.app, this.deps, this.inviteRouter);
     this.api = createPluginApi({ app: this.app, deps: this.deps, inviteRouter: this.inviteRouter, mailTransports: this.mailTransports });
     await this.hydrateRunCache();
 

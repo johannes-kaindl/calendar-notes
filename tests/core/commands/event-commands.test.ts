@@ -78,6 +78,22 @@ describe("event.move", () => {
     expect(afterEv.allDay).toBe(true);
     expect(afterEv.start).toBe("2026-12-25");
   });
+
+  // Fix C1 (Review-Runde 3): alle vom Schema akzeptierten Zeit-Formen (`DATE_TIME_RE`,
+  // src/core/commands/schema.ts) muessen dieselbe Uhrzeit im geplanten VEVENT ergeben —
+  // vorher rundete `parseIsoParts` (core/ical/mutate.ts) manche Formen still auf 00:00.
+  it.each([
+    ["2026-09-02T14:00:00", "2026-09-02T14:00:00"],
+    ["2026-09-02T14:00", "2026-09-02T14:00:00"],
+    ["2026-09-02 14:00", "2026-09-02T14:00:00"],
+    ["2026-09-02 14:00:00", "2026-09-02T14:00:00"],
+  ])("event.move mit start=%j -> geplantes VEVENT DTSTART=%j", (input, expected) => {
+    const raw = read("simple.ics");
+    const c = ctx(raw, existingTarget("simple-1@test", "simple.ics"));
+    const plan = find("event.move").plan({ start: input, end: "2026-09-02T15:30:00" }, c);
+    const afterEv = primaryEvent(parseEvents(plan.newRaw))!;
+    expect(afterEv.start).toBe(expected);
+  });
 });
 
 describe("event.set-title / set-location / set-url / set-description", () => {
@@ -170,6 +186,37 @@ describe("event.set-partstat", () => {
     const c = ctx(read("attendees.ics"), existingTarget("att-1@test", "attendees.ics"));
     expect(() => find("event.set-partstat").plan({ partstat: "ACCEPTED" }, c)).toThrow("Eigene Adresse ist kein Teilnehmer dieses Termins");
   });
+
+  // Fix M5 (Review-Runde 3): ALLE eigenen Adressen (scheduling.addresses ∪ username) werden
+  // gegen die Attendee-Liste geprueft, nicht nur scheduling.addresses[0] — vorher warf das
+  // Kommando faelschlich, wenn die eigene Teilnehmer-Adresse an einer ANDEREN Stelle stand.
+  it("findet die eigene Adresse auch an zweiter Stelle in scheduling.addresses (nicht nur [0])", () => {
+    const c = ctx(read("attendees.ics"), existingTarget("att-1@test", "attendees.ics"), {
+      scheduling: { addresses: ["nicht-attendee@example.test", "sam@example.test"] },
+    });
+    const plan = find("event.set-partstat").plan({ partstat: "ACCEPTED" }, c);
+    const afterEv = primaryEvent(parseEvents(plan.newRaw))!;
+    expect(afterEv.attendees.find((a) => a.email === "sam@example.test")?.partstat).toBe("ACCEPTED");
+  });
+
+  it("findet die eigene Adresse ueber username, wenn scheduling.addresses[0] ein ANDERER (nicht teilnehmender) Alias ist", () => {
+    const c = ctx(read("attendees.ics"), existingTarget("att-1@test", "attendees.ics"), {
+      account: { ...ACCOUNT, username: "sam@example.test" },
+      scheduling: { addresses: ["nicht-attendee@example.test"] },
+    });
+    const plan = find("event.set-partstat").plan({ partstat: "TENTATIVE" }, c);
+    const afterEv = primaryEvent(parseEvents(plan.newRaw))!;
+    expect(afterEv.attendees.find((a) => a.email === "sam@example.test")?.partstat).toBe("TENTATIVE");
+  });
+
+  it("vergleicht case-insensitiv", () => {
+    const c = ctx(read("attendees.ics"), existingTarget("att-1@test", "attendees.ics"), {
+      scheduling: { addresses: ["SAM@EXAMPLE.TEST"] },
+    });
+    const plan = find("event.set-partstat").plan({ partstat: "ACCEPTED" }, c);
+    const afterEv = primaryEvent(parseEvents(plan.newRaw))!;
+    expect(afterEv.attendees.find((a) => a.email === "sam@example.test")?.partstat).toBe("ACCEPTED");
+  });
 });
 
 describe("event.delete", () => {
@@ -196,5 +243,18 @@ describe("event.create", () => {
     expect(plan.diff.every((d) => d.before === undefined)).toBe(true);
     expect(plan.diff.some((d) => d.field === "title" && d.after === "Kickoff")).toBe(true);
     expect(plan.summary).toContain("Termin angelegt");
+  });
+
+  // Fix C1 (Review-Runde 3) — s. Kommentar bei event.move oben.
+  it.each([
+    ["2026-09-10T09:00:00", "2026-09-10T09:00:00"],
+    ["2026-09-10T09:00", "2026-09-10T09:00:00"],
+    ["2026-09-10 09:00", "2026-09-10T09:00:00"],
+    ["2026-09-10 09:00:00", "2026-09-10T09:00:00"],
+  ])("event.create mit start=%j -> geplantes VEVENT DTSTART=%j", (input, expected) => {
+    const c = ctx(undefined as unknown as string, { kind: "event", source: "a1/c1", new: true });
+    const plan = find("event.create").plan({ title: "Kickoff", start: input }, c);
+    const afterEv = primaryEvent(parseEvents(plan.newRaw))!;
+    expect(afterEv.start).toBe(expected);
   });
 });
