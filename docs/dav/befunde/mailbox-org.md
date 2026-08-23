@@ -116,3 +116,76 @@ ungelesen, damit ein anderer Dienst dort abholen kann. Für euch relevant ist da
 allgemeine Linie, die auch für `mailstone` gilt und die wir dort dokumentiert haben:
 **`BODY.PEEK` statt `BODY`, `EXAMINE` statt `SELECT`, wo nur gelesen wird.** Ein Client, der
 beim Anzeigen `\Seen` setzt, zerstört Zustand, auf den andere Dienste sich verlassen.
+
+---
+
+## Frage 1 vollständig beantwortet (2026-08-23, aus Teilprojekt ④)
+
+**Kurzfassung: `dav.mailbox.org` nimmt kein App-Passwort. Es verlangt das Kontopasswort.**
+Basic-Auth, kein OAuth. Damit ist die Verzweigung entschieden, an der die geplante
+Einstellungs-Warnung hängt — **der Fall ist eingetreten.**
+
+### Wie das gemessen wurde
+
+Ein read-only-Erheber (nur `PROPFIND`/`REPORT`/`OPTIONS`) mit Basic-Auth und einem
+App-Passwort des Anbieters:
+
+| Pfad | Status | `WWW-Authenticate` |
+|---|---|---|
+| `/` | 401 | `Basic realm="OX WebDAV", encoding="UTF-8"` |
+| `/caldav/` | 401 | `Basic realm="OX WebDAV", encoding="UTF-8"` |
+| `/carddav/` | 401 | `Basic realm="OX WebDAV", encoding="UTF-8"` |
+| `/servlet/dav/` | 401 | `Basic realm="OX WebDAV", encoding="UTF-8"` |
+
+`OPTIONS /caldav/` → 401, folglich keine `DAV:`- und `Allow:`-Header ohne Authentifizierung.
+
+Der erste Lauf prüfte nur `/`. Das reichte bewusst nicht: Ein 401 auf der Wurzel kann ein
+Pfad-Artefakt sein, und ohne den `WWW-Authenticate`-Header wäre unentschieden geblieben, ob
+der Server überhaupt Basic anbietet. Beides ist mit der Gegenprobe ausgeschlossen.
+
+### Bestätigt durch die Anbieter-Dokumentation
+
+Der Onboarding-Assistent des Anbieters (Portal → *Ihr Gerät verbinden* → macOS →
+*Kalender (CalDav)* → manuelle Optionen) nennt für CalDAV und CardDAV wörtlich:
+
+```
+Server-URL     https://dav.mailbox.org
+Benutzername   <die Kontoadresse>
+Passwort       Ihr Kontopasswort
+```
+
+Das ist die belastbarere Quelle als die Messung, weil sie nicht interpretiert werden muss.
+Zwei Nebenbefunde daraus:
+
+- **Der Benutzername ist die Kontoadresse selbst**, keine abweichende interne Kennung. Diese
+  Frage wurde bewusst **nicht** durch Ausprobieren geklärt — wiederholte Fehlversuche mit
+  verschiedenen Kennungen sehen für einen Server wie ein Angriff aus und können das Konto
+  sperren. Die Anleitung beantwortet sie kostenlos.
+- **Eine gesonderte DAV-Freischaltung existiert nicht.** Danach wurde ausdrücklich gesucht.
+
+### Was das für das Plugin bedeutet
+
+1. **Basic-Auth ist richtig** — kein OAuth-Pfad nötig.
+2. **Die Einstellungs-Warnung wird gebraucht.** Bei diesem Anbieter kennt ein App-Passwort nur
+   IMAP und SMTP; für DAV gibt es keins. Wer DAV nutzt, hinterlegt das **Kontopasswort** — und
+   die Zwei-Faktor-Authentisierung, die das Webinterface schützt, greift für DAV nicht. Ein
+   Gerät oder Plugin mit DAV-Zugang führt damit faktisch den Konto-Zugang.
+   Das ist keine Fehlkonfiguration, sondern eine Eigenschaft des Anbieters.
+3. **Ein Anbieter-Vergleich lohnt in der Warnung.** Nextcloud kennt App-Passwörter, die für
+   DAV gelten; dieser Anbieter nicht. Eine Warnung, die pauschal bei jedem Server erscheint,
+   erzieht zum Wegklicken — sie sollte an die Beobachtung „kein widerrufbares Sekundär-Credential
+   verfügbar" geknüpft sein, nicht an den Servernamen.
+
+### Was weiterhin offen ist
+
+**Punkt C9 (Scheduling-Outbox) und die gesamte Discovery-Erhebung** — Collection-URLs,
+`resourcetype`, Privilegien, CTag/ETag, `sync-collection`, Beispiel-Payloads. Alle diese
+Messungen setzen einen erfolgreichen Login voraus, und der geht nur mit dem Kontopasswort.
+
+In der mailbox-org-Session wurde entschieden, **kein** zweites Credential-Depot dafür
+anzulegen: Die Erhebung wird nachgeholt, sobald der DAV-Zugang auf dem Rechner regulär
+eingerichtet ist — dann liegt das Passwort ohnehin im System-Schlüsselbund, von der
+Kalender-Anwendung selbst dort abgelegt, und der Erheber liest genau diesen Eintrag.
+
+**Für die Bauplanung heißt das:** Die Frage, ob der Mail-Transport für iTIP-Einladungen
+gebraucht wird, ist noch **nicht** beantwortet. Der Transport-Vertrag bleibt bis dahin gültig.
