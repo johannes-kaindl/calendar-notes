@@ -167,7 +167,7 @@ describe("contact.set-org / set-title / set-note / set-birthday", () => {
     const plan = find("contact.set-title").plan({ title: "" }, c);
     const after = parseContact(plan.newRaw);
     expect(after.title).toBeUndefined();
-    expect(plan.summary).toBe("Berufsbezeichnung entfernt");
+    expect(plan.summary).toBe("Job title removed");
   });
 
   it("set-note setzt NOTE", () => {

@@ -57,7 +57,10 @@ export function diffEventFields(before: EventData | undefined, after: EventData)
   return out;
 }
 
-function planForMutation(id: string, ctx: CommandContext, mutation: EventMutation, summary: string): CommandPlan {
+/** `summary`/`summaryKey`/`summaryArgs` werden vom Aufrufer NACH `planForMutation()` gesetzt
+ *  (event.move braucht das gemutierte `afterEv` fuer den Zeitraum-Text, s. u.) — hier nur ein
+ *  Platzhalter, der immer ueberschrieben wird. */
+function planForMutation(id: string, ctx: CommandContext, mutation: EventMutation): CommandPlan {
   const before = ctx.raw;
   if (before === undefined) throw new Error(`${id}: kein Rohdaten (raw) vorhanden`);
   const beforeEv = primaryEvent(parseEvents(before));
@@ -66,7 +69,7 @@ function planForMutation(id: string, ctx: CommandContext, mutation: EventMutatio
   if (!afterEv) throw new Error(`${id}: kein VEVENT nach Mutation`);
   const diff = diffEventFields(beforeEv, afterEv);
   return {
-    commandId: id, target: ctx.target, summary, diff, newRaw,
+    commandId: id, target: ctx.target, summary: "", summaryKey: "", summaryArgs: [], diff, newRaw,
     etag: ctx.etag, contentType: "text/calendar", hrefForPut: hrefOf(ctx.target), createsNew: false,
   };
 }
@@ -76,12 +79,14 @@ function str(v: unknown): string | undefined {
 }
 
 const eventMove: CommandDescriptor = {
-  id: "event.move", kind: "event", title: "Termin verschieben", description: "Start-/Endzeit eines Termins aendern",
+  id: "event.move", kind: "event",
+  title: "Move event", titleKey: "cmd.event.move.title",
+  description: "Change the start/end time of an event", descriptionKey: "cmd.event.move.desc",
   schema: {
     type: "object",
     properties: {
-      start: { type: "string", format: "date-time", description: "neuer Start (ISO)" },
-      end: { type: "string", format: "date-time", description: "neues Ende (ISO)" },
+      start: { type: "string", format: "date-time", description: "new start (ISO)", descriptionKey: "cmd.event.move.field.start" },
+      end: { type: "string", format: "date-time", description: "new end (ISO)", descriptionKey: "cmd.event.move.field.end" },
       allDay: { type: "boolean" },
       tzid: { type: "string" },
     },
@@ -95,62 +100,110 @@ const eventMove: CommandDescriptor = {
     const tzid = str(input["tzid"]) ?? beforeEv?.tzid;
     const allDay = typeof input["allDay"] === "boolean" ? input["allDay"] : undefined;
     const mutation: EventMutation = { kind: "times", start, end: str(input["end"]), allDay, tzid };
-    const plan = planForMutation("event.move", ctx, mutation, "");
+    const plan = planForMutation("event.move", ctx, mutation);
     const afterEv = primaryEvent(parseEvents(plan.newRaw));
-    plan.summary = `Termin verschoben: ${fmtRange(afterEv?.start ?? start, afterEv?.end)}`;
+    const range = fmtRange(afterEv?.start ?? start, afterEv?.end);
+    plan.summary = `Event moved: ${range}`;
+    plan.summaryKey = "plan.event.move.summary";
+    plan.summaryArgs = [range];
     return plan;
   },
 };
 
 const eventSetTitle: CommandDescriptor = {
-  id: "event.set-title", kind: "event", title: "Titel aendern", description: "Zusammenfassung (SUMMARY) eines Termins setzen",
+  id: "event.set-title", kind: "event",
+  title: "Change title", titleKey: "cmd.event.set-title.title",
+  description: "Set the summary (SUMMARY) of an event", descriptionKey: "cmd.event.set-title.desc",
   schema: { type: "object", properties: { title: { type: "string", minLength: 1 } }, required: ["title"] },
   appliesTo: appliesToExistingEvent,
   plan(input, ctx) {
     const title = str(input["title"]);
     if (!title) throw new Error("event.set-title: title fehlt");
-    return planForMutation("event.set-title", ctx, { kind: "summary", summary: title }, `Titel geändert: "${title}"`);
+    const plan = planForMutation("event.set-title", ctx, { kind: "summary", summary: title });
+    plan.summary = `Title changed: "${title}"`;
+    plan.summaryKey = "plan.event.set-title.summary";
+    plan.summaryArgs = [title];
+    return plan;
   },
 };
 
 const eventSetLocation: CommandDescriptor = {
-  id: "event.set-location", kind: "event", title: "Ort aendern", description: "Ort (LOCATION) eines Termins setzen oder loeschen",
+  id: "event.set-location", kind: "event",
+  title: "Change location", titleKey: "cmd.event.set-location.title",
+  description: "Set or clear the location (LOCATION) of an event", descriptionKey: "cmd.event.set-location.desc",
   schema: { type: "object", properties: { location: { type: "string" } }, required: ["location"] },
   appliesTo: appliesToExistingEvent,
   plan(input, ctx) {
     const location = str(input["location"]) ?? "";
-    const summary = location ? `Ort geändert: "${location}"` : "Ort entfernt";
-    return planForMutation("event.set-location", ctx, { kind: "location", location: location || null }, summary);
+    const plan = planForMutation("event.set-location", ctx, { kind: "location", location: location || null });
+    if (location) {
+      plan.summary = `Location changed: "${location}"`;
+      plan.summaryKey = "plan.event.set-location.changed";
+      plan.summaryArgs = [location];
+    } else {
+      plan.summary = "Location removed";
+      plan.summaryKey = "plan.event.set-location.removed";
+      plan.summaryArgs = [];
+    }
+    return plan;
   },
 };
 
 const eventSetUrl: CommandDescriptor = {
-  id: "event.set-url", kind: "event", title: "URL aendern", description: "URL eines Termins setzen oder loeschen",
+  id: "event.set-url", kind: "event",
+  title: "Change URL", titleKey: "cmd.event.set-url.title",
+  description: "Set or clear the URL of an event", descriptionKey: "cmd.event.set-url.desc",
   schema: { type: "object", properties: { url: { type: "string", format: "uri" } }, required: ["url"] },
   appliesTo: appliesToExistingEvent,
   plan(input, ctx) {
     const url = str(input["url"]) ?? "";
-    const summary = url ? `URL geändert: ${url}` : "URL entfernt";
-    return planForMutation("event.set-url", ctx, { kind: "url", url: url || null }, summary);
+    const plan = planForMutation("event.set-url", ctx, { kind: "url", url: url || null });
+    if (url) {
+      plan.summary = `URL changed: ${url}`;
+      plan.summaryKey = "plan.event.set-url.changed";
+      plan.summaryArgs = [url];
+    } else {
+      plan.summary = "URL removed";
+      plan.summaryKey = "plan.event.set-url.removed";
+      plan.summaryArgs = [];
+    }
+    return plan;
   },
 };
 
 const eventSetDescription: CommandDescriptor = {
-  id: "event.set-description", kind: "event", title: "Beschreibung aendern", description: "Beschreibung (DESCRIPTION) eines Termins setzen oder loeschen",
+  id: "event.set-description", kind: "event",
+  title: "Change description", titleKey: "cmd.event.set-description.title",
+  description: "Set or clear the description (DESCRIPTION) of an event", descriptionKey: "cmd.event.set-description.desc",
   schema: { type: "object", properties: { description: { type: "string", format: "multiline" } }, required: ["description"] },
   appliesTo: appliesToExistingEvent,
   plan(input, ctx) {
     const description = str(input["description"]) ?? "";
-    const summary = description ? "Beschreibung geändert" : "Beschreibung entfernt";
-    return planForMutation("event.set-description", ctx, { kind: "description", description: description || null }, summary);
+    const plan = planForMutation("event.set-description", ctx, { kind: "description", description: description || null });
+    if (description) {
+      plan.summary = "Description changed";
+      plan.summaryKey = "plan.event.set-description.changed";
+      plan.summaryArgs = [];
+    } else {
+      plan.summary = "Description removed";
+      plan.summaryKey = "plan.event.set-description.removed";
+      plan.summaryArgs = [];
+    }
+    return plan;
   },
 };
 
 const eventAddAttendee: CommandDescriptor = {
-  id: "event.add-attendee", kind: "event", title: "Teilnehmer hinzufuegen", description: "Teilnehmer:in zu einem Termin hinzufuegen (loest Einladung aus)",
+  id: "event.add-attendee", kind: "event",
+  title: "Add attendee", titleKey: "cmd.event.add-attendee.title",
+  description: "Add an attendee to an event (triggers an invitation)", descriptionKey: "cmd.event.add-attendee.desc",
   schema: {
     type: "object",
-    properties: { email: { type: "string", format: "email" }, name: { type: "string" }, rsvp: { type: "boolean", description: "Default true" } },
+    properties: {
+      email: { type: "string", format: "email" },
+      name: { type: "string" },
+      rsvp: { type: "boolean", description: "Default true", descriptionKey: "cmd.event.add-attendee.field.rsvp" },
+    },
     required: ["email"],
   },
   appliesTo: appliesToExistingEvent,
@@ -159,20 +212,28 @@ const eventAddAttendee: CommandDescriptor = {
     if (!email) throw new Error("event.add-attendee: email fehlt");
     const name = str(input["name"]);
     const rsvp = typeof input["rsvp"] === "boolean" ? input["rsvp"] : true;
-    const plan = planForMutation("event.add-attendee", ctx, { kind: "addAttendee", attendee: { email, name, rsvp } }, `Teilnehmer hinzugefügt: ${email}`);
+    const plan = planForMutation("event.add-attendee", ctx, { kind: "addAttendee", attendee: { email, name, rsvp } });
+    plan.summary = `Attendee added: ${email}`;
+    plan.summaryKey = "plan.event.add-attendee.summary";
+    plan.summaryArgs = [email];
     if (rsvp) plan.invite = { attendees: [email], method: "REQUEST" };
     return plan;
   },
 };
 
 const eventRemoveAttendee: CommandDescriptor = {
-  id: "event.remove-attendee", kind: "event", title: "Teilnehmer entfernen", description: "Teilnehmer:in von einem Termin entfernen (loest Absage aus, wenn Scheduling verfuegbar)",
+  id: "event.remove-attendee", kind: "event",
+  title: "Remove attendee", titleKey: "cmd.event.remove-attendee.title",
+  description: "Remove an attendee from an event (triggers a cancellation, if scheduling is available)", descriptionKey: "cmd.event.remove-attendee.desc",
   schema: { type: "object", properties: { email: { type: "string", format: "email" } }, required: ["email"] },
   appliesTo: appliesToExistingEvent,
   plan(input, ctx) {
     const email = str(input["email"]);
     if (!email) throw new Error("event.remove-attendee: email fehlt");
-    const plan = planForMutation("event.remove-attendee", ctx, { kind: "removeAttendee", email }, `Teilnehmer entfernt: ${email}`);
+    const plan = planForMutation("event.remove-attendee", ctx, { kind: "removeAttendee", email });
+    plan.summary = `Attendee removed: ${email}`;
+    plan.summaryKey = "plan.event.remove-attendee.summary";
+    plan.summaryArgs = [email];
     if (ctx.scheduling) plan.invite = { attendees: [email], method: "CANCEL" };
     return plan;
   },
@@ -195,7 +256,9 @@ function ownAddresses(ctx: CommandContext): string[] {
 }
 
 const eventSetPartstat: CommandDescriptor = {
-  id: "event.set-partstat", kind: "event", title: "Teilnahmestatus setzen", description: "Eigenen Teilnahmestatus (ACCEPTED/DECLINED/TENTATIVE) an einem Termin setzen",
+  id: "event.set-partstat", kind: "event",
+  title: "Set attendance status", titleKey: "cmd.event.set-partstat.title",
+  description: "Set your own attendance status (ACCEPTED/DECLINED/TENTATIVE) for an event", descriptionKey: "cmd.event.set-partstat.desc",
   schema: { type: "object", properties: { partstat: { type: "string", enum: ["ACCEPTED", "DECLINED", "TENTATIVE"] } }, required: ["partstat"] },
   appliesTo: appliesToExistingEvent,
   plan(input, ctx) {
@@ -206,24 +269,34 @@ const eventSetPartstat: CommandDescriptor = {
     const beforeEv = primaryEvent(parseEvents(ctx.raw ?? ""));
     const matched = beforeEv?.attendees.find((a) => ownSet.includes(a.email.toLowerCase()));
     if (!matched) throw new Error("Eigene Adresse ist kein Teilnehmer dieses Termins");
-    return planForMutation("event.set-partstat", ctx, { kind: "partstat", email: matched.email, partstat }, `Teilnahmestatus gesetzt: ${partstat}`);
+    const plan = planForMutation("event.set-partstat", ctx, { kind: "partstat", email: matched.email, partstat });
+    plan.summary = `Attendance status set: ${partstat}`;
+    plan.summaryKey = "plan.event.set-partstat.summary";
+    plan.summaryArgs = [partstat];
+    return plan;
   },
 };
 
 const eventDelete: CommandDescriptor = {
-  id: "event.delete", kind: "event", title: "Termin loeschen", description: "Termin vom Server entfernen",
+  id: "event.delete", kind: "event",
+  title: "Delete event", titleKey: "cmd.event.delete.title",
+  description: "Remove the event from the server", descriptionKey: "cmd.event.delete.desc",
   schema: { type: "object", properties: {} },
   appliesTo: appliesToExistingEvent,
   plan(_input, ctx) {
     return {
-      commandId: "event.delete", target: ctx.target, summary: "Termin gelöscht", diff: [], newRaw: "",
+      commandId: "event.delete", target: ctx.target,
+      summary: "Event deleted", summaryKey: "plan.event.delete.summary", summaryArgs: [],
+      diff: [], newRaw: "",
       etag: ctx.etag, contentType: "text/calendar", hrefForPut: hrefOf(ctx.target), createsNew: false, delete: true,
     };
   },
 };
 
 const eventCreate: CommandDescriptor = {
-  id: "event.create", kind: "event", title: "Termin anlegen", description: "Neuen Termin in der Ziel-Collection anlegen",
+  id: "event.create", kind: "event",
+  title: "Create event", titleKey: "cmd.event.create.title",
+  description: "Create a new event in the target collection", descriptionKey: "cmd.event.create.desc",
   schema: {
     type: "object",
     properties: {
@@ -245,8 +318,11 @@ const eventCreate: CommandDescriptor = {
     const afterEv = primaryEvent(parseEvents(newRaw));
     if (!afterEv) throw new Error("event.create: kein VEVENT erzeugt");
     const diff = diffEventFields(undefined, afterEv);
+    const range = fmtRange(afterEv.start, afterEv.end);
     return {
-      commandId: "event.create", target: ctx.target, summary: `Termin angelegt: ${fmtRange(afterEv.start, afterEv.end)}`, diff, newRaw,
+      commandId: "event.create", target: ctx.target,
+      summary: `Event created: ${range}`, summaryKey: "plan.event.create.summary", summaryArgs: [range],
+      diff, newRaw,
       contentType: "text/calendar", hrefForPut: `${ctx.collection.href}${uid}.ics`, createsNew: true,
     };
   },

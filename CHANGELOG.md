@@ -1,8 +1,14 @@
 # Changelog
 
+All notable changes to this project are documented here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html) (without a `v` prefix).
+
 ## [Unreleased]
+
 - M1: obsidian-freier DAV-Kern — Discovery (well-known → principal → home-sets), Collection-Sync (sync-collection mit Fallback auf ctag/etag-Diff), Multiget, Objekt-Client mit If-Match/412; VEVENT- und vCard-Parser/Mutationen auf ical.js; Radicale-Integrationstest (`npm run test:integration`).
 - M2a: obsidian-freier Mirror-Kern — Mapping-Profile, verwaltete Werte + Attendee-Wikilinks, Body-Block-Verwaltung, Dateiname (Kit-Template) + Hash, Zeitfenster + Wiederholungs-Queries; Plan-Typen create/update/skip/archive/delete; Collection-State-Tracking mit Snapshot/Verlauf.
 - M2b: Obsidian-Schicht — Settings-Modell (Konten + Secrets im Schlüsselbund), Transport/State/Secrets-Adapter, SyncService mit injizierten Interfaces (vitest mit Fakes vollständig getestet), Settings-Tab (Discovery, Profil-Management, Sync-Optionen), Vorschau-Modal, Kommandos (sync-all/sync-preview/sync-collection), Start-/Intervall-Trigger.
 - M3: Adoptions-Ablauf (bestehende Notizen mit Server-Einträgen verknüpfen via Modal nach Matching-Review), Profil-Ableitung aus Frontmatter-Vorlage, Staging-Vault-Fixture, automatisierter GUI-Smoke mit Baseline.
 - M4: Explizite Kommandos (verschieben, Felder ändern, Teilnehmer add/remove, Zu-/Absage, löschen, anlegen, Kontaktfelder, Handänderungen auf den Server schreiben) mit `If-Match`/412-Konfliktpfad + gezieltem Re-Sync, „Letzte Änderung zurücknehmen" aus dem Verlauf (`undo.last`, regulärer Registry-Eintrag), Einladungs-Weg Server-Scheduling → Mail-Transport → `.ics` (Route erst „transport", wenn ein registrierter Transport auch mindestens eine Absender-Identität hat), Plugin-API v1 (`app.plugins.plugins["calendar-notes"].api`: lesen, Kommandos planen/ausführen — mit Schema-Validierung der Eingabe —, `registerMailTransport`, `on`) — `docs/API.md`. Kommando-Registry wird beim Laden befüllt (`ensureDefaultCommands()`, idempotent). GUI-Smoke erweitert um P10–P13 (Kommando via API, Einladung ohne Scheduling/Transport, Undo, API-Lesen) — generic 12/12, pallas 4/4.
+- M5: i18n-Abschluss der Kommandotitel/-zusammenfassungen (`titleKey`/`descriptionKey`/`summaryKey`), README de/en mit Aufnahme-Rezept (`scripts/shots.ts`), Release-Infrastruktur nach Dach-Standard (`release.yml`, `versions.json`, `LICENSE`/`LICENSING.md`/`THIRD-PARTY.md`, `docs/AUDIT.md`), Store-Vorbereitung (`docs/STORE.md` Scorecard-Vorschau, `docs/RELEASE.md` Maintainer-Handover für Remotes + Erst-Release + Developer-Dashboard/Rescan).

@@ -13,7 +13,7 @@ import {
   type EventsQuery,
 } from "../core/api/types";
 import { buildImip } from "../core/commands/imip";
-import { ensureDefaultCommands, commandRegistry, findCommand, toolDefinitions } from "../core/commands/registry";
+import { ensureDefaultCommands, commandRegistry, findCommand } from "../core/commands/registry";
 import { validateInput } from "../core/commands/schema";
 import type { CommandContext, CommandPlan, CommandTarget } from "../core/commands/types";
 import { resolveHref } from "../core/dav/url";
@@ -22,6 +22,7 @@ import { executeCommandPlan } from "../core/sync/execute";
 import type { SyncEvents } from "../core/sync/events";
 import type { SyncDeps } from "../core/sync/types";
 import { buildCommandContext } from "./command-context";
+import { tr, trPlan, trSchema } from "./command-i18n";
 import { isMailTransport, type MailTransportRegistry } from "./plugin-host";
 import { imipLabels, type InviteRouter } from "./invite";
 
@@ -184,11 +185,25 @@ export function createPluginApi(host: PluginApiHost): CalendarNotesApi {
     },
 
     commands() {
-      return commandRegistry().map((c) => ({ id: c.id, kind: c.kind, title: c.title, description: c.description, schema: c.schema }));
+      // title/description UEBERSETZT (aktuelle UI-Sprache); titleKey/descriptionKey daneben
+      // fuer Konsumenten, die Stabilitaet statt Sprache brauchen. `schema` bleibt UNuebersetzt
+      // (Key + englischer Fallback je Feld) — s. Kommentar bei `ApiCommandDescriptor`,
+      // `src/core/api/types.ts`.
+      return commandRegistry().map((c) => {
+        const { title, description } = tr(c);
+        return { id: c.id, kind: c.kind, title, titleKey: c.titleKey, description, descriptionKey: c.descriptionKey, schema: c.schema };
+      });
     },
 
     tools() {
-      return toolDefinitions();
+      // Anders als commands(): description UND jede Schema-Feld-description UEBERSETZT
+      // (aktuelle UI-Sprache) — Tool-Definitionen gehen direkt an ein LLM, kein Konsument, der
+      // selbst nachuebersetzen koennte. Name/Aufbau bleiben wie `toolDefinitions()`
+      // (`src/core/commands/registry.ts`), nur mit uebersetztem title/description/schema.
+      return commandRegistry().map((c) => {
+        const { title, description } = tr(c);
+        return { name: c.id.replace(/\./g, "_"), description: `${title} — ${description}`, parameters: trSchema(c.schema) };
+      });
     },
 
     async plan(commandId: string, input: Record<string, unknown>, targetRef: ApiTargetRef): Promise<ApiPlan | ApiError> {
@@ -213,7 +228,9 @@ export function createPluginApi(host: PluginApiHost): CalendarNotesApi {
           return { error: toErrorMessage(e) };
         }
         const inviteRoute = plan.invite ? (await inviteRouter.route(ctx.account, plan)).route : undefined;
-        return { ...plan, ...(inviteRoute ? { inviteRoute } : {}) };
+        // summary UEBERSETZT (aktuelle UI-Sprache) — s. `CommandPlan.summaryKey` Kommentar,
+        // `src/core/commands/types.ts`.
+        return { ...plan, summary: trPlan(plan), ...(inviteRoute ? { inviteRoute } : {}) };
       } catch (e) {
         return { error: toErrorMessage(e) };
       }

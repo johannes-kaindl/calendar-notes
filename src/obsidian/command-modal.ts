@@ -5,6 +5,7 @@ import { validateInput } from "../core/commands/schema";
 import type { CommandContext, CommandDescriptor } from "../core/commands/types";
 import { parseContact } from "../core/vcard/contact";
 import { fieldLabel } from "./field-labels";
+import { tr, trFieldDescription } from "./command-i18n";
 import { t } from "../i18n/strings";
 
 /**
@@ -146,8 +147,9 @@ export class SchemaFormModal extends Modal {
   }
 
   onOpen(): void {
-    this.titleEl.setText(this.descriptor.title);
-    if (this.descriptor.description) this.contentEl.createEl("p", { text: this.descriptor.description, cls: "setting-item-description" });
+    const { title, description } = tr(this.descriptor);
+    this.titleEl.setText(title);
+    if (description) this.contentEl.createEl("p", { text: description, cls: "setting-item-description" });
 
     for (const [key, field] of Object.entries(this.descriptor.schema.properties)) {
       this.renderField(key, field);
@@ -169,7 +171,8 @@ export class SchemaFormModal extends Modal {
 
   private renderField(key: string, field: FieldSchema): void {
     const setting = new Setting(this.contentEl).setName(fieldLabel(key));
-    if (field.description) setting.setDesc(field.description);
+    const fieldDescription = trFieldDescription(field);
+    if (fieldDescription) setting.setDesc(fieldDescription);
     const initial = this.values[key];
 
     if (field.type === "boolean") {

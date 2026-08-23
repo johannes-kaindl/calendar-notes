@@ -81,14 +81,25 @@ export type ApiExecuteResult = ExecuteResult & {
   invite?: { route: InviteRouteName; delivered?: boolean; ics?: string };
 };
 
+/** `title`/`description` sind bereits UEBERSETZT (aktuelle UI-Sprache, `src/obsidian/
+ *  command-i18n.ts::tr()`); `titleKey`/`descriptionKey` sind die stabilen, sprachunabhaengigen
+ *  Schluessel dazu — ein Konsument, der Stabilitaet statt Sprache braucht (z. B. ein
+ *  Vergleich ueber Sync-Laeufe hinweg), liest die Keys statt der uebersetzten Texte. `schema`
+ *  bleibt UNuebersetzt (Key + englischer Fallback je Feld, `FieldSchema.descriptionKey`) —
+ *  anders als bei `ApiToolDefinition.parameters` unten, s. dort. */
 export interface ApiCommandDescriptor {
   id: string;
   kind: "event" | "contact" | "any";
   title: string;
+  titleKey: string;
   description: string;
+  descriptionKey: string;
   schema: ObjectSchema;
 }
 
+/** `description` und jede Feld-`description` in `parameters` sind UEBERSETZT (aktuelle
+ *  UI-Sprache) — anders als `ApiCommandDescriptor.schema`: Tool-Definitionen gehen direkt an
+ *  ein LLM, das fertigen Text statt eines Key+Fallback-Paars braucht. */
 export interface ApiToolDefinition {
   name: string;
   description: string;

@@ -68,12 +68,12 @@ get(ref: { uid: string; source?: string }): Promise<ApiEvent | ApiContact | null
 ## Kommandos / Tool-Calling
 
 ```ts
-commands(): { id, kind, title, description, schema }[]
+commands(): { id, kind, title, titleKey, description, descriptionKey, schema }[]
 tools(): { name, description, parameters }[]
 ```
 
-`tools()` ist `toolDefinitions()` aus der Kommando-Registry — `name` ersetzt Punkte durch
-Unterstriche (`event.set-title` → `event_set-title`, Bindestriche bleiben), `parameters`
+`tools()` baut auf `toolDefinitions()` aus der Kommando-Registry auf — `name` ersetzt Punkte
+durch Unterstriche (`event.set-title` → `event_set-title`, Bindestriche bleiben), `parameters`
 ist dasselbe Mini-JSON-Schema wie `commands()[i].schema` (flache Untermenge von JSON Schema,
 tool-calling-tauglich). Die Registry ist mit einem eingebauten Kommando-Satz vorbefüllt
 (`ensureDefaultCommands()`, `src/core/commands/registry.ts` — idempotent, läuft sowohl in
@@ -81,6 +81,17 @@ tool-calling-tauglich). Die Registry ist mit einem eingebauten Kommando-Satz vor
 Kommandos plus `undo.last` (stellt den letzten Verlaufseintrag des Zielobjekts wieder her,
 `kind: "any"` — wirkt auf Termine UND Kontakte, `appliesTo` prüft nur, ob überhaupt ein
 Verlauf vorliegt).
+
+**Sprachabhängigkeit (M5, Task 1):** `title`/`description`/`plan(...).summary` sind
+UI-sprachabhängig — sie folgen der aktuell eingestellten Plugin-Sprache (`settings.language`,
+DE/EN) und ändern sich bei einem Sprachwechsel. `commands()` liefert zusätzlich
+`titleKey`/`descriptionKey`, `plan(...)` intern `summaryKey`/`summaryArgs` — ein Konsument, der
+über Sprachwechsel hinweg STABIL vergleichen will (Logging, Caching, Diffing), verlässt sich
+auf `id`/die Keys, nie auf den übersetzten Text. `commands()[i].schema` bleibt bewusst
+UNübersetzt (Key + englischer Fallback je Feld via `descriptionKey`/`description`) — ein
+UI-Konsument übersetzt Formularfelder selbst. `tools()` übersetzt dagegen `description` UND
+jede Schema-Feld-`description`: Tool-Definitionen gehen direkt an ein LLM, das fertigen Text
+statt eines Key+Fallback-Paars braucht.
 
 ## Schreiben: `plan()` → `execute()`
 
@@ -96,7 +107,8 @@ Collection-State auf (ohne Notiz-Frontmatter, die API hat keine „aktive Notiz"
 `CommandContext`. `ApiPlan` ist ein serialisierbarer `CommandPlan` (Zusammenfassung, Diff,
 neuer Rohtext, Ziel-Etag) plus — falls der Plan eine Einladung auslöst — `inviteRoute`
 (`"server" | "transport" | "ics"`), damit ein Konsument VOR `execute()` weiß, ob eine E-Mail
-verschickt würde.
+verschickt würde. `summary` ist wie bei `commands()` UI-sprachabhängig — für einen stabilen
+Vergleich über Sprachwechsel hinweg dient `commandId` (+ `diff`), nicht der übersetzte Text.
 
 `execute()` führt den Plan gegen den Server aus (PUT/DELETE mit `If-Match`/`If-None-Match`)
 und synct das Objekt gezielt zurück. Bei Erfolg **und** einer Einladung im Plan:

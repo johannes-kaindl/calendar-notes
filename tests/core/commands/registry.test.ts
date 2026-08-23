@@ -9,7 +9,7 @@ import { UNDO_LAST_COMMAND } from "../../../src/core/commands/undo";
 
 function descriptor(id: string, kind: "event" | "contact", appliesTo: (ctx: CommandContext) => boolean = () => true): CommandDescriptor {
   return {
-    id, kind, title: `Titel ${id}`, description: `Beschreibung ${id}`,
+    id, kind, title: `Titel ${id}`, titleKey: `test.${id}.title`, description: `Beschreibung ${id}`, descriptionKey: `test.${id}.desc`,
     schema: { type: "object", properties: { x: { type: "string" } } },
     appliesTo,
     plan: () => {

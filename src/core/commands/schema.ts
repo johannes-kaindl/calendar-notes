@@ -1,15 +1,18 @@
 // Mini-JSON-Schema: flache Untermenge von JSON Schema fuer Kommando-Eingaben (LLM-Tool-Calling-tauglich).
 
-// `description` je Feld ist heute fest deutschsprachig — Teil derselben i18n-Schuld wie
-// `CommandDescriptor.title`/`.description` und `CommandPlan.summary` (s. Sammel-Kommentar
-// bei `CommandDescriptor` in `src/core/commands/types.ts`, M9/Review-Runde 3): fuer eine
-// EN-Oberflaeche braeuchte jedes Feld ein `descriptionKey`, aufgeloest erst in der
-// Obsidian-Schicht — auch hier consumer-sichtbar ueber `api.commands()`/`api.tools()`.
+// i18n (M5, Task 1 — s. Sammel-Kommentar bei `CommandDescriptor` in
+// `src/core/commands/types.ts`): `description` ist der ENGLISCHE Fallback-Text (core bleibt
+// i18n-frei, keine `t()`-Importe erlaubt); `descriptionKey` ist optional — nur Felder mit
+// eigenem Uebersetzungs-Eintrag (`cmd.<id>.field.<name>`, s. `src/i18n/strings.ts`) tragen
+// einen. Aufgeloest wird erst in der Obsidian-Schicht (`src/obsidian/command-i18n.ts`,
+// `trFieldDescription()`) — `api.commands()` gibt Key + englischen Fallback unveraendert
+// weiter (Konsument uebersetzt selbst), `api.tools()` uebersetzt (LLM-Tool-Definitionen
+// wollen fertigen Text in der aktuellen UI-Sprache).
 export type FieldSchema =
-  | { type: "string"; format?: "date-time" | "date" | "email" | "uri" | "multiline"; enum?: string[]; minLength?: number; description?: string }
-  | { type: "number"; minimum?: number; maximum?: number; description?: string }
-  | { type: "boolean"; description?: string }
-  | { type: "array"; items: { type: "string"; format?: "email" }; description?: string };
+  | { type: "string"; format?: "date-time" | "date" | "email" | "uri" | "multiline"; enum?: string[]; minLength?: number; description?: string; descriptionKey?: string }
+  | { type: "number"; minimum?: number; maximum?: number; description?: string; descriptionKey?: string }
+  | { type: "boolean"; description?: string; descriptionKey?: string }
+  | { type: "array"; items: { type: "string"; format?: "email" }; description?: string; descriptionKey?: string };
 
 export interface ObjectSchema {
   type: "object";
