@@ -80,10 +80,11 @@ CalDAV-Termine und CardDAV-Kontakte als Notiz-Spiegel; der Server ist die Wahrhe
 - Store-Vorbereitung: `docs/STORE.md` (Scorecard-Vorschau, Netzwerk-Erklärung für den
   Review, Einreichungs-Checkliste), `docs/RELEASE.md` (Maintainer-Handover für Remotes +
   Erst-Release + Dashboard/Rescan).
-- **Offen (Handover, nicht Teil dieser Planausführung):** README-Bilder aufnehmen
-  (`npm run shots` gegen ein fokussiertes Obsidian), Erst-Release fahren (Remotes
-  anlegen, `npm run release 0.1.0`, Developer Dashboard + Rescan) — s.
-  `docs/RELEASE.md` und `docs/STORE.md` § „Checkliste vor dem Erst-Release".
+- **Veröffentlicht (2026-08-23):** README-Bilder aufgenommen (`npm run shots`), Remotes
+  `origin` (Forgejo `jkaindl/calendar-notes`) + `github` (`johannes-kaindl/calendar-notes`),
+  Releases 0.1.0 (Action rot — CI-Gate, s. `docs/RELEASE.md`), 0.1.1, 0.1.2 (Name ohne `&`),
+  **0.1.3 im Community Store: Scorecard „Passed", 0 Warnings.** Updates laufen über
+  `npm run release <version>` + Rescan im Developer Dashboard.
 - 498 Unit-Tests + 4 Integration-Tests (0 Warnings) — M5 fügt keine neue Fachlogik hinzu.
 
 ## Release-Checkliste

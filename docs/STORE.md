@@ -5,7 +5,15 @@ Vorabschätzung der Obsidian-Community-Store-Review, basierend auf dem Skill
 Basic-Auth + Notizen schreiben — hat bei `harang-contacts`, `nextcloud-tasks` und
 `powerdesk` `Passed` erreicht. Diese drei sind die Vergleichsbasis für die Zeilen unten.
 
-## Erwartete Scorecard
+## Ergebnis (gemessen 2026-08-23, Version 0.1.3)
+
+**Passed, 0 Warnings** — Höchstwertung beim ersten Gate-Scan. Der Weg dorthin brauchte nach
+0.1.1 zwei Korrektur-Releases, die beide *nicht* aus der Vorschau unten hervorgingen:
+`&` im Manifest-Namen (Dashboard blockt die Registrierung) und `fast-xml-parser` <5.7.0
+(Scanner urteilt nach Versionsbereich, nicht nach Ausnutzbarkeit). Beides prüft seit
+2026-08-23 `../tools/release/preflight.mjs` in jedem Release.
+
+## Erwartete Scorecard (Vorschau vom 2026-08-22)
 
 ### `info` (unvermeidbar bei diesem Bautyp, kein Blocker)
 
