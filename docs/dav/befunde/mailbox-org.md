@@ -82,3 +82,37 @@ Die vollständige Betriebssicht liegt jetzt drüben in
 `mailstone/docs/2026-08-23-anforderungen-aus-mailbox-org-betrieb.md` — dort § 6 (Identitäten
 und Catch-All) und § 7 (Versandweg) sind für die Konsumentenseite des Transport-Vertrags
 ebenso relevant wie für mailstone selbst.
+
+---
+## Teilantwort auf Frage 1 (2026-08-23, aus Teilprojekt ③)
+
+Frage 1 lautete: *„Welches Auth-Verfahren akzeptiert `dav.mailbox.org` — Basic mit
+App-Passwort, oder OAuth?"* Ein Teil davon ist jetzt beantwortet — nicht am DAV-Endpunkt,
+sondern an der Stelle, an der App-Passwörter entstehen.
+
+**Ein App-Passwort bei mailbox.org kennt genau zwei Berechtigungen: „Erlaube IMAP-Zugriff"
+und „Erlaube SMTP-Zugriff". Eine Option für DAV gibt es nicht.** Gemessen am 2026-08-23 in
+der Oberfläche, beim Anlegen eines Passworts für den Postfach-Scan.
+
+Was das heißt, und was es **nicht** heißt:
+
+- Es ist **kein** Beleg, dass DAV mit App-Passwörtern nicht funktioniert. ManageSieve auf
+  Port 4190 hat ebenfalls keine eigene Option und funktioniert trotzdem mit demselben
+  Passwort (`AUTH: OK`, gemessen) — es fällt offenbar unter die IMAP-Berechtigung. Für DAV
+  wäre dasselbe denkbar, ist aber ungeprüft.
+- Es heißt aber, dass **der Anbieter DAV in seinem Berechtigungsmodell nicht vorsieht**. Wer
+  darauf baut, dass es ein DAV-spezifisches App-Passwort geben wird, plant an der Oberfläche
+  vorbei. Die zwei realistischen Ausgänge sind: DAV nimmt das Passwort über die
+  IMAP-Berechtigung an, oder DAV verlangt das Hauptpasswort — Letzteres wäre für ein Plugin
+  unschön, weil es bedeutet, dass der Nutzer sein Kontopasswort in die Plugin-Einstellungen
+  legen müsste, und das hebt seine 2FA für diesen Weg auf.
+
+Der authentifizierte Test steht weiterhin in Teilprojekt ④ an. Der Befund verschiebt nur die
+Erwartung: **Rechnet nicht mit einer DAV-Checkbox.**
+
+**Nebenbei, weil es euren Transport-Vertrag stützt:** Das Postfach hat seit heute ein
+serverseitiges Sieve-Regelwerk, und der Ordner für Belege trägt ein IMAP-Keyword und bleibt
+ungelesen, damit ein anderer Dienst dort abholen kann. Für euch relevant ist daraus nur die
+allgemeine Linie, die auch für `mailstone` gilt und die wir dort dokumentiert haben:
+**`BODY.PEEK` statt `BODY`, `EXAMINE` statt `SELECT`, wo nur gelesen wird.** Ein Client, der
+beim Anzeigen `\Seen` setzt, zerstört Zustand, auf den andere Dienste sich verlassen.
