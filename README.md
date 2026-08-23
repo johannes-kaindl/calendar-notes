@@ -8,6 +8,8 @@ source of truth, and every change back to it goes through an explicit command.**
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 ![Obsidian](https://img.shields.io/badge/obsidian-1.13.0%2B%20·%20desktop%20%26%20mobile-7c3aed)
 
+<p align="center"><img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/event-note.png" width="820" alt="A mirrored event note in reading view: frontmatter with type, dav_uid, dav_source, dav_etag, dav_state, title, start, end, all_day, online and rrule"></p>
+
 Calendars and contacts usually live on a server you never see from inside Obsidian — not
 linkable, not queryable, not part of your vault. This plugin mirrors CalDAV calendars and
 CardDAV address books as Markdown notes, one note per event or contact, kept in sync on an
@@ -74,6 +76,8 @@ cd calendar-notes && npm install && npm run build
 
 ### Setup: account → discovery → collections → profile
 
+<img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/preview.png" width="584" alt="The dry-run preview modal after discovery: Kalender 3 new, Kontakte 2 new, nothing written yet — Close or Run now">
+
 1. **Settings → Calendar & Contact Notes → Accounts → Add account.** Enter a name, the
    server's base URL and your username, then **Test connection & find collections**. The
    password goes into Obsidian's own secret storage — see [Security](#security--privacy).
@@ -92,6 +96,8 @@ cd calendar-notes && npm install && npm run build
 
 ### Adoption: link existing notes instead of duplicating them
 
+<img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/adoption.png" width="584" alt="The adoption modal proposing to link the existing note 2026-09-01 Zahnärztin to the server entry Zahnärztin Dr. Müller (start+title, likely 0.75), with Adopt all sure matches, Cancel and Link buttons">
+
 If a collection's target folder already has notes — migrated from another system, written by
 hand — run **Adopt existing notes…** (or the button next to a collection). The plugin proposes
 matches between server entries and your notes (email/phone exact, name/title fuzzy) at three
@@ -101,6 +107,8 @@ shown in a table you can override row by row before anything is written. Linked 
 generating a duplicate.
 
 ### Commands
+
+<a href="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/command-form.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/thumbs/command-form.png" width="380" alt="The schema-generated New event form: title, start, end, all-day toggle, location, description and URL — nothing is written until Save"></a><br><sub>Click the preview for full size</sub>
 
 The middle column is what you type in the command palette; on a German Obsidian the commands
 appear under their German names instead.
@@ -119,6 +127,8 @@ appear under their German names instead.
 | Push hand edits | `Write hand edits to the server` | Diffs your manual frontmatter edits against the server and offers to write them |
 
 ### Configuration
+
+<a href="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/settings.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/thumbs/settings.png" width="380" alt="The settings tab with one account (name, server URL, username, password stored on this device), the discovered collection group and the two default profiles"></a><br><sub>Click the preview for full size</sub>
 
 | Setting | What it does | Default |
 |---|---|---|

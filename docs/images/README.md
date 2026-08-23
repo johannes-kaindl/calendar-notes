@@ -8,16 +8,17 @@ welcher Klasse es steht — und wie man sie reproduzierbar aufnimmt. Aufnahme ü
 
 ## Status
 
-**Noch keine Aufnahme gefahren (Stand M5, Task 2).** Der Treiber (`scripts/shots.ts`) steht
-und typprüft grün, ist aber nicht gelaufen — die Aufnahme braucht Fensterfokus
-(`Page.bringToFront`, echte Mausklicks) und der Maintainer arbeitet parallel in einer
-anderen Session. Die READMEs binden deshalb **keine Bilder ein** (kein toter Link, keine
-Behauptung über eine Datei, die es nicht gibt) — das ist die bewusste Entscheidung
-gegenüber „mit Platzhalter-Pfad einbetten": ein Platzhalter-Pfad wäre ein toter relativer
-Link auf beiden Oberflächen (GitHub, Store-Seite) und `no-dead-relative-links` würde ihn
-zu Recht melden. Diese Tabelle bleibt so lange offen, bis `npm run shots` gelaufen ist —
-danach Einbettung in `README.md`/`README.de.md` nachziehen und diesen Status-Absatz
-aktualisieren.
+**Aufnahme gefahren am 2026-08-23** (`npm run shots`, fünf Bilder, `npm run shots:check` ohne
+Befund). Beide READMEs binden die Bilder per absoluter GitHub-Raw-URL ein
+(`raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/…`) — die URL
+trägt erst, sobald das GitHub-Remote existiert (Handover „Erst-Release"); bis dahin sind die
+Bilder lokal unter `docs/images/` vorhanden.
+
+Was die erste Aufnahme gelehrt hat (beides im Rezept verdrahtet): Discovery + aktivierte
+Sammlungen sind Voraussetzung für vier der fünf Bilder, und der deklarative Settings-Tab
+zeigt den Stand des letzten `update()` — wer `plugin.settings` am Tab vorbei setzt, muss
+`settingTab.update()` nachziehen. Zwischen den Bildern schließt das Rezept offene Modals. Modals werden bei 584 CSS-px
+Breite aufgenommen und deshalb mit `width="584"` eingebettet (`image-scale`).
 
 ## Voraussetzung für den Lauf
 
@@ -61,7 +62,7 @@ GIF ≤ 2 MB, Ordner ≤ 5 MB.
 |---|---|---|---|
 | `settings.png` | detail | `README.md`/`README.de.md` (Configuration) | Der Einstellungen-Tab (eigenes Fenster, Obsidian 1.13) mit einer bereits eingerichteten **Accounts**-Gruppe: ein Konto-Eintrag mit Name, Server-URL, Benutzername und dem Hinweis, dass ein Passwort auf diesem Gerät hinterlegt ist (`settings.accounts.*`, s. `src/i18n/strings.ts`). Zeigt, dass Zugangsdaten pro Gerät liegen, nicht dass sie im Bild lesbar sind. |
 | `preview.png` | feature | `README.md`/`README.de.md` (Usage → Setup) | Die Vorschau-Modal (`PreviewModal`, Kommando **Preview sync (dry run)**) nach einem Trockenlauf gegen das Fixture-Radicale: Gesamtzahl der geplanten Operationen und die Aufschlüsselung nach Sammlung (create/update/skip/archive/delete). Zeigt, dass vor jedem echten Lauf ein Trockenlauf möglich ist. |
-| `event-note.png` | feature | `README.md`/`README.de.md` (How it works) | Eine gespiegelte Termin-Notiz im **Lesemodus** nach einem echten Sync-Lauf: Frontmatter mit `dav_uid`/`dav_source`/`dav_etag`/`start`/`end` (Properties-Ansicht) und darunter der verwaltete Body-Block. Zeigt den „Server ist Wahrheit, Notiz ist Spiegel"-Kern ohne ein Wort Text. |
+| `event-note.png` | hero | `README.md`/`README.de.md` (Kopf, direkt nach den Badges — CORE-META-01 verlangt das erste Bild dort) | Eine gespiegelte Termin-Notiz im **Lesemodus** nach einem echten Sync-Lauf: Frontmatter mit `dav_uid`/`dav_source`/`dav_etag`/`start`/`end` (Properties-Ansicht) und darunter der verwaltete Body-Block. Zeigt den „Server ist Wahrheit, Notiz ist Spiegel"-Kern ohne ein Wort Text. |
 | `adoption.png` | feature | `README.md`/`README.de.md` (Adoption) | Die AdoptionModal (Kommando **Adopt existing notes…**) mit vorbelegten Zeilen: Spalten Server-Eintrag/Notiz/Grund-Konfidenz/Aktion, mindestens eine Zeile mit `sure`→`link` und eine mit `weak`→`skip` sichtbar, dazu der Button **Adopt all sure matches**. Zeigt, dass Verknüpfen ein bestätigter Schritt ist, kein automatischer. |
 | `command-form.png` | detail | `README.md`/`README.de.md` (Commands) | Das schema-generierte Formular (`SchemaFormModal`) für **New event…** — Titel-/Orts-/Zeitfelder aus dem Kommando-Schema, bevor irgendetwas geschrieben wird. Zeigt, dass Schreiben immer über ein Formular läuft, nie über Frontmatter-Editieren. |
 

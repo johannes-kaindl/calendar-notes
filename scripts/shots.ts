@@ -106,6 +106,10 @@ async function discoverAndEnable(cdp: Cdp): Promise<void> {
       collections: plugin.settings.collections.map((c) => ({ ...c, enabled: true })),
     };
     await plugin.saveSettings();
+    // Deklarativer Tab (getSettingDefinitions): zeigt den Stand des letzten update() —
+    // ein Setzen von plugin.settings am Tab vorbei ist fuer ihn unsichtbar (gemessen
+    // 2026-08-23: settings.png zeigte "Noch keine Konten" bei gesetztem Konto).
+    plugin.settingTab.update();
     return true;
   `);
 }
@@ -140,12 +144,30 @@ async function wirePallasForAdoption(cdp: Cdp): Promise<string> {
   `);
 }
 
+/** Offene Modals schliessen — jedes Bild startet sonst unter dem Overlay des vorigen
+ *  (preview → PreviewModal, adoption → AdoptionModal bleiben offen; gemessen 2026-08-23:
+ *  drei Modals uebereinander, event-note.png waere abgedunkelt gewesen). */
+async function closeModals(cdp: Cdp): Promise<void> {
+  await cdp.evaluate(`
+    for (const m of Array.from(document.querySelectorAll(".modal-container"))) {
+      const btn = m.querySelector(".modal-close-button");
+      if (btn) btn.click(); else m.remove();
+    }
+    await new Promise((r) => setTimeout(r, 300));
+    return true;
+  `);
+}
+
 const SHOTS: Shot[] = [
   {
     name: "settings.png",
     klasse: "detail",
     async run(cdp, radicale) {
       await seedAccount(cdp, radicale);
+      // Discovery + Sammlungen aktivieren — Voraussetzung fuer preview/event-note/adoption/
+      // command-form; ohne aktivierte Sammlung hat der Sync nichts zu tun, die Adoption keinen
+      // Kalender und das Formular keine Auswahl (gemessen 2026-08-23: 3 von 5 Bildern leer).
+      await discoverAndEnable(cdp);
       // Einstellungen-Tab: eigenes Fenster seit Obsidian 1.13 (URL about:blank), s.
       // docs/SMOKE.md P8. Wird unten in main() ueber attachTo("settings", …) fotografiert,
       // nicht hier — dieser Shot liefert nur den Zustand, den main() dann aufnimmt.
@@ -305,7 +327,11 @@ async function main(): Promise<void> {
 
   if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
 
-  const radicale = await startRadicale({ port: RADICALE_PORT, runDir: join(repoRoot, `.radicale-run/${RADICALE_PORT}`) });
+  const radicale = await startRadicale({
+    port: RADICALE_PORT,
+    fixtureDir: join(repoRoot, "fixtures/radicale"),
+    runDir: join(repoRoot, `.radicale-run/${RADICALE_PORT}`),
+  });
   console.log(`Radicale (Fixture) auf ${radicale.baseUrl}.`);
 
   try {
@@ -337,6 +363,7 @@ async function main(): Promise<void> {
         continue;
       }
       try {
+        await closeModals(cdp);
         const box = await shot.run(cdp, radicale);
         const png = box ? await capture(cdp, box) : null;
         if (!png) {

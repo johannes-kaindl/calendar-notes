@@ -65,6 +65,9 @@ export class PreviewModal extends Modal {
     app: App,
     private readonly result: RunResult,
     private readonly onExecute: () => void,
+    /** Anzeigename je Sammlung — ohne Resolver erscheint die interne ID (col-…), und die sagt
+     *  dem Nutzer nichts (gemessen 2026-08-23 an preview.png). */
+    private readonly nameOf: (collectionId: string) => string = (id) => id,
   ) {
     super(app);
   }
@@ -74,11 +77,12 @@ export class PreviewModal extends Modal {
     this.titleEl.setText(t("preview.heading", summary.total));
 
     for (const c of summary.perCollection) {
+      const label = this.nameOf(c.id);
       const line = c.error !== undefined
-        ? t("preview.perCollection.error", c.id, c.error)
+        ? t("preview.perCollection.error", label, c.error)
         : c.skippedReason !== undefined
-          ? t("preview.perCollection.skipped", c.id, c.skippedReason)
-          : t("preview.perCollection.counts", c.id, c.counts.created, c.counts.updated, c.counts.archived, c.counts.deleted, c.counts.skipped, c.counts.errors);
+          ? t("preview.perCollection.skipped", label, c.skippedReason)
+          : t("preview.perCollection.counts", label, c.counts.created, c.counts.updated, c.counts.archived, c.counts.deleted, c.counts.skipped, c.counts.errors);
       this.contentEl.createEl("p", { text: line });
     }
 

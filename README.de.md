@@ -8,6 +8,8 @@ Wahrheit, und jede Änderung zurück auf den Server läuft über ein explizites 
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 ![Obsidian](https://img.shields.io/badge/obsidian-1.13.0%2B%20·%20desktop%20%26%20mobile-7c3aed)
 
+<p align="center"><img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/event-note.png" width="820" alt="Eine gespiegelte Termin-Notiz im Lesemodus: Frontmatter mit type, dav_uid, dav_source, dav_etag, dav_state, title, start, end, all_day, online und rrule"></p>
+
 Kalender und Kontakte liegen normalerweise auf einem Server, den man aus Obsidian heraus nie
 sieht — nicht verlinkbar, nicht auswertbar, nicht Teil des Vaults. Dieses Plugin spiegelt
 CalDAV-Kalender und CardDAV-Adressbücher als Markdown-Notizen, eine Notiz je Termin oder
@@ -81,6 +83,8 @@ cd calendar-notes && npm install && npm run build
 
 ### Einrichtung: Konto → Discovery → Sammlungen → Profil
 
+<img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/preview.png" width="584" alt="Das Vorschau-Modal nach dem Trockenlauf: Kalender 3 neu, Kontakte 2 neu, noch nichts geschrieben — Schließen oder Jetzt ausführen">
+
 1. **Einstellungen → Calendar & Contact Notes → Konten → Konto hinzufügen.** Name,
    Server-Basis-URL und Benutzername eintragen, dann **Verbindung testen & Sammlungen
    finden**. Das Passwort landet im eigenen Schlüsselbund von Obsidian — siehe
@@ -101,6 +105,8 @@ cd calendar-notes && npm install && npm run build
 
 ### Adoption: bestehende Notizen verknüpfen statt duplizieren
 
+<img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/adoption.png" width="584" alt="Das Adoptions-Modal schlägt vor, die bestehende Notiz 2026-09-01 Zahnärztin mit dem Server-Eintrag Zahnärztin Dr. Müller zu verknüpfen (start+title, likely 0,75) — mit Alle sicheren übernehmen, Abbrechen und Verknüpfen">
+
 Liegen im Zielordner einer Sammlung bereits Notizen — aus einem anderen System migriert, von
 Hand geschrieben —, **Bestehende Notizen verknüpfen…** ausführen (oder den Button neben der
 Sammlung). Das Plugin schlägt Zuordnungen zwischen Server-Einträgen und eigenen Notizen vor
@@ -111,6 +117,8 @@ ihre `dav_uid`/`dav_source`-Felder gesetzt und werden ab dem nächsten Sync aktu
 ein Duplikat zu erzeugen.
 
 ### Kommandos
+
+<a href="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/command-form.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/thumbs/command-form.png" width="380" alt="Das aus dem Schema erzeugte Formular „Termin anlegen“: Titel, Start, Ende, Ganztägig, Ort, Beschreibung und URL — geschrieben wird erst mit Speichern"></a><br><sub>Vorschau anklicken für volle Größe</sub>
 
 Die mittlere Spalte ist, was in der Befehlspalette getippt wird.
 
@@ -128,6 +136,8 @@ Die mittlere Spalte ist, was in der Befehlspalette getippt wird.
 | Handänderungen übertragen | `Handänderungen auf den Server übertragen` | Vergleicht manuelle Frontmatter-Änderungen mit dem Server und bietet an, sie zu schreiben |
 
 ### Konfiguration
+
+<a href="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/settings.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/thumbs/settings.png" width="380" alt="Der Einstellungen-Tab mit einem Konto (Name, Server-URL, Benutzername, Passwort auf diesem Gerät hinterlegt), der gefundenen Sammlungsgruppe und den zwei Standard-Profilen"></a><br><sub>Vorschau anklicken für volle Größe</sub>
 
 | Einstellung | Was sie tut | Standard |
 |---|---|---|

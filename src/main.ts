@@ -245,7 +245,12 @@ export default class CalendarNotesPlugin extends Plugin {
 
   private async previewSync(): Promise<void> {
     const result = await this.service.runAll({ dryRun: true });
-    new PreviewModal(this.app, result, () => this.fireAndForget(this.runAll(), "Sync")).open();
+    new PreviewModal(
+      this.app,
+      result,
+      () => this.fireAndForget(this.runAll(), "Sync"),
+      (id) => this.settings.collections.find((c) => c.id === id)?.displayName ?? id,
+    ).open();
   }
 
   private openCollectionSuggester(): void {
