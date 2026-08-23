@@ -41,6 +41,18 @@ Files: `src/vendor/kit/vault-path.ts`, `src/vendor/kit/frontmatter.ts`,
 `src/vendor/kit-obsidian/confirm.ts`, `src/vendor/kit-obsidian/settings_walker.ts`,
 `src/vendor/kit-obsidian/folder-suggest.ts`.
 
+`src/vendor/code-kit/` contains modules copied from `code-kit` (`code-kit@0.1.0`, see
+`src/vendor/code-kit/VENDOR.json` for the exact commit and vendoring date) — the maintainer's
+shared, platform-neutral module library for the whole `code/` workspace (source at
+`/Users/Shared/code/code-kit`, not published to a public remote at time of writing). Like
+`obsidian-kit`, it is authored by Johannes Kaindl and licensed AGPL-3.0-or-later (see its
+`package.json`/`LICENSE`), so no separate license section applies here either — see
+[`LICENSE`](LICENSE).
+
+Files: `src/vendor/code-kit/filename-template.ts`, `src/vendor/code-kit/i18n.ts`,
+`src/vendor/code-kit/settings.ts`, `src/vendor/code-kit/sha256.ts`,
+`src/vendor/code-kit/timeout.ts`.
+
 ## Build/test tooling (not bundled)
 
 Development dependencies (esbuild, TypeScript, ESLint, Vitest, and their transitive
