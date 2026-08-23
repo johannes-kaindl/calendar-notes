@@ -42,11 +42,35 @@ CalDAV-Termine und CardDAV-Kontakte als Notiz-Spiegel; der Server ist die Wahrhe
 ## Was M3 liefert
 - Adoptions-Ablauf: Kommando `adopt-collection` + Settings-Button „Bestehende Notizen verknüpfen…" → Review-Modal (Tabelle mit Matching-Grund und Konfidenz, Dropdown je Zeile für `link|skip|create`, Button „Alle sicheren übernehmen") → Verknüpfung schreibt nur nach Bestätigung (`uidField`/`sourceField`/`etagField`/`stateField:live` setzen, Notiz in Sammlungs-State eintragen); Kandidaten = Notizen im Profil-Ordner ohne `dav_source` (sourceField), später erster Sync aktualisiert statt neu anzulegen
 
-### Vor dem ersten Lauf gegen Pallas/80_Arbeit
+### Vor dem ersten Lauf gegen ein gewachsenes Vault
 - (a) **Trockenlauf zuerst** — `sync-preview` bzw. `--dryRun` vor jedem echten Adoptions-/Sync-Lauf gegen ein reales Vault.
-- (b) **Notizen mit abweichendem `type`** im Profil-Ordner (z. B. `🏢 Organisation` statt des im Profil hinterlegten `onCreate.type`) werden bei der Adoption **nicht geprüft** — `candidateNotes()` filtert sie stillschweigend heraus. Das Modal zeigt nur ihre **Anzahl** (`countTypeExcluded`, „N Notiz(en) im Ordner mit abweichendem Typ wurden nicht geprüft"). Gibt es für sie Server-Einträge, entstehen beim Sync **neue Notizen** (mit Suffix), weil keine Zuordnung existiert — vorher entscheiden: entweder das Profil-`onCreate.type` weglassen (dann zählen alle Typen als Kandidat) oder diese Notizen manuell verknüpfen.
+- (b) **Notizen mit abweichendem `type`** im Profil-Ordner (z. B. `🏢 Organisation` statt des im Profil hinterlegten `onCreate.type`) werden bei der Adoption **nicht geprüft** — `candidateNotes()` filtert sie stillschweigend heraus. Das Modal zeigt nur ihre **Anzahl** (`countTypeExcluded`, „N Notiz(en) im Ordner mit abweichendem Typ wurden nicht geprüft"). Gibt es für sie Server-Einträge, entstehen beim Sync **neue Notizen** (mit Suffix), weil keine Zuordnung existiert.
+  **Der Ausweg kostet nichts, weil die beiden Felder zu verschiedenen Zeitpunkten wirken:**
+  `onCreate` liest ausschließlich der `create`-Zweig des Plans (`src/core/mirror/plan.ts`), und
+  `candidateNotes()`/`countTypeExcluded()` rufen ausschließlich die Adoption auf
+  (`src/main.ts`, `src/obsidian/adoption-modal.ts`) — der laufende Sync fasst weder das eine
+  noch das andere an. Also: **`onCreate.type` für die Dauer der Adoption entfernen** (dann sind
+  alle Notizen des Ordners Kandidat, unabhängig vom Typ), nach der Adoption wieder eintragen,
+  damit später neu angelegte Notizen ihren Typ bekommen. Die Alternative — Typ gesetzt lassen
+  und die Abweichler von Hand verknüpfen — ist nur bei wenigen Abweichlern billiger.
 - (c) **Profil-aus-Notiz setzt den Ordner der Beispielnotiz** wörtlich. Bei Lifecycle-Unterordnern (z. B. `70_Termine/10_Anstehend`) den Ordner im generierten Profil vorher auf den übergeordneten Ordner (`70_Termine`) weiten — sonst sieht die Adoption nur den einen Unterordner, in dem die Beispielnotiz lag.
 - (d) `datum`+`uhrzeit`-Termine: `uhrzeit` hat **kein Server-Gegenstück** (VEVENT kennt nur `start`/`end` als volle Zeitstempel) und bleibt unverwaltet — Änderungen daran werden von der Synchronisation weder gelesen noch überschrieben.
+  **Daraus folgt eine Mapping-Regel, die `profile-from-note` von sich aus nicht einhält:** dessen
+  Synonym-Tabelle mappt `datum` auf `start` (`src/core/mirror/profile-from-note.ts`) — dieses
+  Mapping gehört bei getrennten `datum`/`uhrzeit`-Notizen **entfernt**, bevor das Profil
+  gespeichert wird. Sonst schreibt der erste Sync den vollen Server-Zeitstempel
+  (`"2026-09-01T10:00:00"`, `src/core/mirror/fields.ts`) in ein Feld, das bisher ein reines
+  Datum trug, und `uhrzeit` widerspricht ihm ab da. Fürs **Finden** ist das Mapping ohnehin
+  entbehrlich: `noteEventMoment()` (`src/core/adopt/match.ts`) setzt `datum` und `uhrzeit` selbst
+  zusammen und probiert zusätzlich `termin_start`/`start` als feste Fallback-Keys — die Adoption
+  erkennt solche Termine also auch bei leerem `start`-Mapping.
+- (e) **Ein Ordner, zwei Feldmuster** ist der Normalfall in gewachsenen Vaults (etwa Termine, die
+  teils `termin_start`, teils `datum` tragen). Ein Profil kann pro Server-Feld nur **einen**
+  Notiz-Key führen, und `suggestProfileFromNote` nimmt den ersten Treffer der
+  Frontmatter-Reihenfolge — welches Muster gewinnt, hängt also an der Beispielnotiz. Vor der
+  Adoption auszählen, welches Muster häufiger ist, und die Beispielnotiz danach wählen; das
+  andere Muster findet der Matcher über die Fallback-Keys aus (d), sofern sie zu den dort
+  genannten gehören.
 - Profil-Ableitungs-Modul (`src/core/mirror/profile-from-note.ts`): Case-insensitives Mapping aus beliebigen Frontmatter-Keys (`organisation→org`, `mobil→tel_cell` u.a.) mit Heuristik-Synonymen; Kommando `profile-from-note` auf aktiver Notiz → Profil in Settings anlegen → Notice mit mapped/unmapped
 - Matching-Regeln (E-Mail exakt → Telefon normalisiert E.164 → Name fuzzy bis Konfidenz-Schwelle; Termine: Start exakt + Titel-Ähnlichkeit) mit `sure/likely/weak`-Stufen (`src/core/adopt/match.ts`, `src/core/adopt/phone.ts`)
 - Staging-Vault-Fixture (`fixtures/vault/`) mit Pallas-ähnlicher Struktur (Kontakte + Termine mit echten Feldmustern) und Default-Profil-Vorlage, über `npm run smoke:gui -- --setup|--section generic|pallas` abrufbar
