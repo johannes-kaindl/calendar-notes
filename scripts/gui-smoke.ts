@@ -77,6 +77,15 @@ function record(id: string, name: string, passed: boolean, detail: string): void
   console.log(`${passed ? "✔" : "✘"} ${id} ${name} — ${detail}`);
 }
 
+// Fuer Pruefpunkte, die (noch) keinen programmatischen Pfad haben — zaehlt NICHT in
+// checks/exitCode mit (kein Rot fuer etwas, das strukturell fehlt statt kaputt zu sein),
+// erscheint aber sichtbar im Protokoll. Seit Fix-Runde 1 (Punkt 0) hat P12 selbst wieder
+// einen programmatischen Pfad (`checkP12`) und ruft das hier nicht mehr auf — bleibt als
+// Infrastruktur fuer kuenftige Pruefpunkte ohne headless-Pfad stehen.
+function recordSkip(id: string, name: string, reason: string): void {
+  console.log(`⚠ ${id} ${name} — übersprungen: ${reason}`);
+}
+
 function arg(name: string, def: string): string {
   const i = process.argv.indexOf(`--${name}`);
   const v = i >= 0 ? process.argv[i + 1] : undefined;
@@ -266,7 +275,9 @@ async function checkP1(cdp: Cdp): Promise<void> {
     );
     const matchesOrder = (expected: string[]): boolean => Array.isArray(headings) && headings.length === expected.length && expected.every((h, i) => headings[i] === h);
     const headingsOk = matchesOrder(SETTING_HEADINGS_DE) || matchesOrder(SETTING_HEADINGS_EN);
-    const ok = cmds.length === 5 && headingsOk;
+    // Seit M4 (Task 6) kommen 5 weitere Kommandos dazu (run-on-note/new-event/new-contact/
+    // undo-last-change/push-hand-edits, s. main.ts registerCommands()) — 5 aus M1-M3 + 5 neu = 10.
+    const ok = cmds.length === 10 && headingsOk;
     record("P1", "Laden", ok, `${cmds.length} Kommandos, Settings-Gruppen: ${JSON.stringify(headings)} (erwartet DE ${JSON.stringify(SETTING_HEADINGS_DE)} oder EN ${JSON.stringify(SETTING_HEADINGS_EN)})`);
   } catch (e) {
     record("P1", "Laden", false, e instanceof Error ? e.message : String(e));
@@ -487,6 +498,12 @@ async function davDelete(radicale: RunningServer, relPath: string): Promise<numb
   return res.status;
 }
 
+async function davGet(radicale: RunningServer, relPath: string): Promise<{ status: number; body: string }> {
+  const url = new URL(relPath, radicale.baseUrl).toString();
+  const res = await fetch(url, { headers: { Authorization: davAuthHeader(radicale.user, radicale.pass) } });
+  return { status: res.status, body: await res.text() };
+}
+
 const UPDATED_SIMPLE_1 = `BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Test//DE
@@ -611,6 +628,204 @@ async function checkP7(cdp: Cdp): Promise<void> {
   );
   const ok = result.collections === 2 && result.enabledBefore === result.enabledAfter && result.enabledAfter === 2;
   record("P7", "Zweiter Discovery-Lauf haelt aktivierte Sammlungen (Merge-Regel)", ok, `aktiviert vorher=${result.enabledBefore} nachher=${result.enabledAfter}`);
+}
+
+// ── P10-P13: Kommandos ueber die Plugin-API (--section generic, Task 8) ─────────────────
+// Alle vier laufen gegen dasselbe Objekt `simple-1@test` (die Zahnärztin-Termin-Notiz aus dem
+// Fixture, bereits von P4 angelegt) — `source` wird aus der von P2 discoverten Kalender-Sammlung
+// gebildet (`sourceOf` in src/core/settings.ts: `${accountId}/${collectionId}`), NICHT hart
+// codiert, weil die Sammlungs-ID pro Lauf neu vergeben wird.
+
+async function checkP10(cdp: Cdp, radicale: RunningServer, source: string): Promise<void> {
+  const uid = "simple-1@test";
+  const target = { uid, source };
+  const result = await cdp.evaluate<{ planOk: boolean; planError?: string; execOk: boolean; execError?: string }>(
+    `
+    const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+    const plan = await plugin.api.plan("event.move", { start: "2026-09-03T09:00:00", end: "2026-09-03T10:00:00", tzid: "Europe/Berlin" }, ${JSON.stringify(target)});
+    if ("error" in plan) return { planOk: false, planError: plan.error, execOk: false };
+    const exec = await plugin.api.execute(plan);
+    if ("error" in exec) return { planOk: true, execOk: false, execError: exec.error };
+    return { planOk: true, execOk: !!exec.ok };
+  `,
+  );
+  const get = await davGet(radicale, "test/kalender/simple-1.ics");
+  const serverMoved = get.status === 200 && /DTSTART[^\n]*20260903T090000/.test(get.body);
+  const fmMoved = await pollUntil<boolean>(
+    cdp,
+    `
+    const ev = app.vault.getMarkdownFiles().find((f) => f.path.startsWith("Events/") && app.metadataCache.getFileCache(f)?.frontmatter?.["dav_uid"] === ${JSON.stringify(uid)});
+    const start = ev ? String(app.metadataCache.getFileCache(ev)?.frontmatter?.["start"] ?? "") : "";
+    return start.startsWith("2026-09-03") || null;
+  `,
+    5_000,
+    200,
+  );
+  const ok = result.planOk && result.execOk && serverMoved && !!fmMoved;
+  record(
+    "P10",
+    "Kommando via API (event.move)",
+    ok,
+    `plan=${result.planOk} exec=${result.execOk}${result.execError ? ` (${result.execError})` : ""}, Server-GET moved=${serverMoved} (HTTP ${get.status}), Frontmatter moved=${!!fmMoved}`,
+  );
+}
+
+async function checkP11(cdp: Cdp, radicale: RunningServer, source: string): Promise<void> {
+  const uid = "simple-1@test";
+  const target = { uid, source };
+  const result = await cdp.evaluate<{
+    planOk: boolean;
+    inviteRoute?: string;
+    execOk: boolean;
+    execError?: string;
+    route?: string;
+    icsHasMethod?: boolean;
+    icsHasAttendee?: boolean;
+    icsSample?: string;
+  }>(
+    `
+    const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+    const plan = await plugin.api.plan("event.add-attendee", { email: "kim@example.test", name: "Kim" }, ${JSON.stringify(target)});
+    if ("error" in plan) return { planOk: false, execOk: false, icsSample: "plan-error:" + plan.error };
+    const exec = await plugin.api.execute(plan);
+    if ("error" in exec) return { planOk: true, inviteRoute: plan.inviteRoute, execOk: false, execError: exec.error };
+    const ics = exec.invite?.ics ?? "";
+    return {
+      planOk: true,
+      inviteRoute: plan.inviteRoute,
+      execOk: !!exec.ok,
+      route: exec.invite?.route,
+      icsHasMethod: ics.includes("METHOD:REQUEST"),
+      // RFC5545-Zeilenfaltung entfalten (CRLF/LF + Leerzeichen/Tab) — eine lange ATTENDEE-Zeile
+      // (CN + PARTSTAT + ROLE + RSVP) bricht bei 75 Oktetten oft genau vor "mailto:", die
+      // E-Mail landet dann auf der naechsten physischen Zeile.
+      icsHasAttendee: /ATTENDEE[^\\n]*kim@example\\.test/i.test(ics.replace(/\\r?\\n[ \\t]/g, "")),
+      icsSample: ics,
+    };
+  `,
+  );
+  const get = await davGet(radicale, "test/kalender/simple-1.ics");
+  const unfold = (ics: string): string => ics.replace(/\r?\n[ \t]/g, "");
+  const serverHasAttendee = get.status === 200 && /ATTENDEE[^\n]*kim@example\.test/i.test(unfold(get.body));
+  const ok =
+    result.planOk &&
+    result.execOk &&
+    result.inviteRoute === "ics" &&
+    result.route === "ics" &&
+    !!result.icsHasMethod &&
+    !!result.icsHasAttendee &&
+    serverHasAttendee;
+  if (!ok) console.log("DEBUG P11 icsSample:\n" + (result.icsSample ?? "") + "\nDEBUG P11 server body:\n" + get.body);
+  record(
+    "P11",
+    "Einladung ohne Scheduling/Transport (Route ics)",
+    ok,
+    `plan.inviteRoute=${result.inviteRoute}, exec.invite.route=${result.route}, METHOD:REQUEST=${result.icsHasMethod}, ATTENDEE kim im .ics=${result.icsHasAttendee}, Server hat ATTENDEE=${serverHasAttendee}${result.execError ? `, execError=${result.execError}` : ""}`,
+  );
+}
+
+/** Extrahiert den DTSTART-Zeitwert (Ganzzahl `YYYYMMDDTHHMMSS`) aus einem VEVENT — verwendet
+ *  von P10/P12, um den Server-Stand VOR/NACH einer Aenderung zu vergleichen, ohne einen
+ *  Fixture-Wert hart zu codieren (`simple-1@test` kann zu Laufzeitbeginn bereits vom
+ *  frueher gelaufenen P5-Update abweichen, s. Kommentar bei `checkP12`). */
+function extractDtstart(ics: string): string | undefined {
+  // NUR innerhalb des VEVENT suchen — ein VTIMEZONE traegt in seinen STANDARD/DAYLIGHT-
+  // Unterkomponenten ebenfalls ein `DTSTART` (die Regelbeginn-Zeit der Zeitzonenregel, z. B.
+  // `DTSTART:20001029T040000`), das sonst als erstes trifft und die Fixture-DTSTART verdeckt.
+  const vevent = /BEGIN:VEVENT[\s\S]*?END:VEVENT/.exec(ics)?.[0] ?? ics;
+  return /DTSTART[^\n]*:(\d{8}T\d{6})/.exec(vevent)?.[1];
+}
+
+// P12 (Undo): seit Fix-Runde 1 (Punkt 0, `src/core/commands/undo.ts::UNDO_LAST_COMMAND`) ist
+// `undo.last` ein regulaerer Registry-Eintrag und damit ueber `plugin.api.plan("undo.last", …)`
+// erreichbar — kein Sonderpfad mehr noetig. Laeuft bewusst DIREKT NACH P10 (nicht nach P11):
+// P10 verschiebt `simple-1@test`, wodurch `state.objects[…].history[0]` genau den
+// VOR-P10-Stand traegt — der Undo-Plan stellt den VOR-P10-DTSTART wieder her. `beforeDtstart`
+// wird vom Aufrufer VOR `checkP10` gemessen (nicht aus der Fixture geraten): P5 laeuft in
+// derselben Sektion vorher und aendert `simple-1.ics` bereits einmal serverseitig — die
+// Fixture-Zeit `20260901T100000` ist zum Zeitpunkt von P10/P12 also NICHT mehr der Ist-Stand.
+// Liefe P12 erst NACH P11 (Teilnehmer-Zusage), waere das letzte Verlauf-Element die
+// Attendee-Aenderung, nicht mehr die Verschiebung — der Test bliebe gueltig, aber "DTSTART
+// zurueck auf VOR-P10" nicht mehr die richtige Formulierung.
+async function checkP12(cdp: Cdp, radicale: RunningServer, source: string, beforeDtstart: string | undefined): Promise<void> {
+  const uid = "simple-1@test";
+  const target = { uid, source };
+  const result = await cdp.evaluate<{ planOk: boolean; planError?: string; execOk: boolean; execError?: string }>(
+    `
+    const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+    const plan = await plugin.api.plan("undo.last", {}, ${JSON.stringify(target)});
+    if ("error" in plan) return { planOk: false, planError: plan.error, execOk: false };
+    const exec = await plugin.api.execute(plan);
+    if ("error" in exec) return { planOk: true, execOk: false, execError: exec.error };
+    return { planOk: true, execOk: !!exec.ok };
+  `,
+  );
+  const get = await davGet(radicale, "test/kalender/simple-1.ics");
+  const serverRestored = get.status === 200 && beforeDtstart !== undefined && get.body.includes(beforeDtstart);
+  if (!serverRestored) console.log(`DEBUG P12 beforeDtstart=${beforeDtstart} get.body:\n` + get.body);
+  // "20260901T113000" → "2026-09-01" (Frontmatter-`start` ist ISO, der Server-Wert Basic-Format).
+  const beforeDatePrefix = beforeDtstart ? `${beforeDtstart.slice(0, 4)}-${beforeDtstart.slice(4, 6)}-${beforeDtstart.slice(6, 8)}` : undefined;
+  const fmRestored = await pollUntil<boolean>(
+    cdp,
+    `
+    const ev = app.vault.getMarkdownFiles().find((f) => f.path.startsWith("Events/") && app.metadataCache.getFileCache(f)?.frontmatter?.["dav_uid"] === ${JSON.stringify(uid)});
+    const start = ev ? String(app.metadataCache.getFileCache(ev)?.frontmatter?.["start"] ?? "") : "";
+    return (${JSON.stringify(beforeDatePrefix)} && start.startsWith(${JSON.stringify(beforeDatePrefix)})) || null;
+  `,
+    5_000,
+    200,
+  );
+  if (!fmRestored) {
+    const dbg = await cdp.evaluate<string>(`
+      const ev = app.vault.getMarkdownFiles().find((f) => f.path.startsWith("Events/") && app.metadataCache.getFileCache(f)?.frontmatter?.["dav_uid"] === ${JSON.stringify(uid)});
+      return JSON.stringify({ path: ev?.path, fm: ev ? app.metadataCache.getFileCache(ev)?.frontmatter : null });
+    `);
+    console.log(`DEBUG P12 beforeDatePrefix=${beforeDatePrefix} fm=` + dbg);
+  }
+  const ok = result.planOk && result.execOk && serverRestored && !!fmRestored;
+  record(
+    "P12",
+    "Undo (Letzte Änderung zurücknehmen) — DTSTART zurueck auf Vor-P10-Stand",
+    ok,
+    `plan=${result.planOk} exec=${result.execOk}${result.execError ? ` (${result.execError})` : ""}, Server-GET restored=${serverRestored} (HTTP ${get.status}), Frontmatter restored=${!!fmRestored}`,
+  );
+}
+
+async function checkP13(cdp: Cdp): Promise<void> {
+  const result = await cdp.evaluate<{
+    eventsHasSimple1: boolean;
+    contactsHasBrandes: boolean;
+    toolCount: number;
+    commandCount: number;
+    toolNamesHaveDot: boolean;
+  }>(
+    `
+    const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+    const events = await plugin.api.events({ from: "2026-09-01", to: "2026-09-30" });
+    const contacts = await plugin.api.contacts({ query: "Brandes" });
+    const tools = plugin.api.tools();
+    const commands = plugin.api.commands();
+    return {
+      eventsHasSimple1: Array.isArray(events) && events.some((e) => e.uid === "simple-1@test"),
+      contactsHasBrandes: Array.isArray(contacts) && contacts.some((c) => /florian brandes/i.test(c.data?.fn ?? "")),
+      toolCount: Array.isArray(tools) ? tools.length : -1,
+      commandCount: Array.isArray(commands) ? commands.length : -1,
+      toolNamesHaveDot: Array.isArray(tools) && tools.some((t) => t.name.includes(".")),
+    };
+  `,
+  );
+  const ok =
+    result.eventsHasSimple1 &&
+    result.contactsHasBrandes &&
+    result.toolCount === result.commandCount &&
+    result.toolCount > 0 &&
+    !result.toolNamesHaveDot;
+  record(
+    "P13",
+    "API-Lesen (events/contacts/tools==commands, keine Punkte in Tool-Namen)",
+    ok,
+    `events hat simple-1=${result.eventsHasSimple1}, contacts hat Florian Brandes=${result.contactsHasBrandes}, tools=${result.toolCount} commands=${result.commandCount}, Tool-Name mit Punkt=${result.toolNamesHaveDot}`,
+  );
 }
 
 // ── P8: Settings-UI (nur --focus) ───────────────────────────────────────
@@ -746,6 +961,17 @@ async function main(): Promise<void> {
       await checkP5(cdp, radicale);
       await checkP6(cdp, radicale);
       await checkP7(cdp);
+
+      const commandSource = `${ACCOUNT_ID}/${discovery.calendarId}`;
+      // Vor-P10-DTSTART fuer P12 messen (nicht aus der Fixture raten — P5 hat den Server-Stand
+      // von simple-1@test bereits einmal veraendert, s. Kommentar bei `checkP12`).
+      const beforeMove = await davGet(radicale, "test/kalender/simple-1.ics");
+      const beforeDtstart = beforeMove.status === 200 ? extractDtstart(beforeMove.body) : undefined;
+      await checkP10(cdp, radicale, commandSource);
+      // P12 laeuft bewusst HIER (direkt nach P10, vor P11) — s. Kommentar bei `checkP12`.
+      await checkP12(cdp, radicale, commandSource, beforeDtstart);
+      await checkP11(cdp, radicale, commandSource);
+      await checkP13(cdp);
     }
 
     if (focus) await checkP8(port, vault);

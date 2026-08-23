@@ -3,16 +3,23 @@ import { candidateNotes, countTypeExcluded, matchItems, type CandidateNote, type
 import { planAdoption, stateAfterAdoption, type AdoptDecision, type LinkPlan } from "./core/adopt/plan";
 import { loadServerItems } from "./core/adopt/service";
 import { discover, type DiscoveryResult } from "./core/dav/discovery";
+import { discoverScheduling } from "./core/dav/scheduling";
 import { withBasicAuth } from "./core/dav/transport";
 import type { MappingProfile, ProfileKind } from "./core/mirror/profile";
 import { suggestProfileFromNote } from "./core/mirror/profile-from-note";
 import { normalizeSettings, sourceOf, type Account, type CollectionConfig, type PluginSettings } from "./core/settings";
+import type { CalendarNotesApi } from "./core/api/types";
+import { ensureDefaultCommands } from "./core/commands/registry";
 import type { RunInfo } from "./core/state/collection-state";
+import { createEmitter, type SyncEvents } from "./core/sync/events";
 import { SyncService } from "./core/sync/service";
 import type { CollectionRunResult, SyncDeps } from "./core/sync/types";
 import { initI18n, t } from "./i18n/strings";
 import { AdoptionModal, summarizeAdoption } from "./obsidian/adoption-modal";
-import { buildSyncDeps } from "./obsidian/plugin-host";
+import { createPluginApi } from "./obsidian/api";
+import { CommandFlow } from "./obsidian/command-flow";
+import { InviteRouter } from "./obsidian/invite";
+import { buildSyncDeps, createMailTransportRegistry, type MailTransportRegistry } from "./obsidian/plugin-host";
 import { PreviewModal } from "./obsidian/preview-modal";
 import { obsidianSecretStore, type SecretStore } from "./obsidian/secrets";
 import { CalendarNotesSettingTab, type SettingsHost } from "./obsidian/settings-tab";
@@ -74,6 +81,14 @@ export default class CalendarNotesPlugin extends Plugin {
   settings: PluginSettings = normalizeSettings(null);
   secrets!: SecretStore;
   service!: SyncService;
+  /** Fremd-Plugin-Mail-Transporte (mailstone-Vertrag) — Task 7 exportiert register/unregister
+   *  ueber die Plugin-API, `inviteRouter` liest den aktuellen Stand per Closure. */
+  mailTransports!: MailTransportRegistry;
+  inviteRouter!: InviteRouter;
+  /** Plugin-API v1 (Task 7, Spec §5b) — `app.plugins.plugins["calendar-notes"].api`.
+   *  Oeffentliches Feld, absichtlich: das IST die Schnittstelle nach aussen. */
+  api!: CalendarNotesApi;
+  private commandFlow!: CommandFlow;
   private deps!: SyncDeps;
   private settingTab!: CalendarNotesSettingTab;
   private intervalHandle: number | undefined;
@@ -92,7 +107,24 @@ export default class CalendarNotesPlugin extends Plugin {
         await this.saveSettings();
       },
     });
+    // `deps.busy` (core/sync/busy.ts) wird in `buildSyncDeps` erzeugt und ist bidirektional
+    // mit `executeCommandPlan` geteilt — SyncService braucht dafuer keine gesonderte Wiring
+    // mehr (anders als der fruehere optionale `isBusy?()`).
+    // `events` (core/sync/events.ts) wird HIER erzeugt und dem bereits gebauten `deps`
+    // nachtraeglich angehaengt (`SyncDeps.events` ist optional) — SyncService/executeCommandPlan
+    // lesen denselben Emitter ueber `this.deps`, die Plugin-API abonniert ihn unten.
+    this.deps.events = createEmitter<SyncEvents>();
     this.service = new SyncService(this.deps);
+    this.mailTransports = createMailTransportRegistry();
+    this.inviteRouter = new InviteRouter(() => this.mailTransports.list(), this.app);
+    // Fix-Runde 1, Punkt 0: OHNE diesen Aufruf blieb `commandRegistry()` zur Laufzeit leer —
+    // `EVENT_COMMANDS`/`CONTACT_COMMANDS` (+ `undo.last`) wurden nirgends registriert, nur
+    // Tests befuellten die Registry manuell. Vor `CommandFlow`/`createPluginApi`, weil beide
+    // sich auf eine befuellte Registry verlassen (`commandsFor`/`findCommand`). Idempotent —
+    // ein Plugin-Reload im selben Prozess wirft nicht "Doppelte Kommando-ID".
+    ensureDefaultCommands();
+    this.commandFlow = new CommandFlow(this.app, this.deps, this.inviteRouter);
+    this.api = createPluginApi({ app: this.app, deps: this.deps, inviteRouter: this.inviteRouter, mailTransports: this.mailTransports });
     await this.hydrateRunCache();
 
     this.settingTab = new CalendarNotesSettingTab(this.app, this, this.settingsHost());
@@ -174,7 +206,19 @@ export default class CalendarNotesPlugin extends Plugin {
     const password = this.secrets.get(account.secretId);
     if (password === null) throw new Error(t("notice.noSecret"));
     const transport = withBasicAuth(obsidianTransport({ timeoutMs: this.settings.sync.requestTimeoutMs }), account.username, password);
-    return discover(transport, account.baseUrl);
+    const result = await discover(transport, account.baseUrl);
+    // Scheduling-Discovery (RFC 6638) ist ein optionaler Zusatzschritt — scheitert sie (Server
+    // ohne schedule-outbox/-inbox, Rechteproblem, Timeout), bleibt `scheduling` einfach
+    // unveraendert statt die ganze Discovery scheitern zu lassen (settings-tab.ts wertet nur
+    // `result` aus, `account.scheduling` wird HIER direkt in den Settings aktualisiert).
+    try {
+      const scheduling = await discoverScheduling(transport, result.principal);
+      this.settings = { ...this.settings, accounts: this.settings.accounts.map((a) => (a.id === account.id ? { ...a, scheduling } : a)) };
+      await this.saveSettings();
+    } catch {
+      /* optional — Server ohne Scheduling-Unterstuetzung ist kein Fehler */
+    }
+    return result;
   }
 
   // ── Kommandos ────────────────────────────────────────────────────────────
@@ -184,6 +228,14 @@ export default class CalendarNotesPlugin extends Plugin {
     this.addCommand({ id: "sync-collection", name: t("cmd.syncCollection"), callback: () => this.openCollectionSuggester() });
     this.addCommand({ id: "adopt-collection", name: t("cmd.adoptCollection"), callback: () => this.openAdoptSuggester() });
     this.addCommand({ id: "profile-from-note", name: t("cmd.profileFromNote"), callback: () => this.fireAndForget(this.startProfileFromNote(), "Profil aus Notiz") });
+    // IDs bewusst OHNE das Wort „command" (obsidianmd/commands/no-command-in-command-id, Teil
+    // des Store-Scanners) — der Task-Auftrag nennt die Kommandos „command-run" etc., das ist
+    // hier der GESPRAECHSNAME, nicht die addCommand-ID.
+    this.addCommand({ id: "run-on-note", name: t("cmd.run"), callback: () => this.commandFlow.runOnActiveNote() });
+    this.addCommand({ id: "new-event", name: t("cmd.newEvent"), callback: () => this.commandFlow.newEvent() });
+    this.addCommand({ id: "new-contact", name: t("cmd.newContact"), callback: () => this.commandFlow.newContact() });
+    this.addCommand({ id: "undo-last-change", name: t("cmd.undo"), callback: () => this.commandFlow.undoLast() });
+    this.addCommand({ id: "push-hand-edits", name: t("cmd.pushHandEdits"), callback: () => this.commandFlow.pushHandEdits() });
   }
 
   private async runAll(): Promise<void> {

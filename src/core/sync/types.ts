@@ -6,6 +6,8 @@ import type { RunInfo } from "../state/collection-state";
 import type { CollectionState } from "../state/collection-state";
 import type { Account, PluginSettings } from "../settings";
 import type { Transport } from "../dav/types";
+import type { BusyGuard } from "./busy";
+import type { SyncEmitter } from "./events";
 
 /** Strukturelle Verträge, die der SyncService konsumiert — src/core/** bleibt damit
  *  obsidian-/node-/DOM-frei (check:pure), waehrend src/obsidian/* konkrete
@@ -51,6 +53,13 @@ export interface SyncDeps {
   notify: Notifier;
   now(): Date;
   resolveAttendee?(): AttendeeResolver | undefined; // aus Kontakt-Index (E-Mail -> Pfad)
+  /** Bidirektionaler Busy-Guard (core/sync/busy.ts), geteilt zwischen `SyncService` und
+   *  `executeCommandPlan` — egal wer zuerst `tryAcquire()`, die andere Seite sieht `isBusy()`
+   *  und bricht busy ab, statt gleichzeitig gegen dasselbe Objekt zu schreiben. */
+  busy: BusyGuard;
+  /** Optional (Task 7, Spec §5b): `synced`/`changed`-Events fuer die Plugin-API. Optional,
+   *  damit bestehende Tests/Fakes ohne Emitter weiterlaufen — `?.emit(...)` ist dann ein No-op. */
+  events?: SyncEmitter;
 }
 
 export interface CollectionRunResult {

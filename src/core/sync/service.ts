@@ -50,13 +50,14 @@ function baseCollectionOf(col: CollectionConfig): DavCollection {
  * das selbst anhand von `col.syncToken`).
  */
 export class SyncService {
-  private running = false;
   private last: RunResult | undefined;
 
   constructor(private readonly deps: SyncDeps) {}
 
+  /** Bidirektional mit `executeCommandPlan` geteilt (`deps.busy`, s. core/sync/busy.ts) —
+   *  laeuft gerade ein Kommando, meldet sich ein Sync-Lauf hier ebenfalls busy. */
   isRunning(): boolean {
-    return this.running;
+    return this.deps.busy.isBusy();
   }
 
   lastResult(): RunResult | undefined {
@@ -65,12 +66,11 @@ export class SyncService {
 
   async runAll(opts?: { dryRun?: boolean }): Promise<RunResult> {
     const dryRun = opts?.dryRun ?? false;
-    if (this.running) {
+    if (!this.deps.busy.tryAcquire()) {
       const now = this.deps.now().toISOString();
       const settings = this.deps.settings();
       return { startedAt: now, finishedAt: now, collections: settings.collections.map((c) => skipped(c.id, dryRun, "busy")) };
     }
-    this.running = true;
     try {
       const startedAt = this.deps.now().toISOString();
       const settings = this.deps.settings();
@@ -84,14 +84,13 @@ export class SyncService {
       this.last = result;
       return result;
     } finally {
-      this.running = false;
+      this.deps.busy.release();
     }
   }
 
   async runCollection(collectionId: string, opts?: { dryRun?: boolean }): Promise<CollectionRunResult> {
     const dryRun = opts?.dryRun ?? false;
-    if (this.running) return skipped(collectionId, dryRun, "busy");
-    this.running = true;
+    if (!this.deps.busy.tryAcquire()) return skipped(collectionId, dryRun, "busy");
     try {
       const startedAt = this.deps.now().toISOString();
       const settings = this.deps.settings();
@@ -102,7 +101,7 @@ export class SyncService {
       this.last = { startedAt, finishedAt, collections: [result] };
       return result;
     } finally {
-      this.running = false;
+      this.deps.busy.release();
     }
   }
 
@@ -150,16 +149,23 @@ export class SyncService {
 
       if (dryRun) {
         const errorStr = errorStringOf(applyResult.errors, []);
+        this.deps.events?.emit("synced", { collectionId: col.id, counts: applyResult.counts });
         return { collectionId: col.id, ok: true, dryRun: true, plans: applyResult.plans, counts: applyResult.counts, handEdited, strategy: delta.strategy, ...(errorStr ? { error: errorStr } : {}) };
       }
 
+      // `emit("changed", …)` laeuft AUSSERHALB des try-Blocks (Fix-Runde 1, Punkt 1) — `emit()`
+      // faengt Listener-Fehler zwar bereits selbst (core/sync/events.ts), aber ein Aufruf
+      // INNERHALB dieses try haette einen werfenden Listener sonst als Exec-Fehler DIESES
+      // Plans gezaehlt, obwohl `executor.execute(plan)` erfolgreich war.
       const execErrors: { path: string; message: string }[] = [];
       for (const plan of applyResult.plans) {
         try {
           await this.deps.executor.execute(plan);
         } catch (e) {
           execErrors.push({ path: plan.path, message: errorMessage(e) });
+          continue;
         }
+        this.deps.events?.emit("changed", { path: plan.path, op: plan.op, uid: plan.uid });
       }
       const errorStr = errorStringOf(applyResult.errors, execErrors);
       const runOk = applyResult.errors.length === 0 && execErrors.length === 0;
@@ -177,6 +183,7 @@ export class SyncService {
 
       if (errorStr && errorStr !== state.lastRun?.error) this.deps.notify.warn(`${col.displayName}: ${errorStr}`);
 
+      this.deps.events?.emit("synced", { collectionId: col.id, counts: applyResult.counts });
       return { collectionId: col.id, ok: runOk, dryRun: false, plans: applyResult.plans, counts: applyResult.counts, handEdited, strategy: delta.strategy, ...(errorStr ? { error: errorStr } : {}) };
     } catch (e) {
       const message = errorMessage(e);
@@ -186,6 +193,7 @@ export class SyncService {
         await this.deps.stateStore.save(withRun(state, runInfo));
       }
       if (isNew) this.deps.notify.warn(`${col.displayName}: ${message}`);
+      this.deps.events?.emit("synced", { collectionId: col.id, counts: zeroCounts() });
       return { collectionId: col.id, ok: false, dryRun, plans: [], counts: zeroCounts(), handEdited: [], error: message };
     }
   }

@@ -22,3 +22,30 @@
   color: var(--text-muted);
   font-weight: var(--font-medium);
 }
+
+.calendar-notes-diff-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-block: var(--size-4-2);
+}
+
+.calendar-notes-diff-table th,
+.calendar-notes-diff-table td {
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding: var(--size-2-2) var(--size-4-2);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.calendar-notes-diff-table th {
+  color: var(--text-muted);
+  font-weight: var(--font-medium);
+}
+
+.calendar-notes-invite-hint {
+  color: var(--text-muted);
+}
+
+.calendar-notes-form-errors {
+  color: var(--text-error);
+}
