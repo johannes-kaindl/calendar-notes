@@ -65,7 +65,9 @@ function planEventHandEdits(ctx: CommandContext, frontmatter: Record<string, unk
   if (!afterEv) throw new Error("push-hand-edits: kein VEVENT nach Mutation");
   const diff = diffEventFields(beforeEv, afterEv);
   return {
-    commandId: "push-hand-edits", target: ctx.target, summary: "Handänderungen auf den Server übertragen", diff, newRaw,
+    commandId: "push-hand-edits", target: ctx.target,
+    summary: "Write hand edits to the server", summaryKey: "plan.push-hand-edits.summary", summaryArgs: [],
+    diff, newRaw,
     etag: ctx.etag, contentType: "text/calendar", hrefForPut: hrefOfEventTarget(ctx.target), createsNew: false,
   };
 }
@@ -109,7 +111,9 @@ function planContactHandEdits(ctx: CommandContext, frontmatter: Record<string, u
   const afterContact = parseContact(newRaw);
   const diff = diffContactFields(beforeContact, afterContact);
   return {
-    commandId: "push-hand-edits", target: ctx.target, summary: "Handänderungen auf den Server übertragen", diff, newRaw,
+    commandId: "push-hand-edits", target: ctx.target,
+    summary: "Write hand edits to the server", summaryKey: "plan.push-hand-edits.summary", summaryArgs: [],
+    diff, newRaw,
     etag: ctx.etag, contentType: "text/vcard", hrefForPut: hrefOfContactTarget(ctx.target), createsNew: false,
   };
 }

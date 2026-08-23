@@ -45,7 +45,7 @@ describe("planUndoLast", () => {
     const afterEv = primaryEvent(parseEvents(plan!.newRaw))!;
     expect(afterEv.summary).toBe("Alter Titel");
     expect(plan!.diff.some((d) => d.field === "title" && d.before === "Zahnärztin Dr. Müller" && d.after === "Alter Titel")).toBe(true);
-    expect(plan!.summary).toBe("Letzte Änderung zurücknehmen (Stand von 2026-08-20T09:00:00Z)");
+    expect(plan!.summary).toBe("Undo last change (state from 2026-08-20T09:00:00Z)");
     expect(plan!.hrefForPut).toBe("https://dav.example/cal/simple.ics");
     expect(plan!.contentType).toBe("text/calendar");
     expect(plan!.createsNew).toBe(false);

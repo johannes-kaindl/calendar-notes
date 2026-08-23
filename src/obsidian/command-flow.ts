@@ -11,6 +11,7 @@ import type { SyncDeps } from "../core/sync/types";
 import { describeExecuteError } from "./execute-i18n";
 import { t } from "../i18n/strings";
 import { buildCommandContext } from "./command-context";
+import { tr, trPlan, trTitle } from "./command-i18n";
 import { SchemaFormModal } from "./command-modal";
 import type { InviteRouter } from "./invite";
 import { PlanPreviewModal } from "./plan-preview-modal";
@@ -42,7 +43,8 @@ class CommandSuggestModal extends FuzzySuggestModal<CommandDescriptor> {
     return this.descriptors;
   }
   getItemText(d: CommandDescriptor): string {
-    return `${d.title} — ${d.description}`;
+    const { title, description } = tr(d);
+    return `${title} — ${description}`;
   }
   onChooseItem(d: CommandDescriptor): void {
     this.onChoose(d);
@@ -265,7 +267,7 @@ export class CommandFlow {
     try {
       plan = descriptor.plan(input, ctx);
     } catch (e) {
-      new Notice(t("notice.unexpected", descriptor.title, e instanceof Error ? e.message : String(e)));
+      new Notice(t("notice.unexpected", trTitle(descriptor), e instanceof Error ? e.message : String(e)));
       return;
     }
     const onRetry = file ? () => this.fireAndForget(this.retryForm(descriptor, file), t("op.command")) : undefined;
@@ -298,7 +300,7 @@ export class CommandFlow {
         // Resync (`resynced: false`) ist KEIN reiner Erfolg — die lokale Notiz spiegelt den
         // neuen Server-Stand (noch) nicht. Eine stille "Erledigt"-Notice waere irrefuehrend.
         if (!result.resynced) new Notice(t("notice.commandDoneNoResync", result.resyncError ?? ""));
-        else new Notice(t("notice.commandDone", plan.summary));
+        else new Notice(t("notice.commandDone", trPlan(plan)));
         if (plan.invite) {
           this.fireAndForget(
             this.inviteRouter.deliver(resolved.account, plan, { now: this.deps.now(), ...(resolved.file ? { notePath: resolved.file.path } : {}) }),

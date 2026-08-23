@@ -5,7 +5,7 @@ import type { CommandPlan } from "../../src/core/commands/types";
 function plan(diff: CommandPlan["diff"]): CommandPlan {
   return {
     commandId: "event.set-title", target: { kind: "event", source: "a1/c1", href: "https://dav.example/cal/e.ics", uid: "u1" },
-    summary: "Titel geändert", diff, newRaw: "", contentType: "text/calendar", hrefForPut: "https://dav.example/cal/e.ics", createsNew: false,
+    summary: "Titel geändert", summaryKey: "test.summary", summaryArgs: [], diff, newRaw: "", contentType: "text/calendar", hrefForPut: "https://dav.example/cal/e.ics", createsNew: false,
   };
 }
 

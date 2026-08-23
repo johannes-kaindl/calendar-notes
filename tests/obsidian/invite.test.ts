@@ -7,6 +7,8 @@ const PLAN: CommandPlan = {
   commandId: "event.set-invite",
   target: { kind: "event", source: "acc1/cal1", href: "https://dav.example/cal1/evt-1.ics", uid: "evt-1" },
   summary: "Test",
+  summaryKey: "test.summary",
+  summaryArgs: [],
   diff: [],
   newRaw: "BEGIN:VCALENDAR\r\nEND:VCALENDAR",
   etag: '"e1"',

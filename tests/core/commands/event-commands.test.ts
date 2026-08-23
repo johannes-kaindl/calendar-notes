@@ -63,7 +63,7 @@ describe("event.move", () => {
     expect(afterEv.tzid).toBe("Europe/Berlin");
     expect(afterEv.sequence).toBe(3);
     expect(plan.diff.map((d) => d.field).sort()).toEqual(["end", "start"]);
-    expect(plan.summary).toBe("Termin verschoben: 2026-09-02 14:00–15:30");
+    expect(plan.summary).toBe("Event moved: 2026-09-02 14:00–15:30");
     expect(plan.hrefForPut).toBe("https://dav.example/cal/simple.ics");
     expect(plan.etag).toBe("\"e1\"");
     expect(plan.createsNew).toBe(false);
@@ -113,7 +113,7 @@ describe("event.set-title / set-location / set-url / set-description", () => {
     const afterEv = primaryEvent(parseEvents(plan.newRaw))!;
     expect(afterEv.location).toBeUndefined();
     expect(plan.diff).toEqual([{ field: "location", before: "Praxis am Markt, Hauptstraße 1" }]);
-    expect(plan.summary).toBe("Ort entfernt");
+    expect(plan.summary).toBe("Location removed");
   });
 
   it("set-url setzt URL", () => {
@@ -242,7 +242,7 @@ describe("event.create", () => {
     expect(afterEv.start).toBe("2026-09-10T09:00:00Z");
     expect(plan.diff.every((d) => d.before === undefined)).toBe(true);
     expect(plan.diff.some((d) => d.field === "title" && d.after === "Kickoff")).toBe(true);
-    expect(plan.summary).toContain("Termin angelegt");
+    expect(plan.summary).toContain("Event created");
   });
 
   // Fix C1 (Review-Runde 3) — s. Kommentar bei event.move oben.

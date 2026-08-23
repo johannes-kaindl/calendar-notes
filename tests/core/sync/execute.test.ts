@@ -113,6 +113,8 @@ function updatePlan(overrides: Partial<CommandPlan> = {}): CommandPlan {
     commandId: "test.update",
     target: { kind: "contact", source: "acc1/ab1", href: CARD_HREF, uid: UID },
     summary: "Test",
+    summaryKey: "test.summary",
+    summaryArgs: [],
     diff: [],
     newRaw: VCARD,
     etag: '"e-old"',

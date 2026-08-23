@@ -85,7 +85,7 @@ describe("parseFormValues", () => {
 describe("SchemaFormModal", () => {
   const schema: ObjectSchema = { type: "object", properties: { title: { type: "string", minLength: 1 } }, required: ["title"] };
   const descriptor: CommandDescriptor = {
-    id: "event.set-title", kind: "event", title: "Titel ändern", description: "",
+    id: "event.set-title", kind: "event", title: "Titel ändern", titleKey: "test.event.set-title.title", description: "", descriptionKey: "test.event.set-title.desc",
     schema, appliesTo: () => true, plan: () => { throw new Error("unused in this test"); },
   };
   const ctx: CommandContext = { now: NOW, rand: () => 0.5, profile: defaultEventProfile(), collection: EVENT_COLLECTION, account: ACCOUNT, target: eventTarget(), raw: read("ical/simple.ics"), etag: "\"e1\"" };

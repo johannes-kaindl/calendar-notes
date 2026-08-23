@@ -2,6 +2,7 @@ import { ButtonComponent, Modal, Notice, type App } from "obsidian";
 import type { CommandPlan } from "../core/commands/types";
 import type { ExecuteResult } from "../core/sync/execute";
 import { t } from "../i18n/strings";
+import { trPlan } from "./command-i18n";
 import { describeExecuteError } from "./execute-i18n";
 import { fieldLabel } from "./field-labels";
 
@@ -42,7 +43,7 @@ export class PlanPreviewModal extends Modal {
   private render(): void {
     this.contentEl.empty();
     this.titleEl.setText(t("plan.heading"));
-    this.contentEl.createEl("p", { text: this.plan.summary });
+    this.contentEl.createEl("p", { text: trPlan(this.plan) });
     if (this.routeHint) this.contentEl.createEl("p", { text: this.routeHint, cls: "calendar-notes-invite-hint" });
 
     const rows = diffRows(this.plan);

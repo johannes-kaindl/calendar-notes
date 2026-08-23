@@ -13,20 +13,22 @@ export interface HistoryEntry {
 export function planUndoLast(ctx: CommandContext, history: HistoryEntry[]): CommandPlan | null {
   const prev = history[0];
   if (!prev) return null;
-  const summary = `Letzte Änderung zurücknehmen (Stand von ${prev.at})`;
+  const summary = `Undo last change (state from ${prev.at})`;
+  const summaryKey = "plan.undo.last.summary";
+  const summaryArgs = [prev.at];
   if (ctx.profile.kind === "event") {
     const beforeEv = ctx.raw ? primaryEvent(parseEvents(ctx.raw)) : undefined;
     const afterEv = primaryEvent(parseEvents(prev.raw));
     if (!afterEv) throw new Error("undo: kein VEVENT im Verlauf");
     return {
-      commandId: "undo.last", target: ctx.target, summary, diff: diffEventFields(beforeEv, afterEv), newRaw: prev.raw,
+      commandId: "undo.last", target: ctx.target, summary, summaryKey, summaryArgs, diff: diffEventFields(beforeEv, afterEv), newRaw: prev.raw,
       etag: ctx.etag, contentType: "text/calendar", hrefForPut: hrefOfEventTarget(ctx.target), createsNew: false,
     };
   }
   const beforeContact = ctx.raw ? parseContact(ctx.raw) : undefined;
   const afterContact = parseContact(prev.raw);
   return {
-    commandId: "undo.last", target: ctx.target, summary, diff: diffContactFields(beforeContact, afterContact), newRaw: prev.raw,
+    commandId: "undo.last", target: ctx.target, summary, summaryKey, summaryArgs, diff: diffContactFields(beforeContact, afterContact), newRaw: prev.raw,
     etag: ctx.etag, contentType: "text/vcard", hrefForPut: hrefOfContactTarget(ctx.target), createsNew: false,
   };
 }
@@ -42,8 +44,10 @@ export function planUndoLast(ctx: CommandContext, history: HistoryEntry[]): Comm
 export const UNDO_LAST_COMMAND: CommandDescriptor = {
   id: "undo.last",
   kind: "any",
-  title: "Letzte Änderung rückgängig machen",
-  description: "Stellt den vorherigen Verlaufseintrag des Zielobjekts wieder her",
+  title: "Undo last change",
+  titleKey: "cmd.undo.last.title",
+  description: "Restores the previous history entry of the target object",
+  descriptionKey: "cmd.undo.last.desc",
   schema: { type: "object", properties: {} },
   appliesTo(ctx: CommandContext): boolean {
     return (ctx.history?.length ?? 0) > 0;
