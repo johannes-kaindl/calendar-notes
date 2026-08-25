@@ -10,6 +10,20 @@ CalDAV-Termine und CardDAV-Kontakte als Notiz-Spiegel; der Server ist die Wahrhe
 - DAV-Befunde echter Server: `docs/dav/befunde/` (ohne Zugangsdaten); Erhebungsliste `docs/dav/erhebung-anforderungen.md`.
 - Dach-Regeln gelten: `../AGENTS.md` (Kit-first, Release über `../tools/release/`, Store-Flow).
 
+## Transport: `requestUrl` folgt Weiterleitungen selbst
+
+`DavResponse` trägt **keine** finale URL und kann sie nicht tragen — Obsidians `requestUrl`
+gibt sie nicht her. Wer eine Zieladresse braucht, liest sie deshalb aus der **Antwort**
+(`<d:href>` des Multistatus nennt die tatsächlich beantwortete Ressource), niemals aus der
+Anfrage-URL: der Redirect-Zweig in `wellKnown()` (`src/core/dav/discovery.ts`) wird mit diesem
+Transport nie betreten. Bis 0.1.6 wurde `/.well-known/caldav/` weiterverwendet — bei Nextcloud
+eine andere Route, die über `/index.php/…` in **405** endet. Fakes in Tests müssen beide
+Transport-Sorten abbilden (folgend **und** nicht folgend), sonst testen sie den anderen Fall.
+
+**Reale Kette messen** (die einzige Probe, die den echten Transport abdeckt): `discover()` mit
+einem redirect-folgenden `fetch`-Transport per `npx tsx` gegen einen echten Server fahren —
+dauert eine halbe Minute, s. `_docs/LESSONS.md` 2026-08-25.
+
 ## Zugangsdaten: `SecretComponent` ist ein Verweis, kein Passwortfeld
 
 Die Passwort-Zeile im Settings-Tab bindet **nicht** ein Passwort, sondern einen
