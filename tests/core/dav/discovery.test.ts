@@ -47,6 +47,25 @@ describe("discover", () => {
     expect(res.warnings.join(" ")).toMatch(/addressbook-home-set/);
   });
 
+  // Obsidians `requestUrl` folgt Weiterleitungen SELBST und behaelt dabei die Methode — der
+  // 301-Zweig in `wellKnown` ist mit diesem Transport toter Code, wir sehen direkt 207 auf der
+  // well-known-Adresse. Die Startadresse darf dann NICHT aus der Anfrage-URL geraten werden
+  // (`/.well-known/caldav/` mit Slash schickt Nextcloud auf `/index.php/.well-known/caldav/`
+  // → 405), sondern kommt aus dem `<d:href>` der Antwort, das der Server selbst nennt.
+  it("transport ist dem well-known-redirect schon gefolgt: startadresse kommt aus dem antwort-href", async () => {
+    const t = fakeTransport([
+      { method: "PROPFIND", url: "https://nc.example/.well-known/caldav", status: 207, text: ms(resp("/remote.php/dav/", `<d:current-user-principal><d:href>/remote.php/dav/principals/users/jay/</d:href></d:current-user-principal>`)) },
+      { method: "PROPFIND", url: "https://nc.example/remote.php/dav/", status: 207, text: ms(resp("/remote.php/dav/", `<d:current-user-principal><d:href>/remote.php/dav/principals/users/jay/</d:href></d:current-user-principal>`)) },
+      { method: "PROPFIND", url: "https://nc.example/remote.php/dav/principals/users/jay/", status: 207, text: ms(resp("/remote.php/dav/principals/users/jay/", `<c:calendar-home-set><d:href>/remote.php/dav/calendars/jay/</d:href></c:calendar-home-set>`)) },
+      { method: "PROPFIND", url: "https://nc.example/remote.php/dav/calendars/jay/", status: 207, text: fx("propfind-nextcloud.xml") },
+    ]);
+    const res = await discover(t, "https://nc.example/remote.php/dav/");
+
+    expect(t.calls.map((c) => c.url)).not.toContain("https://nc.example/.well-known/caldav/");
+    expect(res.principal).toBe("https://nc.example/remote.php/dav/principals/users/jay/");
+    expect(res.calendarHome).toBe("https://nc.example/remote.php/dav/calendars/jay/");
+  });
+
   it("401 wird als DavError mit status geworfen", async () => {
     const t = fakeTransport([{ url: /.*/, status: 401 }]);
     await expect(discover(t, "https://x.example/")).rejects.toMatchObject({ status: 401 });

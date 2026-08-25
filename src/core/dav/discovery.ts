@@ -26,7 +26,17 @@ async function propfind(t: Transport, url: string, depth: "0" | "1", props: stri
   throw new DavError(res.status, `PROPFIND ${url} → ${res.status}`, url);
 }
 
-/** Folgt einem well-known-Redirect (301/302/307/308) und liefert das Ziel — oder undefined. */
+/** Ermittelt die Startadresse ueber `/.well-known/<kind>` (RFC 6764) — oder undefined.
+ *
+ *  Zwei Transport-Sorten muessen bedient werden, und die zweite ist der Regelfall:
+ *  - Ein Transport, der Weiterleitungen NICHT folgt, liefert den 301/302/307/308 selbst; dann
+ *    steht das Ziel im `Location`-Kopf.
+ *  - Ein Transport, der ihnen FOLGT (Obsidians `requestUrl`, `fetch` im Default), liefert
+ *    direkt das 207 der Zieladresse — den Redirect sehen wir nie. `DavResponse` traegt die
+ *    finale URL nicht, und die Anfrage-URL zu nehmen ist falsch: `/.well-known/<kind>/` (mit
+ *    Slash) ist bei Nextcloud eine andere Route, die ueber `/index.php/.well-known/<kind>/`
+ *    in **405** endet. Die richtige Adresse steht in der Antwort — das `<d:href>` des
+ *    Multistatus nennt die Ressource, die der Server tatsaechlich beantwortet hat. */
 async function wellKnown(t: Transport, baseUrl: string, kind: "caldav" | "carddav"): Promise<string | undefined> {
   const url = new URL(`/.well-known/${kind}`, baseUrl).toString();
   const res = await t({ method: "PROPFIND", url, headers: { Depth: "0", ...XML }, body: propfindBody(["d:current-user-principal"]) });
@@ -34,7 +44,10 @@ async function wellKnown(t: Transport, baseUrl: string, kind: "caldav" | "cardda
     const loc = headerValue(res.headers, "location");
     return loc ? ensureTrailingSlash(resolveHref(url, loc)) : undefined;
   }
-  if (res.status === 207) return ensureTrailingSlash(url);
+  if (res.status === 207) {
+    const self = parseMultistatus(res.text).responses[0]?.href;
+    return ensureTrailingSlash(resolveHref(url, self && self !== "" ? self : url));
+  }
   if (res.status === 401 || res.status === 403) throw new DavError(res.status, `Zugang verweigert (${res.status})`, url);
   return undefined;
 }
