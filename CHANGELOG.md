@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.6] — 2026-08-25
+
 - **Fix (Auth): Die Reparatur aus 0.1.5 griff im Normalfall nicht.** Sie erkannte nur Konten, deren Schlüsselbund-Eintrag die eigene ID als Wert trug — entstanden ist der Schaden aber fast immer anders: unter der plugin-eigenen ID lag der **Name des Eintrags, den der Nutzer im Dialog vergeben hat**. Genau das ist jetzt die Erkennungssignatur (der Wert ist selbst ein vorhandener Eintrag), und der Fall ist verlustfrei: das Konto wird auf diesen Eintrag umgehängt, das Passwort muss nicht neu ausgewählt werden. `repairSelfReferencingSecrets()` heißt deshalb jetzt `repairSecretLinks()`.
 
 ## [0.1.5] — 2026-08-25
