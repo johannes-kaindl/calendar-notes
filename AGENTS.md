@@ -140,6 +140,10 @@ Bis 0.1.4 wurde der Rückgabewert als Passwort gespeichert: jedes Konto meldete 
   Releases 0.1.0 (Action rot — CI-Gate, s. `docs/RELEASE.md`), 0.1.1, 0.1.2 (Name ohne `&`),
   **0.1.3 im Community Store: Scorecard „Passed", 0 Warnings.** Updates laufen über
   `npm run release <version>` + Rescan im Developer Dashboard.
+- **Stand 2026-08-25: 0.1.7, Rescan „Passed" / 0 Warnings.** 0.1.4–0.1.7 sind vier
+  Auth-/Discovery-Fixes, die erst am echten Server sichtbar wurden (CRLF im Passwort,
+  `SecretComponent`-Verweis, dessen Altbestand-Reparatur, geratene Startadresse) — die
+  beiden Abschnitte oben tragen die Lehren daraus.
 - 498 Unit-Tests + 4 Integration-Tests (0 Warnings) — M5 fügt keine neue Fachlogik hinzu.
 
 ## Release-Checkliste
