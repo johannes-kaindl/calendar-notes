@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.7] — 2026-08-25
+
 - **Fix (Discovery): 405 gegen Nextcloud — die Startadresse wurde aus der Anfrage-URL geraten statt aus der Antwort gelesen.** `wellKnown()` war darauf gebaut, den Redirect von `/.well-known/caldav` selbst zu sehen. Obsidians `requestUrl` folgt Weiterleitungen aber selbst (und behält die Methode), also kam dort direkt ein `207` an — der 301-Zweig war toter Code, und der 207-Zweig gab die **angefragte** Adresse plus Schrägstrich zurück (`/.well-known/caldav/`). Bei Nextcloud ist das eine andere Route: sie leitet auf `/index.php/.well-known/caldav/` weiter und antwortet dort mit **405**. Die richtige Adresse steht längst in der Antwort — das `<d:href>` des Multistatus nennt die Ressource, die der Server tatsächlich beantwortet hat; genau die wird jetzt genommen. Gegen die echte Nextcloud verifiziert: 16 Sammlungen, keine Warnungen.
 
 ## [0.1.6] — 2026-08-25
