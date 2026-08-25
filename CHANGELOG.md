@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.4] — 2026-08-25
+
 - Fix: Ein per Zwischenablage kopiertes DAV-Passwort mit abschließendem Zeilenumbruch (z. B. `pbcopy < datei`) landete unverändert im Schlüsselbund und führte trotz korrekten Passworts zu 401 beim Sync. `stripCrLf()` entfernt führende/abschließende `\r`/`\n` jetzt beim Speichern in beiden `SecretStore`-Implementierungen, ohne sonstige Whitespaces im Passwort anzutasten.
 
 ## [0.1.3] — 2026-08-23
