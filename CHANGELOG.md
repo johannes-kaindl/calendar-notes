@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+- Fix: Ein per Zwischenablage kopiertes DAV-Passwort mit abschließendem Zeilenumbruch (z. B. `pbcopy < datei`) landete unverändert im Schlüsselbund und führte trotz korrekten Passworts zu 401 beim Sync. `stripCrLf()` entfernt führende/abschließende `\r`/`\n` jetzt beim Speichern in beiden `SecretStore`-Implementierungen, ohne sonstige Whitespaces im Passwort anzutasten.
+
 ## [0.1.3] — 2026-08-23
 
 - `fast-xml-parser` 4.5.7 → 5.11.0: der Store-Gate-Scan meldet jede Version <5.7.0 (GHSA-gh4j-gqv2-49f6, betrifft nur den nicht genutzten `XMLBuilder`) als Warning — Bereichs-, nicht Codepfad-Urteil. Parser-Nutzung unverändert, alle Tests grün.
