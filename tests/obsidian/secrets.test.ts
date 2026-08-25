@@ -32,6 +32,18 @@ describe("MemorySecretStore", () => {
     expect(s.has("a")).toBe(false);
     expect(s.get("a")).toBe("");
   });
+
+  it("strips a trailing newline from a pasted password (pbcopy < datei artifact)", () => {
+    const s = new MemorySecretStore();
+    s.set("a", "geheim\n");
+    expect(s.get("a")).toBe("geheim");
+  });
+
+  it("strips leading/trailing CRLF but keeps interior newlines and spaces", () => {
+    const s = new MemorySecretStore();
+    s.set("a", "\r\nge heim\nrest\r\n");
+    expect(s.get("a")).toBe("ge heim\nrest");
+  });
 });
 
 describe("obsidianSecretStore", () => {
@@ -56,5 +68,12 @@ describe("obsidianSecretStore", () => {
     s.set("id1", "");
     expect(s.has("id1")).toBe(false);
     expect(s.get("id1")).toBe("");
+  });
+
+  it("strips a trailing newline before persisting (pbcopy < datei artifact)", () => {
+    const app = fakeApp();
+    const s = obsidianSecretStore(app);
+    s.set("id1", "geheim\n");
+    expect(s.get("id1")).toBe("geheim");
   });
 });

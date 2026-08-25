@@ -3,6 +3,14 @@ import type { SecretStore } from "../core/sync/types";
 
 export type { SecretStore };
 
+/** Entfernt fuehrende/abschliessende CR/LF — der typische Clipboard-Rest, wenn ein
+ *  Passwort per `pbcopy < datei` aus einer Datei mit Zeilenumbruch kopiert wurde.
+ *  Absichtlich kein voller `trim()`: ein Leerzeichen im Passwort bleibt gueltig,
+ *  nur Zeilenumbrueche sind nie Teil eines DAV-Passworts. */
+function stripCrLf(value: string): string {
+  return value.replace(/^[\r\n]+/, "").replace(/[\r\n]+$/, "");
+}
+
 /** In-Memory-Fallback fuer Tests und fuer eine Obsidian-Version ohne `secretStorage`. */
 export class MemorySecretStore implements SecretStore {
   private readonly values = new Map<string, string>();
@@ -12,7 +20,7 @@ export class MemorySecretStore implements SecretStore {
   }
 
   set(id: string, value: string): void {
-    this.values.set(id, value);
+    this.values.set(id, stripCrLf(value));
   }
 
   has(id: string): boolean {
@@ -30,8 +38,9 @@ export function obsidianSecretStore(app: App): SecretStore {
       return app.secretStorage.getSecret(id);
     },
     set(id: string, value: string): void {
-      app.secretStorage.setSecret(id, value);
-      if (app.secretStorage.getSecret(id) !== value) {
+      const sanitized = stripCrLf(value);
+      app.secretStorage.setSecret(id, sanitized);
+      if (app.secretStorage.getSecret(id) !== sanitized) {
         throw new Error(`Obsidian SecretStorage did not persist ${id}`);
       }
     },
