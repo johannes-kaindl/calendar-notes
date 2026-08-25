@@ -7,7 +7,7 @@ import { discoverScheduling } from "./core/dav/scheduling";
 import { withBasicAuth } from "./core/dav/transport";
 import type { MappingProfile, ProfileKind } from "./core/mirror/profile";
 import { suggestProfileFromNote } from "./core/mirror/profile-from-note";
-import { normalizeSettings, repairSelfReferencingSecrets, sourceOf, type Account, type CollectionConfig, type PluginSettings } from "./core/settings";
+import { normalizeSettings, repairSecretLinks, sourceOf, type Account, type CollectionConfig, type PluginSettings } from "./core/settings";
 import type { CalendarNotesApi } from "./core/api/types";
 import { ensureDefaultCommands } from "./core/commands/registry";
 import type { RunInfo } from "./core/state/collection-state";
@@ -102,7 +102,7 @@ export default class CalendarNotesPlugin extends Plugin {
     this.secrets = obsidianSecretStore(this.app);
     // Einmalige Reparatur des 0.1.4-Schadens (ID statt Passwort im Schluesselbund) — muss vor
     // dem ersten Sync laufen, sonst meldet sich das Konto weiter mit dem Namen seines Eintrags an.
-    const repaired = repairSelfReferencingSecrets(this.settings, this.secrets);
+    const repaired = repairSecretLinks(this.settings, this.secrets);
     if (repaired !== this.settings) {
       this.settings = repaired;
       await this.saveData(this.settings);

@@ -178,27 +178,38 @@ export function secretIdFor(accountId: string): string {
 
 /** Raeumt den Schaden auf, den die Versionen bis 0.1.4 angerichtet haben: der Passwort-Verweis
  *  im Settings-Tab speicherte die vom Schluesselbund-Dialog zurueckgegebene Secret-ID als
- *  Passwort-WERT unter eben dieser ID (`SecretComponent.onChange` liefert die ID, nicht den
- *  Wert). Betroffene Konten meldeten sich mit dem NAMEN ihres Eintrags an und bekamen von jedem
- *  Server 401 — im Settings-Tab aber sah die Zeile befuellt aus.
+ *  Passwort-WERT unter der plugin-eigenen ID (`SecretComponent.onChange` liefert die ID, nicht
+ *  den Wert). Betroffene Konten meldeten sich mit dem NAMEN ihres Eintrags an und bekamen von
+ *  jedem Server 401 — im Settings-Tab sah die Zeile dabei befuellt aus.
  *
- *  Die Signatur ist eindeutig und nur so entstanden: gespeicherter Wert === eigene ID. Solche
- *  Konten gelten wieder als unverknuepft (`secretId: ""`), damit die Zeile ehrlich „verknuepfen"
- *  anbietet statt Punkte zu zeigen; der unbrauchbare Eintrag wird best effort geleert
- *  (SecretStore kennt kein Loeschen). Das echte Passwort liegt unbeschadet unter der ID, die der
- *  Nutzer im Dialog vergeben hat — er waehlt sie beim naechsten Klick einfach aus. */
-export function repairSelfReferencingSecrets(settings: PluginSettings, secrets: SecretStore): PluginSettings {
-  const broken = settings.accounts.filter((a) => a.secretId !== "" && secrets.get(a.secretId) === a.secretId);
-  if (broken.length === 0) return settings;
-  for (const account of broken) {
+ *  Erkennbar ist das daran, dass unter `account.secretId` ein Wert liegt, der SELBST ein
+ *  vorhandener Schluesselbund-Eintrag ist. Ein echtes Passwort ist das nie: bis 0.1.4 war
+ *  `secretId` immer die generierte ID (`secretIdFor`), nie eine vom Nutzer gewaehlte, und der
+ *  Wert darunter kam ausschliesslich aus diesem Rueckruf.
+ *
+ *  Der Fall ist verlustfrei reparierbar — der Muellwert IST die ID mit dem echten Passwort, das
+ *  Konto wird darauf umgehaengt. Zeigt der Wert auf die eigene ID (Picker mit unveraenderter
+ *  Vorauswahl bestaetigt), gibt es nichts, worauf umzuhaengen waere: das Konto gilt wieder als
+ *  unverknuepft, damit die Zeile ehrlich „verknuepfen" anbietet statt Punkte zu zeigen. Der
+ *  unbrauchbare Eintrag wird best effort geleert (`SecretStore` kennt kein Loeschen). */
+export function repairSecretLinks(settings: PluginSettings, secrets: SecretStore): PluginSettings {
+  const repaired = new Map<string, string>();
+  for (const account of settings.accounts) {
+    if (account.secretId === "") continue;
+    const stored = secrets.get(account.secretId);
+    if (stored === null || stored === "") continue;
+    // Der Wert zeigt auf die eigene ID → kein Ziel zum Umhaengen. Sonst muss er ein
+    // vorhandener Eintrag sein, sonst ist es kein Schaden dieser Sorte.
+    if (stored !== account.secretId && !secrets.has(stored)) continue;
+    repaired.set(account.id, stored === account.secretId ? "" : stored);
     try {
       secrets.set(account.secretId, "");
     } catch {
-      /* best effort — ein nicht loeschbarer Eintrag darf den Start nicht verhindern */
+      /* best effort — ein nicht leerbarer Eintrag darf den Start nicht verhindern */
     }
   }
-  const brokenIds = new Set(broken.map((a) => a.id));
-  return { ...settings, accounts: settings.accounts.map((a) => (brokenIds.has(a.id) ? { ...a, secretId: "" } : a)) };
+  if (repaired.size === 0) return settings;
+  return { ...settings, accounts: settings.accounts.map((a) => (repaired.has(a.id) ? { ...a, secretId: repaired.get(a.id)! } : a)) };
 }
 
 export function newId(prefix: string, rand: () => number): string {

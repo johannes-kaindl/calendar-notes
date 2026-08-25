@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+- **Fix (Auth): Die Reparatur aus 0.1.5 griff im Normalfall nicht.** Sie erkannte nur Konten, deren Schlüsselbund-Eintrag die eigene ID als Wert trug — entstanden ist der Schaden aber fast immer anders: unter der plugin-eigenen ID lag der **Name des Eintrags, den der Nutzer im Dialog vergeben hat**. Genau das ist jetzt die Erkennungssignatur (der Wert ist selbst ein vorhandener Eintrag), und der Fall ist verlustfrei: das Konto wird auf diesen Eintrag umgehängt, das Passwort muss nicht neu ausgewählt werden. `repairSelfReferencingSecrets()` heißt deshalb jetzt `repairSecretLinks()`.
+
 ## [0.1.5] — 2026-08-25
 
 - **Fix (Auth): Kein Konto konnte sich anmelden — jeder Server antwortete 401.** Die Passwort-Zeile in den Einstellungen benutzt Obsidians `SecretComponent`, und die ist ein *Verweis* auf einen Schlüsselbund-Eintrag, kein Passwortfeld: ihr `onChange` liefert die **ID** des gewählten bzw. neu angelegten Eintrags zurück, nicht dessen Wert. Das Plugin speicherte diese ID als Passwort-Wert und meldete sich fortan mit dem *Namen* des Eintrags an. Das Konto merkt sich jetzt die ID (`account.secretId`), und den Wert verwaltet allein Obsidian. Betroffene Konten repariert `repairSelfReferencingSecrets()` beim Start automatisch: Sie gelten wieder als unverknüpft, der unbrauchbare Eintrag wird geleert — **das echte Passwort bleibt unter der selbst vergebenen ID erhalten und muss nur neu ausgewählt werden.**
