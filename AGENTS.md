@@ -10,6 +10,23 @@ CalDAV-Termine und CardDAV-Kontakte als Notiz-Spiegel; der Server ist die Wahrhe
 - DAV-Befunde echter Server: `docs/dav/befunde/` (ohne Zugangsdaten); Erhebungsliste `docs/dav/erhebung-anforderungen.md`.
 - Dach-Regeln gelten: `../AGENTS.md` (Kit-first, Release über `../tools/release/`, Store-Flow).
 
+## Zugangsdaten: `SecretComponent` ist ein Verweis, kein Passwortfeld
+
+Die Passwort-Zeile im Settings-Tab bindet **nicht** ein Passwort, sondern einen
+Schlüsselbund-Eintrag. `setValue(id)` nimmt die Secret-ID, und `onChange` liefert die **ID**
+des im Dialog gewählten bzw. neu angelegten Eintrags zurück — nie dessen Wert; das X löst die
+Verknüpfung und ruft mit `null` zurück. Den Wert schreibt Obsidian selbst, das Plugin merkt
+sich nur, **welcher** Eintrag zum Konto gehört (`account.secretId`), und ruft `setSecret` im
+Normalbetrieb gar nicht mehr auf.
+
+Bis 0.1.4 wurde der Rückgabewert als Passwort gespeichert: jedes Konto meldete sich mit dem
+*Namen* seines Eintrags an und bekam von jedem Server **401** — sichtbar wurde das nicht, weil
+`has()` den Müllwert als „belegt" meldete und die Zeile befüllt aussah. `repairSecretLinks()`
+(`src/core/settings.ts`) räumt das beim Start auf. Die `.d.ts` deklariert nur
+`setValue(value: string)`; der Beleg für die Semantik steht in der App-Implementierung
+(`~/Library/Application Support/obsidian/obsidian-<ver>.asar`) — s. `_docs/LESSONS.md`
+2026-08-25. **Der GUI-Smoke deckt diesen Pfad nicht ab** (Radicale läuft ohne Auth).
+
 ## Was M1 liefert
 - DAV-Core Modul (`src/core/dav/`) mit Discovery, Collection-Sync, Multiget, Transport-Injection
 - ical.js-Parser und Mutationen für VEVENT (`src/core/ical/`)
