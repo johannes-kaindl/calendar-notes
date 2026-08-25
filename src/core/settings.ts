@@ -1,6 +1,7 @@
 import { mergeSettings } from "../vendor/code-kit/settings";
 import { defaultContactProfile, defaultEventProfile, validateProfile, type MappingProfile } from "./mirror/profile";
 import type { SchedulingInfo } from "./dav/scheduling";
+import type { SecretStore } from "./sync/types";
 
 export interface Account {
   id: string;
@@ -173,6 +174,31 @@ export function normalizeSettings(raw: unknown): PluginSettings {
 
 export function secretIdFor(accountId: string): string {
   return `calendar-notes-${accountId}`;
+}
+
+/** Raeumt den Schaden auf, den die Versionen bis 0.1.4 angerichtet haben: der Passwort-Verweis
+ *  im Settings-Tab speicherte die vom Schluesselbund-Dialog zurueckgegebene Secret-ID als
+ *  Passwort-WERT unter eben dieser ID (`SecretComponent.onChange` liefert die ID, nicht den
+ *  Wert). Betroffene Konten meldeten sich mit dem NAMEN ihres Eintrags an und bekamen von jedem
+ *  Server 401 — im Settings-Tab aber sah die Zeile befuellt aus.
+ *
+ *  Die Signatur ist eindeutig und nur so entstanden: gespeicherter Wert === eigene ID. Solche
+ *  Konten gelten wieder als unverknuepft (`secretId: ""`), damit die Zeile ehrlich „verknuepfen"
+ *  anbietet statt Punkte zu zeigen; der unbrauchbare Eintrag wird best effort geleert
+ *  (SecretStore kennt kein Loeschen). Das echte Passwort liegt unbeschadet unter der ID, die der
+ *  Nutzer im Dialog vergeben hat — er waehlt sie beim naechsten Klick einfach aus. */
+export function repairSelfReferencingSecrets(settings: PluginSettings, secrets: SecretStore): PluginSettings {
+  const broken = settings.accounts.filter((a) => a.secretId !== "" && secrets.get(a.secretId) === a.secretId);
+  if (broken.length === 0) return settings;
+  for (const account of broken) {
+    try {
+      secrets.set(account.secretId, "");
+    } catch {
+      /* best effort — ein nicht loeschbarer Eintrag darf den Start nicht verhindern */
+    }
+  }
+  const brokenIds = new Set(broken.map((a) => a.id));
+  return { ...settings, accounts: settings.accounts.map((a) => (brokenIds.has(a.id) ? { ...a, secretId: "" } : a)) };
 }
 
 export function newId(prefix: string, rand: () => number): string {

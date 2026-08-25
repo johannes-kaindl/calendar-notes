@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { defaultSettings, normalizeSettings, secretIdFor, newId, sourceOf, effectiveProfile, DEFAULT_SYNC } from "../../src/core/settings";
+import { defaultSettings, normalizeSettings, repairSelfReferencingSecrets, secretIdFor, newId, sourceOf, effectiveProfile, DEFAULT_SYNC } from "../../src/core/settings";
+import type { SecretStore } from "../../src/core/sync/types";
 describe("settings", () => {
   it("defaults carry both default profiles", () => {
     const s = defaultSettings();
@@ -37,5 +38,64 @@ describe("settings", () => {
     expect(sourceOf(c)).toBe("a1/c1");
     expect(effectiveProfile(s, c)?.folder).toBe("Termine/2026");
     expect(effectiveProfile(s, { ...c, profileId: "nope" })).toBeUndefined();
+  });
+});
+
+describe("repairSelfReferencingSecrets", () => {
+  function store(values: Record<string, string>): SecretStore & { writes: [string, string][] } {
+    const map = new Map(Object.entries(values));
+    const writes: [string, string][] = [];
+    return {
+      writes,
+      get: (id) => map.get(id) ?? null,
+      set: (id, v) => { writes.push([id, v]); map.set(id, v); },
+      has: (id) => (map.get(id) ?? "") !== "",
+    };
+  }
+  function withAccounts(...accounts: { id: string; secretId: string }[]) {
+    return {
+      ...defaultSettings(),
+      accounts: accounts.map((a) => ({ id: a.id, name: a.id, baseUrl: "https://d/", username: "u", secretId: a.secretId })),
+    };
+  }
+
+  it("loest ein Konto, dessen Eintrag die eigene ID als Wert traegt, und leert den Eintrag", () => {
+    const settings = withAccounts({ id: "a1", secretId: "calendar-notes-a1" });
+    const secrets = store({ "calendar-notes-a1": "calendar-notes-a1" });
+
+    const out = repairSelfReferencingSecrets(settings, secrets);
+
+    expect(out.accounts[0]!.secretId).toBe("");
+    expect(secrets.writes).toEqual([["calendar-notes-a1", ""]]);
+  });
+
+  it("laesst ein echtes Passwort und seine Verknuepfung unangetastet", () => {
+    const settings = withAccounts({ id: "a1", secretId: "meine-nextcloud" });
+    const secrets = store({ "meine-nextcloud": "hunter2" });
+
+    const out = repairSelfReferencingSecrets(settings, secrets);
+
+    expect(out).toBe(settings);
+    expect(secrets.writes).toEqual([]);
+  });
+
+  it("repariert nur die betroffenen Konten und fasst leere Verknuepfungen nicht an", () => {
+    const settings = withAccounts({ id: "a1", secretId: "calendar-notes-a1" }, { id: "a2", secretId: "gut" }, { id: "a3", secretId: "" });
+    const secrets = store({ "calendar-notes-a1": "calendar-notes-a1", gut: "hunter2" });
+
+    const out = repairSelfReferencingSecrets(settings, secrets);
+
+    expect(out.accounts.map((a) => a.secretId)).toEqual(["", "gut", ""]);
+    expect(secrets.writes).toEqual([["calendar-notes-a1", ""]]);
+  });
+
+  it("ein nicht leerbarer Eintrag verhindert die Reparatur nicht", () => {
+    const settings = withAccounts({ id: "a1", secretId: "calendar-notes-a1" });
+    const secrets = store({ "calendar-notes-a1": "calendar-notes-a1" });
+    secrets.set = () => { throw new Error("keychain locked"); };
+
+    const out = repairSelfReferencingSecrets(settings, secrets);
+
+    expect(out.accounts[0]!.secretId).toBe("");
   });
 });

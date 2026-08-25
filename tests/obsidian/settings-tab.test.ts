@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { App, Plugin } from "obsidian";
+import { App, Plugin, Setting } from "obsidian";
+// Direkt aus dem Mock, nicht aus "obsidian": `instances`/`choose` sind Testhilfen, die es in
+// den echten Typings nicht gibt — `tsc -p tsconfig.test.json` prueft gegen die echten.
+import { SecretComponent } from "../__mocks__/obsidian";
+import { makeFakeEl } from "../vendor/kit/obsidian-mock";
 import { CalendarNotesSettingTab, type SettingsHost } from "../../src/obsidian/settings-tab";
 import { defaultSettings, type PluginSettings } from "../../src/core/settings";
 import type { Account, CollectionConfig } from "../../src/core/settings";
@@ -15,16 +19,18 @@ initI18n("de");
 // tsconfig.test.json` (echte Typings) funktioniert.
 class TestPlugin extends Plugin {}
 
-function fakeHost(settings: PluginSettings): SettingsHost & { saved: PluginSettings[] } {
+function fakeHost(settings: PluginSettings): SettingsHost & { saved: PluginSettings[]; secretWrites: [string, string][] } {
   const secretValues = new Map<string, string>();
+  const secretWrites: [string, string][] = [];
   const secrets: SecretStore = {
     get: (id) => secretValues.get(id) ?? null,
-    set: (id, v) => { secretValues.set(id, v); },
-    has: (id) => secretValues.has(id),
+    set: (id, v) => { secretWrites.push([id, v]); secretValues.set(id, v); },
+    has: (id) => (secretValues.get(id) ?? "") !== "",
   };
   const host = {
     settings,
     saved: [] as PluginSettings[],
+    secretWrites,
     async saveSettings(): Promise<void> {
       host.saved.push(host.settings);
     },
@@ -158,5 +164,59 @@ describe("CalendarNotesSettingTab.getSettingDefinitions", () => {
     const updated = host.settings.collections.find((c) => c.id === "c2");
     expect(updated?.displayName).toBe("Contacts (renamed)");
     expect(host.settings.collections).toHaveLength(2);
+  });
+});
+
+/** Zeichnet die erste Konto-Zeile und liefert deren `SecretComponent`. */
+function renderFirstAccountRow(tab: CalendarNotesSettingTab): SecretComponent {
+  SecretComponent.instances.length = 0;
+  const defs = tab.getSettingDefinitions() as any[];
+  defs[0].items[0].render(new Setting(makeFakeEl()));
+  const component = SecretComponent.instances[0];
+  expect(component).toBeDefined();
+  return component!;
+}
+
+describe("Passwort-Zeile eines Kontos (SecretComponent)", () => {
+  it("verweist auf die am Konto hinterlegte Secret-ID", () => {
+    const host = fakeHost(withAccountAndCollections());
+    const component = renderFirstAccountRow(newTab(host));
+    expect(component.settingKey).toBe("calendar-notes-a1");
+  });
+
+  // Der Fehler bis 0.1.4: der Rueckruf liefert die ID des Schluesselbund-Eintrags, nicht das
+  // Passwort — sie wurde als Passwort-WERT gespeichert, das Konto meldete sich also mit dem
+  // NAMEN des Eintrags an. Ergebnis: 401 gegen jeden Server, auf jedem Geraet.
+  it("merkt die gewaehlte Secret-ID am Konto, statt sie als Passwort zu speichern", () => {
+    const host = fakeHost(withAccountAndCollections());
+    const component = renderFirstAccountRow(newTab(host));
+
+    component.choose("meine-nextcloud");
+
+    expect(host.settings.accounts[0]!.secretId).toBe("meine-nextcloud");
+    expect(host.secretWrites).toEqual([]);
+    expect(host.saved.length).toBeGreaterThan(0);
+  });
+
+  it("das X loest die Verknuepfung (Rueckruf mit null), ohne zu werfen", () => {
+    const host = fakeHost(withAccountAndCollections());
+    const component = renderFirstAccountRow(newTab(host));
+
+    expect(() => component.choose(null)).not.toThrow();
+
+    expect(host.settings.accounts[0]!.secretId).toBe("");
+    expect(host.secretWrites).toEqual([]);
+  });
+
+  it("beim Loeschen eines Kontos bleibt der Schluesselbund-Eintrag unangetastet", () => {
+    const host = fakeHost(withAccountAndCollections());
+    host.secrets.set("calendar-notes-a1", "geheim");
+    host.secretWrites.length = 0;
+    const tab = newTab(host);
+    (tab as unknown as { update(): void }).update = () => {};
+    (tab as unknown as { deleteAccount(id: string): void }).deleteAccount("a1");
+
+    expect(host.secretWrites).toEqual([]);
+    expect(host.secrets.get("calendar-notes-a1")).toBe("geheim");
   });
 });

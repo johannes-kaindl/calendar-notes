@@ -87,15 +87,18 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
     new Setting(host).setName(t("settings.accounts.baseUrl")).addText((c) => c.setValue(account.baseUrl).onChange((v) => this.updateAccount(account.id, { baseUrl: v })));
     new Setting(host).setName(t("settings.accounts.username")).addText((c) => c.setValue(account.username).onChange((v) => this.updateAccount(account.id, { username: v })));
 
+    // `SecretComponent` ist ein VERWEIS auf einen Schluesselbund-Eintrag, kein Passwortfeld:
+    // `setValue` nimmt die Secret-ID, und der Rueckruf liefert die ID des im Dialog gewaehlten
+    // bzw. neu angelegten Eintrags — nie dessen Wert; das X loest die Verknuepfung und ruft
+    // mit `null` zurueck. Obsidian schreibt den Wert selbst in den Schluesselbund; das Plugin
+    // merkt sich nur, WELCHER Eintrag zu diesem Konto gehoert. (Bis 0.1.4 wurde die
+    // zurueckgegebene ID als Passwort-Wert gespeichert — das Konto meldete sich dann mit dem
+    // Namen des Eintrags an und bekam von jedem Server 401.)
     const secretSetting = new Setting(host).setName(t("settings.accounts.password"));
     if (!this.host.secrets.has(account.secretId)) secretSetting.setDesc(t("settings.accounts.noSecret"));
-    new SecretComponent(this.app, secretSetting.controlEl).setValue(account.secretId).onChange((v) => {
-      try {
-        this.host.secrets.set(account.secretId, v);
-      } catch {
-        new Notice(t("notice.secretFailed"));
-      }
-    });
+    new SecretComponent(this.app, secretSetting.controlEl)
+      .setValue(account.secretId)
+      .onChange((secretId: string | null) => this.updateAccount(account.id, { secretId: secretId ?? "" }));
 
     new Setting(host).addButton((b) => b.setButtonText(t("settings.accounts.testButton")).onClick(() => void this.testAccount(account)));
   }
@@ -115,20 +118,13 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
 
   private deleteAccount(id: string): void {
     const s = this.host.settings;
-    const account = s.accounts.find((a) => a.id === id);
     const removedCollections = s.collections.filter((c) => c.accountId === id);
     this.host.settings = { ...s, accounts: s.accounts.filter((a) => a.id !== id), collections: s.collections.filter((c) => c.accountId !== id) };
     void this.host.saveSettings();
     for (const c of removedCollections) this.host.removeState(sourceOf(c));
-    // SecretStore/SecretStorage kennt keine echte "delete"-Operation (nur get/set/has) —
-    // best-effort mit leerem Wert ueberschreiben, statt so zu tun, als waere entfernt worden.
-    if (account) {
-      try {
-        this.host.secrets.set(account.secretId, "");
-      } catch {
-        /* best effort */
-      }
-    }
+    // Der Schluesselbund-Eintrag bleibt stehen: im Verweis-Modell gehoert er dem Nutzer (er hat
+    // ihn benannt, ein zweites Konto darf denselben nutzen), nicht diesem Konto. Entfernt wird
+    // er in Obsidians eigener Schluesselbund-Verwaltung.
     this.update();
   }
 
