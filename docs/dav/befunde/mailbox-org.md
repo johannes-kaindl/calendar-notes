@@ -189,3 +189,81 @@ Kalender-Anwendung selbst dort abgelegt, und der Erheber liest genau diesen Eint
 
 **Für die Bauplanung heißt das:** Die Frage, ob der Mail-Transport für iTIP-Einladungen
 gebraucht wird, ist noch **nicht** beantwortet. Der Transport-Vertrag bleibt bis dahin gültig.
+
+---
+
+## KORREKTUR zu Frage 1 (2026-08-27) — der Befund oben ist falsch
+
+**Kurzfassung: `dav.mailbox.org` nimmt sehr wohl ein App-Passwort. Es liegt nur in einem
+anderen Abschnitt der Oberfläche als der, in dem wir gesucht haben.**
+
+Das widerruft den Abschnitt „Frage 1 vollständig beantwortet" und die daraus abgeleitete
+Empfehlung. Wir haben euch einen falschen Befund geliefert; hier steht, was gilt und wie er
+zustande kam.
+
+### Was tatsächlich existiert
+
+Der Anbieter führt unter *Einstellungen → Sicherheit* **zwei getrennte** Passwort-Mechanismen:
+
+| Abschnitt | Vergibt |
+|---|---|
+| **E-Mail-App-Passwörter** | ausschließlich IMAP und SMTP — hier haben wir gemessen |
+| **Applikationspasswörter** | „zusätzliche Passwörter mit eingeschränktem Zugriff" |
+
+Die Auswahl des zweiten Abschnitts, aus dem Dokument ausgelesen:
+
+```
+Kalender- und Adressbuch-Client (CalDAV/CardDAV)   → value="dav"
+WebDAV-Client                                      → value="webdav"
+Drive Sync-App                                     → value="driveapp"
+Exchange ActiveSync                                → value="eas"
+```
+
+**Belegt ist auch, dass es funktioniert:** In der Liste der vorhandenen Applikationspasswörter
+steht ein Eintrag mit `Gerät: CALDAV` und einer erfolgreichen Anmeldung am 2026-08-27. Ein
+DAV-Client meldet sich damit tatsächlich an — das ist nicht nur ein Formularfeld.
+
+### Wie der Fehler zustande kam
+
+1. **Die Messung war richtig, der Schluss zu weit.** Dass ein *E-Mail*-App-Passwort mit 401
+   abgewiesen wird, stimmt weiterhin. Daraus wurde „App-Passwörter gehen für DAV nicht" — das
+   folgt nicht.
+2. **Die Anbieter-Anleitung führt am zweiten Mechanismus vorbei.** Der Onboarding-Assistent
+   nennt „Ihr Kontopasswort" und erwähnt Applikationspasswörter nicht. Wir hatten ihn als *die
+   belastbarere Quelle, weil sie nicht interpretiert werden muss* eingestuft. Er war belastbar,
+   aber unvollständig — und genau deshalb hat er den Fehler zementiert statt ihn aufzudecken.
+3. **Der Satz, an dem es kippte:** *„Eine gesonderte DAV-Freischaltung existiert nicht. Danach
+   wurde ausdrücklich gesucht."* Gesucht wurde im Abschnitt *E-Mail-App-Passwörter*. Dort steht
+   sie wirklich nicht. **Eine Abwesenheit an einer Stelle ist keine Abwesenheit.**
+
+Falls ihr eine Regel daraus mitnehmen wollt: Ein „gibt es nicht" braucht eine andere
+Beweisführung als ein „gibt es". Für die Existenz genügt ein Fund; für die Nichtexistenz muss
+man benennen können, wo überall gesucht wurde.
+
+### Was das für euer Plugin ändert
+
+1. **Basic-Auth bleibt richtig** — dieser Punkt war korrekt, kein OAuth-Pfad nötig.
+2. **Die Einstellungs-Warnung in ihrer bisherigen Form wird nicht gebraucht.** Der Fall, für
+   den sie gedacht war — „bei diesem Anbieter hängt am DAV-Zugang das ganze Konto samt
+   2FA-Umgehung" — **tritt nicht ein**, sofern ein Applikationspasswort verwendet wird.
+3. **Was stattdessen sinnvoll ist: ein Hinweis statt einer Warnung.** Etwa in der Art „Nutze
+   ein anwendungsspezifisches Passwort deines Anbieters, nicht dein Kontopasswort" — also
+   dieselbe Linie, die ihr für IMAP/SMTP ohnehin fahrt. Der Grund ist gut: Der
+   Einrichtungs-Assistent dieses Anbieters führt aktiv zum Kontopasswort, und wer ihm folgt,
+   landet genau in dem Zustand, vor dem die ursprüngliche Warnung schützen sollte. Der Hinweis
+   ist also weiterhin nützlich — nur ist er ein Ratschlag, keine Unvermeidbarkeitsmeldung.
+4. **Euer Vorschlag, die Warnung an eine Beobachtung statt an den Servernamen zu knüpfen,
+   bleibt richtig** und wird durch diesen Befund eher gestützt: Die Eigenschaft, an der ihr
+   festmachen wolltet — „kein widerrufbares Sekundär-Credential verfügbar" — trifft auf diesen
+   Anbieter **nicht** zu. Eine pauschale Warnung hätte hier falsch gewarnt.
+
+### Was sich für den Zeitplan ändert
+
+**Die Discovery-Erhebung ist wieder ausführbar.** Sie war hinter die Client-Einrichtung
+verschoben worden, weil wir kein Konto-Credential in ein zweites Depot legen wollten. Dieser
+Grund entfällt: Ein Applikationspasswort mit ausschließlich DAV-Zugriff ist genau das
+widerrufbare Sekundär-Credential, das dafür gefehlt hat.
+
+**Punkt C9 (Scheduling-Outbox) rückt damit näher** — er ist die Frage, die entscheidet, ob ihr
+den Mail-Transport für iTIP-Einladungen überhaupt braucht. Bis zur Antwort bleibt der
+Transport-Vertrag mit `mailstone` gültig; baut weiter.
