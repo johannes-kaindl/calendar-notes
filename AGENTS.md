@@ -188,6 +188,16 @@ versteht skalare Top-Level-Keys — für `type` und das Source-Feld genügt das,
   s. Abschnitt „Sammlungen" oben). Auffällig geworden ist er nicht am Code, sondern an einer
   Erhebung gegen den echten Server (`docs/dav/befunde/mailbox-org.md`, 2026-08-29) — dieselbe
   Lehre wie bei 0.1.4–0.1.7, nur eine Stufe später in der Kette.
+- **Stand 2026-08-29 (abends): 0.1.9, Rescan „Passed" / 0 Warnings** — vierte Höchstwertung
+  in Folge. Sechster Fix derselben Sorte und der bislang heikelste, weil er **ausschließlich
+  neue Nutzer** traf: eine **leere** Sammlung antwortet regulär mit selbstschließendem
+  `<D:multistatus/>`, `fast-xml-parser` macht daraus einen leeren **String**, und die
+  Wurzelknoten-Prüfung (`!ms || typeof ms !== "object"`) hielt das für eine fehlende Wurzel.
+  Betroffen war jede leere Sammlung — also genau der Zustand beim Ersteinrichten; bestehende
+  Nutzer sahen ihn nie. Gefunden wurde er erst, **nachdem die Fehlermeldung diagnostizierbar
+  gemacht wurde** (sie stand wortgleich an sieben Aufrufstellen und nannte weder Anfrage noch
+  Antwort); zwei direktere Wege scheiterten vorher. Beide Lehren in `_docs/LESSONS.md`
+  2026-08-29. Dazu die Settings-Überarbeitung aus dem Erstkontakt-Befund.
 - 498 Unit-Tests + 4 Integration-Tests (0 Warnings) — M5 fügt keine neue Fachlogik hinzu.
 
 ## Release-Checkliste
