@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.8] — 2026-08-29
+
 - **Fix (Sammlungen): Eine Aufgaben-Sammlung sah aus wie ein Kalender und wurde still nicht gespiegelt.** Server können `VEVENT` und `VTODO` in **getrennten** Sammlungen führen (bei mailbox.org ist das der Normalfall) — beide melden `<c:calendar/>` als Ressourcentyp, aber nur die eine nimmt Termine an. Welche das ist, sagt `supported-calendar-component-set`; das Plugin erhob die Eigenschaft zwar bei der Discovery, ließ sie danach aber fallen. Wer die Aufgaben-Sammlung aktivierte, bekam einen Lauf ohne Ergebnis und keinen Hinweis warum. Der Wert wird jetzt bis in die Einstellungen durchgereicht, eine Sammlung ohne `VEVENT` wird beim Sync mit `unsupported-components` übersprungen, und die Zeile in den Einstellungen sagt es. Sagt der Server nichts (Radicale etwa liefert die Eigenschaft nicht zwingend), ändert sich nichts — es wird nichts angenommen.
 
 ## [0.1.7] — 2026-08-25
