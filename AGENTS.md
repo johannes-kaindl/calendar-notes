@@ -41,6 +41,25 @@ Bis 0.1.4 wurde der Rückgabewert als Passwort gespeichert: jedes Konto meldete 
 (`~/Library/Application Support/obsidian/obsidian-<ver>.asar`) — s. `_docs/LESSONS.md`
 2026-08-25. **Der GUI-Smoke deckt diesen Pfad nicht ab** (Radicale läuft ohne Auth).
 
+## Sammlungen: der Ressourcentyp sagt nicht, was drin sein darf
+
+Eine Collection kann `<c:calendar/>` melden und trotzdem **keine Termine** annehmen — Server
+führen `VEVENT` und `VTODO` in getrennten Sammlungen (bei mailbox.org der Normalfall). Die
+Antwort steht in `supported-calendar-component-set`, und dieselbe Sorte Frage stellt sich
+zweimal daneben: `current-user-privilege-set` (ein Kalender kann read-only sein, obwohl er wie
+jeder andere aussieht) und Schedule-Inbox/-Outbox, die als Geschwister im selben Home-Set
+erscheinen und keine Kalender sind. **Alle drei auswerten, keine aus dem Ressourcentyp
+ableiten** — `collectionFromResponse()` (`src/core/dav/discovery.ts`) tut das.
+
+Erheben allein genügt aber nicht: `components` wurde von Anfang an gelesen und bis 2026-08-29
+**nirgends benutzt** — der Merge in `settings-tab.ts` ließ das Feld fallen, und eine
+Aufgaben-Sammlung war danach von einem Kalender nicht mehr zu unterscheiden. `holdsEvents()`
+(`src/core/settings.ts`) beantwortet die Frage jetzt für Sync **und** Einstellungen aus einer
+Quelle; sie liegt bewusst dort und nicht im Sync, weil eine wortlos übersprungene Sammlung
+schlimmer ist als eine, die gar nicht erst einschaltbar aussieht. Grundregel für alle drei
+Eigenschaften: **fehlt die Angabe, wird nichts angenommen** (Radicale liefert sie nicht
+zwingend).
+
 ## Was M1 liefert
 - DAV-Core Modul (`src/core/dav/`) mit Discovery, Collection-Sync, Multiget, Transport-Injection
 - ical.js-Parser und Mutationen für VEVENT (`src/core/ical/`)

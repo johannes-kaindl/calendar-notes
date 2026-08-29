@@ -245,6 +245,7 @@ export const EN: Record<string, string> = {
 
   "settings.collections.adoptButton": "Link existing notes…",
   "settings.collections.enabled": "Mirror",
+  "settings.collections.enabledNoEvents": "This collection holds no appointments — the server lists it as {0} only. Mirroring stays off; nothing would be found.",
   "settings.collections.folder": "Folder override",
   "settings.collections.folderDesc": "Leave empty to use the profile's folder.",
   "settings.collections.heading": "Collections",
@@ -526,6 +527,7 @@ export const DE: Record<string, string> = {
 
   "settings.collections.adoptButton": "Bestehende Notizen verknüpfen…",
   "settings.collections.enabled": "Spiegeln",
+  "settings.collections.enabledNoEvents": "Diese Sammlung führt keine Termine — der Server nennt nur {0}. Sie wird nicht gespiegelt; es wäre nichts zu finden.",
   "settings.collections.folder": "Ordner-Override",
   "settings.collections.folderDesc": "Leer lassen, um den Ordner des Profils zu verwenden.",
   "settings.collections.heading": "Sammlungen",

@@ -25,8 +25,30 @@ export interface CollectionConfig {
   profileId: string;
   folderOverride?: string;
   readOnly: boolean;
+  /** `supported-calendar-component-set` des Servers (z. B. `["VEVENT"]`, `["VTODO"]`).
+   *  Fehlt, wenn der Server nichts sagt — dann wird nichts angenommen. */
+  components?: string[];
   ctag?: string;
   syncToken?: string;
+}
+
+/**
+ * Kann diese Sammlung Termine tragen? Nur `supported-calendar-component-set` beantwortet
+ * das — die Ressourcentyp-Angabe (`<c:calendar/>`) tut es NICHT: mailbox.org fuehrt VEVENT
+ * und VTODO in getrennten Collections, die beide `calendar` sind, und die Aufgaben-Sammlung
+ * nimmt keine Termine an (Befund `docs/dav/befunde/mailbox-org.md`, 2026-08-29).
+ *
+ * Sagt der Server nichts (Feld fehlt — Radicale etwa liefert es nicht zwingend), wird nichts
+ * angenommen und die Sammlung laeuft normal. Adressbuecher kennen die Eigenschaft nicht.
+ *
+ * Liegt hier und nicht im Sync, weil die Einstellungen dieselbe Frage beantworten muessen:
+ * ein Nutzer, dem die Zeile nichts sagt, aktiviert sie und wartet auf einen Lauf, der
+ * wortlos uebersprungen wird.
+ */
+export function holdsEvents(col: CollectionConfig): boolean {
+  if (col.kind !== "calendar") return true;
+  if (!col.components?.length) return true;
+  return col.components.some((c) => c.toUpperCase() === "VEVENT");
 }
 
 export interface SyncSettings {
@@ -152,6 +174,8 @@ function normalizeCollections(raw: unknown, accountIds: Set<string>, profileIds:
       profileId: o["profileId"],
       readOnly: o["readOnly"] === true,
     };
+    const comps = o["components"];
+    if (Array.isArray(comps) && comps.length > 0 && comps.every((x) => typeof x === "string")) col.components = comps;
     if (typeof o["folderOverride"] === "string") col.folderOverride = o["folderOverride"];
     if (typeof o["ctag"] === "string") col.ctag = o["ctag"];
     if (typeof o["syncToken"] === "string") col.syncToken = o["syncToken"];

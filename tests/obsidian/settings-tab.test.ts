@@ -165,6 +165,45 @@ describe("CalendarNotesSettingTab.getSettingDefinitions", () => {
     expect(updated?.displayName).toBe("Contacts (renamed)");
     expect(host.settings.collections).toHaveLength(2);
   });
+
+  // Die Discovery erhebt `supported-calendar-component-set` seit jeher, der Merge liess
+  // den Wert aber fallen — eine reine VTODO-Collection war danach von einem gewoehnlichen
+  // Kalender nicht mehr zu unterscheiden (Befund mailbox.org, 2026-08-29).
+  it("discovery merge: components wird durchgereicht — bei neuen UND bei bestehenden Sammlungen", () => {
+    const settings = withAccountAndCollections();
+    const host = fakeHost(settings);
+    const tab = newTab(host);
+    const account = host.settings.accounts[0]!;
+    (tab as unknown as { mergeDiscoveredCollections(a: typeof account, r: unknown): void }).mergeDiscoveredCollections(account, {
+      principal: "p",
+      collections: [
+        { href: "https://dav.example/cal/", kind: "calendar", displayName: "Calendar", readOnly: false, components: ["VEVENT"] },
+        { href: "https://dav.example/todo/", kind: "calendar", displayName: "Tasks", readOnly: false, components: ["VTODO"] },
+      ],
+      warnings: [],
+    });
+    const existing = host.settings.collections.find((c) => c.id === "c1");
+    expect(existing?.components).toEqual(["VEVENT"]);
+    const fresh = host.settings.collections.find((c) => c.href === "https://dav.example/todo/");
+    expect(fresh?.components).toEqual(["VTODO"]);
+  });
+
+  // Liefert die Discovery die Eigenschaft diesmal nicht mit, darf ein frueher erhobener
+  // Wert nicht als Wahrheit stehenbleiben — sonst bleibt eine Sammlung dauerhaft gesperrt,
+  // nachdem der Server seine Angabe zurueckgezogen hat.
+  it("discovery merge: fehlende components-Angabe löscht den alten Wert", () => {
+    const settings = withAccountAndCollections();
+    settings.collections[0]!.components = ["VTODO"];
+    const host = fakeHost(settings);
+    const tab = newTab(host);
+    const account = host.settings.accounts[0]!;
+    (tab as unknown as { mergeDiscoveredCollections(a: typeof account, r: unknown): void }).mergeDiscoveredCollections(account, {
+      principal: "p",
+      collections: [{ href: "https://dav.example/cal/", kind: "calendar", displayName: "Calendar", readOnly: false }],
+      warnings: [],
+    });
+    expect(host.settings.collections.find((c) => c.id === "c1")?.components).toBeUndefined();
+  });
 });
 
 /** Zeichnet die erste Konto-Zeile und liefert deren `SecretComponent`. */

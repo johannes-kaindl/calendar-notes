@@ -71,7 +71,7 @@ export interface CollectionRunResult {
   error?: string;
   handEdited: { path: string; keys: string[] }[];
   strategy?: string;
-  skippedReason?: "disabled" | "no-secret" | "no-profile" | "busy";
+  skippedReason?: "disabled" | "no-secret" | "no-profile" | "busy" | "unsupported-components";
 }
 
 export interface RunResult {

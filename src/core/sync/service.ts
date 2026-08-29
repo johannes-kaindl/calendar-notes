@@ -3,7 +3,7 @@ import { refreshCollection } from "../dav/refresh";
 import { syncCollection, type SyncDelta } from "../dav/sync";
 import { applyDelta } from "../mirror/apply";
 import { windowFor, toDavTimeRange, type Window } from "../mirror/window";
-import { effectiveProfile, sourceOf, type CollectionConfig, type PluginSettings } from "../settings";
+import { effectiveProfile, holdsEvents, sourceOf, type CollectionConfig, type PluginSettings } from "../settings";
 import { withRun, type CollectionState, type RunInfo } from "../state/collection-state";
 import type { CollectionRunResult, RunResult, SyncDeps } from "./types";
 
@@ -30,10 +30,12 @@ function baseCollectionOf(col: CollectionConfig): DavCollection {
     kind: col.kind,
     displayName: col.displayName,
     readOnly: col.readOnly,
+    ...(col.components?.length ? { components: col.components } : {}),
     ...(col.ctag ? { ctag: col.ctag } : {}),
     ...(col.syncToken ? { syncToken: col.syncToken } : {}),
   };
 }
+
 
 /**
  * Orchestriert einen Sync-Lauf ueber alle (oder eine) konfigurierten Collections:
@@ -112,6 +114,7 @@ export class SyncService {
 
   private async processCollection(col: CollectionConfig, dryRun: boolean): Promise<CollectionRunResult> {
     if (!col.enabled) return skipped(col.id, dryRun, "disabled");
+    if (!holdsEvents(col)) return skipped(col.id, dryRun, "unsupported-components");
     const settings = this.deps.settings();
     const account = settings.accounts.find((a) => a.id === col.accountId);
     const profile = effectiveProfile(settings, col);

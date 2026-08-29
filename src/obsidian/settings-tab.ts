@@ -19,7 +19,7 @@ import {
 } from "obsidian";
 import type { DiscoveryResult } from "../core/dav/discovery";
 import { defaultEventProfile, validateProfile, type MappingProfile } from "../core/mirror/profile";
-import { newId, secretIdFor, sourceOf, type Account, type CollectionConfig, type PluginSettings } from "../core/settings";
+import { holdsEvents, newId, secretIdFor, sourceOf, type Account, type CollectionConfig, type PluginSettings } from "../core/settings";
 import type { RunInfo } from "../core/state/collection-state";
 import { t } from "../i18n/strings";
 import { FolderSuggest } from "../vendor/kit-obsidian/folder-suggest";
@@ -148,10 +148,14 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
       seenHrefs.add(dc.href);
       const prev = existingByHref.get(dc.href);
       if (prev) {
-        merged.push({ ...prev, displayName: dc.displayName, readOnly: dc.readOnly, ...(dc.ctag ? { ctag: dc.ctag } : {}), ...(dc.syncToken ? { syncToken: dc.syncToken } : {}) });
+        // `components` wird bewusst GESETZT ODER GELOESCHT (nicht wie ctag/syncToken nur bei
+        // Vorhandensein uebernommen): zieht der Server seine Angabe zurueck, bliebe eine
+        // Sammlung sonst dauerhaft gesperrt, weil der alte Wert als Wahrheit stehenbleibt.
+        const { components: _drop, ...rest } = prev;
+        merged.push({ ...rest, displayName: dc.displayName, readOnly: dc.readOnly, ...(dc.components?.length ? { components: dc.components } : {}), ...(dc.ctag ? { ctag: dc.ctag } : {}), ...(dc.syncToken ? { syncToken: dc.syncToken } : {}) });
       } else {
         const profileId = dc.kind === "calendar" ? "default-event" : "default-contact";
-        merged.push({ id: newId("col", () => this.host.rand()), accountId: account.id, href: dc.href, kind: dc.kind, displayName: dc.displayName, enabled: false, profileId, readOnly: dc.readOnly });
+        merged.push({ id: newId("col", () => this.host.rand()), accountId: account.id, href: dc.href, kind: dc.kind, displayName: dc.displayName, enabled: false, profileId, readOnly: dc.readOnly, ...(dc.components?.length ? { components: dc.components } : {}) });
       }
     }
     // Sammlungen dieses Kontos, die die Discovery diesmal NICHT zurueckgab (Server-seitig
@@ -193,7 +197,13 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
       type: "group",
       heading: c.displayName,
       items: [
-        { name: t("settings.collections.enabled"), control: { type: "toggle", key: `collections.${c.id}.enabled` } },
+        // Eine Sammlung, die keine Termine fuehrt, wird vom Sync uebersprungen — das muss an
+        // der Zeile stehen, sonst schaltet der Nutzer sie ein und wartet wortlos auf nichts.
+        {
+          name: t("settings.collections.enabled"),
+          ...(holdsEvents(c) ? {} : { desc: t("settings.collections.enabledNoEvents", (c.components ?? []).join(", ")) }),
+          control: { type: "toggle", key: `collections.${c.id}.enabled` },
+        },
         { name: t("settings.collections.profile"), control: { type: "dropdown", key: `collections.${c.id}.profileId`, options: profileOptions } },
         { name: t("settings.collections.folder"), desc: t("settings.collections.folderDesc"), render: (setting: Setting) => this.renderFolderOverride(setting, c) },
         { name: t("settings.collections.syncButton"), desc: this.statusDesc(c), action: () => this.host.syncNow(c.id) },

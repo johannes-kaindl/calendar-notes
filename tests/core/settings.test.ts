@@ -30,6 +30,20 @@ describe("settings", () => {
     const custom = { ...defaultSettings().profiles[0]!, id: "pallas", name: "Pallas" };
     expect(normalizeSettings({ profiles: [custom] }).profiles.map((p) => p.id)).toEqual(["pallas", "default-contact", "default-event"]);
   });
+  it("collections: components überlebt die Normalisierung, Müll wird verworfen", () => {
+    const base = { id: "c1", accountId: "a1", href: "https://d/k/", kind: "calendar", displayName: "K", enabled: true, profileId: "default-event", readOnly: false };
+    const parse = (extra: Record<string, unknown>) =>
+      normalizeSettings({
+        accounts: [{ id: "a1", name: "A", baseUrl: "https://d/", username: "u", secretId: "s" }],
+        collections: [{ ...base, ...extra }],
+      }).collections[0];
+    expect(parse({ components: ["VEVENT", "VTODO"] })?.components).toEqual(["VEVENT", "VTODO"]);
+    expect(parse({})?.components).toBeUndefined();
+    expect(parse({ components: [] })?.components).toBeUndefined();
+    expect(parse({ components: "VEVENT" })?.components).toBeUndefined();
+    expect(parse({ components: ["VEVENT", 42] })?.components).toBeUndefined();
+  });
+
   it("helpers", () => {
     expect(secretIdFor("a1")).toBe("calendar-notes-a1");
     let i = 0; const rand = () => [0.1, 0.5, 0.9][i++ % 3]!;

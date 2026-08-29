@@ -329,6 +329,58 @@ describe("SyncService", () => {
     expect(last?.collections[0]?.ok).toBe(false);
   });
 
+  // mailbox.org fuehrt VEVENT und VTODO in GETRENNTEN Collections; die Aufgaben-Collection
+  // nimmt keine Termine an (Befund docs/dav/befunde/mailbox-org.md, 2026-08-29). Ohne diese
+  // Pruefung sieht ein Nutzer sie als gewoehnlichen Kalender, aktiviert sie, und der Sync
+  // laeuft still ins Leere (kein VEVENT zu finden) bzw. der erste Schreibversuch in einen
+  // Serverfehler. `components` wurde bis dahin erhoben, aber nirgends ausgewertet.
+  it("Kalender-Collection ohne VEVENT-Unterstützung wird übersprungen, kein Transport-Aufruf", async () => {
+    const col = calendarCollection("todo1", { components: ["VTODO"] });
+    const settings = baseSettings([col]);
+    const t = addressbookTransport(col);
+    const { deps, notify } = makeDeps(settings, { acc1: t });
+    const service = new SyncService(deps);
+    const r = await service.runCollection("todo1");
+    expect(r.skippedReason).toBe("unsupported-components");
+    expect(t.calls).toEqual([]);
+    expect(notify.warns).toEqual([]);
+  });
+
+  it("Kalender-Collection MIT VEVENT (neben VTODO) läuft normal", async () => {
+    const col = calendarCollection("cal1", { components: ["VEVENT", "VTODO"] });
+    const settings = baseSettings([col]);
+    const t = addressbookTransport(col);
+    const { deps } = makeDeps(settings, { acc1: t });
+    const service = new SyncService(deps);
+    const r = await service.runCollection("cal1");
+    expect(r.skippedReason).toBeUndefined();
+    expect(t.calls.length).toBeGreaterThan(0);
+  });
+
+  // Sagt der Server nichts, wird nichts angenommen: Radicale und andere liefern die
+  // Eigenschaft nicht zwingend mit.
+  it("Kalender-Collection ohne components-Angabe wird NICHT übersprungen", async () => {
+    const col = calendarCollection("cal1");
+    const settings = baseSettings([col]);
+    const t = addressbookTransport(col);
+    const { deps } = makeDeps(settings, { acc1: t });
+    const service = new SyncService(deps);
+    const r = await service.runCollection("cal1");
+    expect(r.skippedReason).toBeUndefined();
+  });
+
+  // `supported-calendar-component-set` gibt es nur bei Kalendern — ein Adressbuch, das
+  // (warum auch immer) eine solche Liste traegt, darf daran nicht scheitern.
+  it("Adressbuch wird von der components-Prüfung nicht erfasst", async () => {
+    const col = addressbookCollection("ab1", { components: ["VTODO"] });
+    const settings = baseSettings([col]);
+    const t = addressbookTransport(col);
+    const { deps } = makeDeps(settings, { acc1: t });
+    const service = new SyncService(deps);
+    const r = await service.runCollection("ab1");
+    expect(r.skippedReason).toBeUndefined();
+  });
+
   it("disabled collection is skipped", async () => {
     const col = addressbookCollection("ab1", { enabled: false });
     const settings = baseSettings([col]);
