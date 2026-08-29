@@ -267,3 +267,109 @@ widerrufbare Sekundär-Credential, das dafür gefehlt hat.
 **Punkt C9 (Scheduling-Outbox) rückt damit näher** — er ist die Frage, die entscheidet, ob ihr
 den Mail-Transport für iTIP-Einladungen überhaupt braucht. Bis zur Antwort bleibt der
 Transport-Vertrag mit `mailstone` gültig; baut weiter.
+
+---
+## Erhebung gefahren — alle offenen Punkte beantwortet (2026-08-29, aus Teilprojekt ④)
+
+Der authentifizierte Lauf hat stattgefunden, mit einem Applikationspasswort nach der Korrektur
+vom 2026-08-27. Werkzeug war ein read-only-Erheber (nur `PROPFIND`, `REPORT`, `OPTIONS`).
+**Muster statt Werte:** Host, Kontokennung und Kalendernamen stehen hier nicht.
+
+### D11 — Auth: beantwortet
+
+`PROPFIND /` mit **Basic-Auth** und einem Applikationspasswort mit dem Recht `dav` → **HTTP 207**.
+Benutzername ist die Login-Mailadresse. Kein OAuth nötig.
+
+**Für eure Einstellungen heißt das:** Der Hinweistext lautet nicht mehr „bei diesem Anbieter
+hängt das ganze Konto am Kalenderzugang", sondern schlicht: *nimm das Applikationspasswort mit
+DAV-Recht, nicht das Kontopasswort und nicht das E-Mail-App-Passwort.* Ein E-Mail-App-Passwort
+wird hier mit `401` und `WWW-Authenticate: Basic realm="OX WebDAV"` abgewiesen — das ist ein
+plausibler Support-Fall, und die Fehlermeldung sagt es nicht.
+
+### C9 — Scheduling: der Server kann es selbst. **Das ist die wichtige Nachricht.**
+
+```
+schedule-outbox-URL:  vorhanden
+schedule-inbox-URL:   vorhanden
+DAV-Header (OPTIONS): … calendar-auto-schedule, calendar-schedule …
+```
+
+Zwei unabhängige Belege. Der Server verschickt Termineinladungen nach RFC 6638 selbst: Ein
+Client legt das Ereignis mit Teilnehmern in seiner Collection ab, der Versand passiert
+serverseitig.
+
+**Konsequenz für den Vertrag zwischen den beiden Plugins:** `calendar-notes` braucht für diesen
+Anbieter **keinen** Mail-Transport aus `mailstone`. Der iMIP-Weg samt der beiden
+DMARC-/SMTP-Auflagen aus dem Nachtrag vom 2026-08-23 entfällt hier ersatzlos. Die Auflagen
+bleiben nur relevant, falls ihr später einen Server ohne Auto-Schedule unterstützt.
+
+Ein Detail, das leicht zu übersehen ist: Der `calendar-user-address-set` des Principals hat
+**mehrere** Einträge (hier vier), nicht einen. Wer prüft, ob der eigene Nutzer Organisator eines
+Termins ist, muss gegen die ganze Menge vergleichen — sonst erkennt er eigene Termine unter einer
+Nebenadresse nicht als eigene.
+
+### A1–A4 — Discovery-Kette
+
+Läuft regelkonform nach RFC 6764: `.well-known` → `301` mit absoluter `Location` →
+`current-user-principal` auf `/` → Home-Sets per PROPFIND auf den Principal.
+
+| Stufe | Form |
+|---|---|
+| Principal | `/principals/users/<zahl>` |
+| Kalender-Home-Set | `/caldav/` |
+| Adressbuch-Home-Set | `/carddav/` |
+
+**Fallstrick:** Die Home-Sets sind **flache, kurze Pfade ohne Kontokennung**. Die Kennung steckt
+nur im Principal-Pfad. Wer den Collection-Pfad aus dem Principal zusammensetzt, statt ihn zu
+erfragen, baut hier eine falsche URL.
+
+Die rohen XML-Antworten liegen auf der Betriebsseite (nicht in diesem Repo — sie enthalten
+Kalendernamen). Falls ihr sie für Namespace-Prefixe braucht: anfragen, wir schicken eine
+entschärfte Fassung.
+
+### Collections — drei Eigenschaften, die einen Client brechen können
+
+1. **Die Pfad-Kennungen folgen keinem Schema.** Im selben Home-Set stehen nebeneinander
+   base64-artige Kennungen (`/caldav/<base64-artig>/`) und schlichte Zahlen (`/caldav/<zahl>/`),
+   bei den Adressbüchern durchweg Zahlen. Es gibt nichts abzuleiten — der Pfad muss aus der
+   Discovery kommen.
+2. **Nicht jeder Kalender ist beschreibbar.** Eine der Kalender-Collections liefert in
+   `current-user-privilege-set` nur `read` — eine aus den Kontakten abgeleitete Ansicht. Ein
+   Client, der alle Kalender gleich behandelt, läuft dort in einen Fehler beim ersten
+   Schreibversuch. **Das Privilege-Set auswerten, nicht die Ressourcentyp-Angabe allein.**
+3. **`VEVENT` und `VTODO` liegen in getrennten Collections.** Jede Collection nennt ihr
+   `supported-calendar-component-set`; die Aufgaben-Collection nimmt keine Termine an. Ebenfalls
+   auswerten statt annehmen.
+
+Neben den Nutzer-Collections erscheinen Schedule-Inbox und -Outbox als Geschwister im selben
+Home-Set. Sie tragen kein CTag und sind keine Kalender — beim Auflisten herausfiltern.
+
+### B5 — Sync: beides vorhanden
+
+`REPORT sync-collection` → **HTTP 207 mit `sync-token`**, geprüft an je einer Kalender- und einer
+Adressbuch-Collection. Zusätzlich führt jede Collection ein `getctag`. Ein Client kann also
+inkrementell abgleichen und den CTag als billigen Vorabtest nutzen, ob überhaupt etwas
+angefasst werden muss. Euer Kern-Verfahren (`sync-token` mit CTag/ETag-Fallback) passt ohne
+Anpassung.
+
+### B6 — Queries: angenommen, inhaltlich nicht belegt
+
+`calendar-query` mit `time-range` und `addressbook-query` liefern beide **HTTP 207**. Beide
+ergaben **0 Treffer**, weil die Collections zum Messzeitpunkt leer waren — der Datenumzug steht
+noch aus. Belegt ist damit, dass der Server die REPORTs annimmt und wohlgeformt antwortet;
+**nicht** belegt ist, dass die Filterung inhaltlich korrekt arbeitet.
+
+### B7 — `multiget`: **nicht geprüft**
+
+Braucht existierende Ressourcen-URLs. Wird nachgeholt, sobald die Collections befüllt sind.
+
+### B8 — ETag bei `PUT`: **nicht geprüft und in dieser Erhebung nicht prüfbar**
+
+Das Werkzeug kann grundsätzlich nicht schreiben — bewusste Bauentscheidung, kein Versäumnis.
+
+### D12 — Rate-Limits: keine aufgefallen
+
+Rund fünfzehn Requests in etwa einer Minute, darunter mehrere `PROPFIND` mit `Depth: 1`. Kein
+`429`, keine Verzögerung, kein `Retry-After`. Das ist eine Aussage über diese Größenordnung —
+**nicht** über einen Erstabgleich mit tausenden Ressourcen. Wer das wissen muss, misst es beim
+ersten vollen Sync.
