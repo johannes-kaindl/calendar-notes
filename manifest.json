@@ -1,7 +1,7 @@
 {
   "id": "calendar-notes",
   "name": "Calendar and Contact Notes",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "minAppVersion": "1.13.0",
   "description": "Mirror CalDAV events and CardDAV contacts as notes; the server stays the source of truth.",
   "author": "Johannes Kaindl",
