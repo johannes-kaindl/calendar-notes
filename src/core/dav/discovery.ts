@@ -22,7 +22,7 @@ export const COLLECTION_PROPS = [
 
 async function propfind(t: Transport, url: string, depth: "0" | "1", props: string[]): Promise<MsResponse[]> {
   const res = await t({ method: "PROPFIND", url, headers: { Depth: depth, ...XML }, body: propfindBody(props) });
-  if (res.status === 207) return parseMultistatus(res.text).responses;
+  if (res.status === 207) return parseMultistatus(res.text, `PROPFIND ${url}`).responses;
   throw new DavError(res.status, `PROPFIND ${url} → ${res.status}`, url);
 }
 
@@ -45,7 +45,7 @@ async function wellKnown(t: Transport, baseUrl: string, kind: "caldav" | "cardda
     return loc ? ensureTrailingSlash(resolveHref(url, loc)) : undefined;
   }
   if (res.status === 207) {
-    const self = parseMultistatus(res.text).responses[0]?.href;
+    const self = parseMultistatus(res.text, `PROPFIND ${url}`).responses[0]?.href;
     return ensureTrailingSlash(resolveHref(url, self && self !== "" ? self : url));
   }
   if (res.status === 401 || res.status === 403) throw new DavError(res.status, `Zugang verweigert (${res.status})`, url);

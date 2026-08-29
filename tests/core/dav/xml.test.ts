@@ -52,3 +52,45 @@ describe("helpers", () => {
     expect(statusCode(undefined)).toBeUndefined();
   });
 });
+
+describe("parseMultistatus — die Fehlermeldung muss diagnostizierbar sein", () => {
+  // Anlass: 2026-08-29 meldete das Plugin gegen mailbox.org "Antwort ist kein DAV:multistatus"
+  // — ohne zu sagen, WELCHE der sieben Aufrufstellen gescheitert war und was stattdessen kam.
+  // Damit war der Fehler aus der Meldung heraus nicht eingrenzbar.
+  it("nennt die Anfrage, deren Antwort nicht passt", () => {
+    expect(() => parseMultistatus("<html><body>Nope</body></html>", "REPORT https://dav.example/cal/"))
+      .toThrow(/REPORT https:\/\/dav\.example\/cal\//);
+  });
+
+  it("unterscheidet einen leeren Koerper von einem fremden Inhalt", () => {
+    expect(() => parseMultistatus("", "PROPFIND https://dav.example/")).toThrow(/Koerper ist leer/);
+    expect(() => parseMultistatus("<html><body>Fehlerseite</body></html>", "PROPFIND https://dav.example/"))
+      .toThrow(/beginnt mit: <html>/);
+  });
+
+  it("bleibt ohne Quellenangabe benutzbar", () => {
+    expect(() => parseMultistatus("<nope/>")).toThrow(/kein DAV:multistatus/);
+  });
+});
+
+describe("parseMultistatus — ein LEERER Multistatus ist gueltig, kein Fehler", () => {
+  // Eine leere Sammlung antwortet regulaer mit einem Wurzelknoten ohne Kinder. mailbox.org
+  // schickt ihn selbstschliessend; fast-xml-parser macht daraus einen leeren String, nicht
+  // ein leeres Objekt. Bis 2026-08-29 brach daran jeder Abgleich einer leeren Sammlung ab.
+  const LEER_SELBSTSCHLIESSEND =
+    '<?xml version="1.0" encoding="UTF-8"?>\n<D:multistatus xmlns:D="DAV:" xmlns:CAL="urn:ietf:params:xml:ns:caldav" />';
+  const LEER_MIT_ENDTAG = '<?xml version="1.0" encoding="UTF-8"?>\n<D:multistatus xmlns:D="DAV:"></D:multistatus>';
+
+  it("liefert fuer die selbstschliessende Form eine leere Antwortliste", () => {
+    expect(parseMultistatus(LEER_SELBSTSCHLIESSEND, "PROPFIND https://dav.example/cal/").responses).toEqual([]);
+  });
+
+  it("liefert fuer die Form mit Endtag ebenfalls eine leere Antwortliste", () => {
+    expect(parseMultistatus(LEER_MIT_ENDTAG).responses).toEqual([]);
+  });
+
+  it("wirft weiterhin, wenn gar kein multistatus da ist", () => {
+    expect(() => parseMultistatus("<html><body>Fehlerseite</body></html>", "PROPFIND https://dav.example/"))
+      .toThrow(/kein DAV:multistatus/);
+  });
+});

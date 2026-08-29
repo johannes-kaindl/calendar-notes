@@ -18,7 +18,7 @@ const MAILTO = /^mailto:/i;
 export async function discoverScheduling(t: Transport, principalUrl: string): Promise<SchedulingInfo> {
   const res = await t({ method: "PROPFIND", url: principalUrl, headers: { Depth: "0", ...XML }, body: propfindBody(SCHEDULING_PROPS) });
   if (res.status !== 207) throw new DavError(res.status, `PROPFIND ${principalUrl} → ${res.status}`, principalUrl);
-  const { responses } = parseMultistatus(res.text);
+  const { responses } = parseMultistatus(res.text, `PROPFIND ${principalUrl}`);
   const r0 = responses[0];
   const props = r0?.props ?? {};
 

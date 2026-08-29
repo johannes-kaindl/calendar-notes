@@ -53,10 +53,33 @@ export function hasChild(v: unknown, name: string): boolean {
   return Object.keys(v).some((k) => k.toLowerCase() === name.toLowerCase());
 }
 
-export function parseMultistatus(xml: string): Multistatus {
+/** Beschreibt einen Antwortkoerper so, dass man ihn wiedererkennt, ohne ihn zu drucken:
+ *  Laenge plus der Anfang mit zusammengefalteten Leerraeumen. Ein leerer Koerper und eine
+ *  HTML-Fehlerseite sehen in der Meldung dann verschieden aus — vorher sahen beide gleich aus. */
+function beschreibeKoerper(xml: string): string {
+  if (xml === "") return "der Koerper ist leer";
+  const anfang = xml.replace(/\s+/g, " ").trim().slice(0, 160);
+  return `${xml.length} Zeichen, beginnt mit: ${anfang}`;
+}
+
+/** `quelle` nennt die Anfrage, deren Antwort geparst wird (Methode + URL). Ohne sie ist die
+ *  Meldung nicht diagnostizierbar: `parseMultistatus` wird an sieben Stellen gerufen, und
+ *  welche davon gescheitert ist, stand nirgends. Gemessen 2026-08-29 an mailbox.org — der
+ *  Fehler trat auf, und weder Anfrage noch Antwort waren aus der Meldung ableitbar. */
+export function parseMultistatus(xml: string, quelle?: string): Multistatus {
   const doc = parser.parse(xml) as Record<string, unknown>;
-  const ms = doc["multistatus"] as Record<string, unknown> | undefined;
-  if (!ms || typeof ms !== "object") throw new Error("Antwort ist kein DAV:multistatus");
+  const roh = doc["multistatus"];
+  // NUR ein fehlender Wurzelknoten ist ein Fehler. Ein LEERER ist die regulaere Antwort auf
+  // eine leere Sammlung, und ein selbstschliessendes `<D:multistatus …/>` kommt aus
+  // fast-xml-parser als leerer STRING zurueck, nicht als Objekt — die alte Pruefung `!ms`
+  // hielt genau das fuer "kein Multistatus". Wirkung: jeder leere Kalender und jedes frisch
+  // angelegte Adressbuch brach den Abgleich mit einer Protokoll-Fehlermeldung ab.
+  // Gemessen 2026-08-29 an mailbox.org (dessen Kalender vor dem Datenumzug leer waren).
+  if (roh === undefined) {
+    const wo = quelle === undefined ? "" : ` auf ${quelle}`;
+    throw new Error(`Antwort${wo} ist kein DAV:multistatus (${beschreibeKoerper(xml)})`);
+  }
+  const ms: Record<string, unknown> = roh !== null && typeof roh === "object" ? (roh as Record<string, unknown>) : {};
   const responses: MsResponse[] = [];
   const raw = (ms["response"] as unknown[] | undefined) ?? [];
   for (const r of raw) {

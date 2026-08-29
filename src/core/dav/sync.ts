@@ -19,7 +19,7 @@ export async function multiget(t: Transport, col: DavCollection, hrefs: string[]
     const body = col.kind === "calendar" ? calendarMultigetBody(batch) : addressbookMultigetBody(batch);
     const res = await t({ method: "REPORT", url: col.href, headers: { Depth: "0", ...XML }, body });
     if (res.status !== 207) throw new DavError(res.status, `multiget ${col.href} → ${res.status}`, col.href);
-    for (const r of parseMultistatus(res.text).responses) {
+    for (const r of parseMultistatus(res.text, `REPORT multiget ${col.href}`).responses) {
       const data = textOf(r.props["calendar-data"]) ?? textOf(r.props["address-data"]);
       const etag = etagOf(r);
       if (data && etag) out.push({ href: resolveHref(col.href, r.href), etag, data });
@@ -37,7 +37,7 @@ async function listEtags(t: Transport, col: DavCollection, opts: SyncOptions): P
   }
   if (res.status !== 207) throw new DavError(res.status, `Listing ${col.href} → ${res.status}`, col.href);
   const etags: Record<string, string> = {};
-  for (const r of parseMultistatus(res.text).responses) {
+  for (const r of parseMultistatus(res.text, `PROPFIND Listing ${col.href}`).responses) {
     if (isCollectionResponse(r)) continue;
     const e = etagOf(r);
     if (e) etags[hrefPath(resolveHref(col.href, r.href))] = e;
@@ -49,7 +49,7 @@ async function viaSyncCollection(t: Transport, col: DavCollection, prev: SyncSna
   const res = await t({ method: "REPORT", url: col.href, headers: { Depth: "0", ...XML }, body: syncCollectionBody(prev?.syncToken) });
   if (res.status === 403 || res.status === 507 || res.status === 400) return undefined;    // Token ungültig/abgelaufen → Fallback
   if (res.status !== 207) throw new DavError(res.status, `sync-collection ${col.href} → ${res.status}`, col.href);
-  const ms = parseMultistatus(res.text);
+  const ms = parseMultistatus(res.text, `REPORT sync-collection ${col.href}`);
   const etags: Record<string, string> = { ...(prev?.etags ?? {}) };
   const toFetch: string[] = [];
   const deleted: string[] = [];
