@@ -60,6 +60,25 @@ schlimmer ist als eine, die gar nicht erst einschaltbar aussieht. Grundregel fü
 Eigenschaften: **fehlt die Angabe, wird nichts angenommen** (Radicale liefert sie nicht
 zwingend).
 
+### Die Zahlen nachrechnen, statt sie zu glauben — `scripts/vault-dryrun.ts`
+
+Die Punkte (b)–(e) oben ergeben Erwartungswerte („129 Kontakte, 24 Termine"), die eine
+Rollout-Vorbereitung als **Abbruchkriterium** benutzt. Sie altern mit dem Vault, und ohne
+Werkzeug rechnet sie beim nächsten Mal jemand von Hand nach. `scripts/vault-dryrun.ts` fährt
+dafür den **echten** `candidateNotes`/`countTypeExcluded` gegen ein echtes Vault — lesend, ohne
+Server, ohne laufendes Obsidian, in Sekunden:
+
+```
+npx tsx scripts/vault-dryrun.ts --vault <pfad> --folder <ordner> [--type <typ>] [--expect <n>]
+```
+
+`--expect` macht es scharf: bei Abweichung Exit-Code 1 statt einer Zahl, die man überliest.
+`--type` bildet `onCreate.type` nach — also genau den Schalter aus (b), der über 89 vs. 129
+entscheidet. Das Repo trägt bewusst **keine** Vault-Pfade; die konkreten Aufrufe stehen dort, wo
+die Vault-Spezifika hingehören (Rollout-Handover im Cockpit). Grenze: der Frontmatter-Leser
+versteht skalare Top-Level-Keys — für `type` und das Source-Feld genügt das, ein Ersatz für
+`sync-preview` im Plugin ist es nicht.
+
 ## Was M1 liefert
 - DAV-Core Modul (`src/core/dav/`) mit Discovery, Collection-Sync, Multiget, Transport-Injection
 - ical.js-Parser und Mutationen für VEVENT (`src/core/ical/`)
@@ -163,7 +182,8 @@ zwingend).
   Auth-/Discovery-Fixes, die erst am echten Server sichtbar wurden (CRLF im Passwort,
   `SecretComponent`-Verweis, dessen Altbestand-Reparatur, geratene Startadresse) — die
   beiden Abschnitte oben tragen die Lehren daraus.
-- **Stand 2026-08-29: 0.1.8 veröffentlicht, Rescan noch anzustoßen.** Fünfter Fix derselben
+- **Stand 2026-08-29: 0.1.8, Rescan „Passed“ / 0 Warnings** (dritte Höchstwertung in
+  Folge nach 0.1.3 und 0.1.7). Fünfter Fix derselben
   Sorte: eine Server-Eigenschaft wurde erhoben, aber nicht ausgewertet (VTODO-Sammlungen,
   s. Abschnitt „Sammlungen" oben). Auffällig geworden ist er nicht am Code, sondern an einer
   Erhebung gegen den echten Server (`docs/dav/befunde/mailbox-org.md`, 2026-08-29) — dieselbe
