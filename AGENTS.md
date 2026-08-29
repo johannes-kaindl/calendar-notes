@@ -163,6 +163,11 @@ zwingend).
   Auth-/Discovery-Fixes, die erst am echten Server sichtbar wurden (CRLF im Passwort,
   `SecretComponent`-Verweis, dessen Altbestand-Reparatur, geratene Startadresse) — die
   beiden Abschnitte oben tragen die Lehren daraus.
+- **Stand 2026-08-29: 0.1.8 veröffentlicht, Rescan noch anzustoßen.** Fünfter Fix derselben
+  Sorte: eine Server-Eigenschaft wurde erhoben, aber nicht ausgewertet (VTODO-Sammlungen,
+  s. Abschnitt „Sammlungen" oben). Auffällig geworden ist er nicht am Code, sondern an einer
+  Erhebung gegen den echten Server (`docs/dav/befunde/mailbox-org.md`, 2026-08-29) — dieselbe
+  Lehre wie bei 0.1.4–0.1.7, nur eine Stufe später in der Kette.
 - 498 Unit-Tests + 4 Integration-Tests (0 Warnings) — M5 fügt keine neue Fachlogik hinzu.
 
 ## Release-Checkliste
