@@ -67,18 +67,45 @@ function withAccountAndCollections(): PluginSettings {
 }
 
 describe("CalendarNotesSettingTab.getSettingDefinitions", () => {
-  it("returns the five groups in order: Konten, Sammlungen, Profile, Synchronisation, Aktionen", () => {
+  it("fuehrt die Gruppen in Reihenfolge, mit einer Einleitungszeile vor allen Gruppen", () => {
     const host = fakeHost(withAccountAndCollections());
     const tab = newTab(host);
     const defs = tab.getSettingDefinitions() as any[];
-    expect(defs.map((d) => d.heading)).toEqual(["Konten", "Sammlungen", "Profile", "Synchronisation", "Aktionen"]);
+    // Erstes Element ist die Einleitung ohne Ueberschrift (erklaert, was das Plugin ueberhaupt tut).
+    expect(defs[0].heading).toBeUndefined();
+    expect(defs[0].desc.length).toBeGreaterThan(0);
+    expect(defs.map((d) => d.heading).filter(Boolean)).toEqual([
+      "Konten",
+      "Kalender & Adressbücher",
+      "Profile — welches Feld gehört wohin",
+      "Abgleich",
+      "Darstellung",
+      "Aktionen",
+    ]);
+  });
+
+  // Eine `type: "list"` zaehlt onDelete/onReorder ueber den Index in `items`. Eine
+  // Erklaerzeile darin wuerde beim Loeschen das falsche Objekt treffen — deshalb duerfen
+  // die Listen NUR ihre eigenen Eintraege fuehren. Regressionsschutz fuer 2026-08-29.
+  it("Listen mit onDelete enthalten ausschliesslich ihre eigenen Eintraege", () => {
+    const host = fakeHost(withAccountAndCollections());
+    const defs = newTab(host).getSettingDefinitions() as any[];
+    const lists = defs.filter((d) => d.type === "list" && typeof d.onDelete === "function");
+    expect(lists.length).toBeGreaterThan(0);
+    for (const list of lists) {
+      for (const item of list.items) {
+        // Jede Zeile einer solchen Liste bildet genau ein loeschbares Objekt ab: sie zeichnet
+        // sich selbst (render). Eine reine Text-/Aktionszeile hat kein render und gehoert
+        // damit nicht hinein.
+        expect(typeof item.render).toBe("function");
+      }
+    }
   });
 
   it("account list has one item", () => {
     const host = fakeHost(withAccountAndCollections());
     const tab = newTab(host);
-    const defs = tab.getSettingDefinitions() as any[];
-    const accounts = defs[0];
+    const accounts = accountList(tab);
     expect(accounts.type).toBe("list");
     expect(accounts.items).toHaveLength(1);
   });
@@ -86,8 +113,7 @@ describe("CalendarNotesSettingTab.getSettingDefinitions", () => {
   it("without accounts, the account list shows an emptyState text", () => {
     const host = fakeHost(defaultSettings());
     const tab = newTab(host);
-    const defs = tab.getSettingDefinitions() as any[];
-    const accounts = defs[0];
+    const accounts = accountList(tab);
     expect(accounts.items).toHaveLength(0);
     expect(typeof accounts.emptyState).toBe("string");
     expect(accounts.emptyState.length).toBeGreaterThan(0);
@@ -97,14 +123,16 @@ describe("CalendarNotesSettingTab.getSettingDefinitions", () => {
     const host = fakeHost(withAccountAndCollections());
     const tab = newTab(host);
     const defs = tab.getSettingDefinitions() as any[];
-    const collectionsGroup = defs[1];
+    const collectionsGroup = defs.find((d) => d.heading === "Kalender & Adressbücher");
     expect(collectionsGroup.type).toBe("group");
     // Konto-Ebene ist eine navigierbare "page" (Obsidians SettingGroupItem-Typing erlaubt keine
     // verschachtelte Gruppe innerhalb einer Gruppe) — deren items sind wieder volle
     // SettingDefinitionItem[] und enthalten je Sammlung eine eigene Gruppe.
-    const accountGroup = collectionsGroup.items[0];
+    const accountGroup = collectionsGroup.items.find((i: any) => i.type === "page");
     expect(accountGroup.type).toBe("page");
-    expect(accountGroup.name).toBe("Home");
+    // Der Seitenname nennt das Konto UND die Anzahl — ohne den Zusatz las sich der
+    // Kontoname wie der Name einer einzelnen Sammlung (Erstkontakt-Befund 2026-08-29).
+    expect(accountGroup.name).toBe("Home — 2 gefunden");
     expect(accountGroup.items).toHaveLength(2); // Calendar + Contacts
 
     const calendarGroup = accountGroup.items.find((g: any) => g.heading === "Calendar");
@@ -207,10 +235,17 @@ describe("CalendarNotesSettingTab.getSettingDefinitions", () => {
 });
 
 /** Zeichnet die erste Konto-Zeile und liefert deren `SecretComponent`. */
+/** Die Konten-Liste, unabhaengig von ihrer Position in der Definitionsliste. */
+function accountList(tab: CalendarNotesSettingTab): any {
+  const defs = tab.getSettingDefinitions() as any[];
+  const list = defs.find((d) => d.heading === "Konten");
+  expect(list).toBeDefined();
+  return list;
+}
+
 function renderFirstAccountRow(tab: CalendarNotesSettingTab): SecretComponent {
   SecretComponent.instances.length = 0;
-  const defs = tab.getSettingDefinitions() as any[];
-  defs[0].items[0].render(new Setting(makeFakeEl()));
+  accountList(tab).items[0].render(new Setting(makeFakeEl()));
   const component = SecretComponent.instances[0];
   expect(component).toBeDefined();
   return component!;

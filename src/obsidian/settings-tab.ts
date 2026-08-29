@@ -61,7 +61,16 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
 
   // ── Die eine Wahrheit ────────────────────────────────────────────────────
   getSettingDefinitions(): SettingDefinitionItem[] {
-    return [this.accountsGroup(), this.collectionsGroup(), this.profilesGroup(), this.syncGroup(), this.actionsGroup()];
+    return [
+      { name: t("settings.accounts.intro"), desc: t("settings.accounts.introDesc") },
+      this.accountsGroup(),
+      this.collectionsGroup(),
+      this.profilesIntroGroup(),
+      this.profilesGroup(),
+      this.syncGroup(),
+      this.displayGroup(),
+      this.actionsGroup(),
+    ];
   }
 
   // ── Konten ───────────────────────────────────────────────────────────────
@@ -83,9 +92,9 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
 
   private renderAccountRow(setting: Setting, account: Account): void {
     const host = settingBodyHost(setting);
-    new Setting(host).setName(t("settings.accounts.name")).addText((c) => c.setValue(account.name).onChange((v) => this.updateAccount(account.id, { name: v })));
-    new Setting(host).setName(t("settings.accounts.baseUrl")).addText((c) => c.setValue(account.baseUrl).onChange((v) => this.updateAccount(account.id, { baseUrl: v })));
-    new Setting(host).setName(t("settings.accounts.username")).addText((c) => c.setValue(account.username).onChange((v) => this.updateAccount(account.id, { username: v })));
+    new Setting(host).setName(t("settings.accounts.name")).setDesc(t("settings.accounts.nameDesc")).addText((c) => c.setValue(account.name).onChange((v) => this.updateAccount(account.id, { name: v })));
+    new Setting(host).setName(t("settings.accounts.baseUrl")).setDesc(t("settings.accounts.baseUrlDesc")).addText((c) => c.setValue(account.baseUrl).onChange((v) => this.updateAccount(account.id, { baseUrl: v })));
+    new Setting(host).setName(t("settings.accounts.username")).setDesc(t("settings.accounts.usernameDesc")).addText((c) => c.setValue(account.username).onChange((v) => this.updateAccount(account.id, { username: v })));
 
     // `SecretComponent` ist ein VERWEIS auf einen Schluesselbund-Eintrag, kein Passwortfeld:
     // `setValue` nimmt die Secret-ID, und der Rueckruf liefert die ID des im Dialog gewaehlten
@@ -95,12 +104,15 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
     // zurueckgegebene ID als Passwort-Wert gespeichert — das Konto meldete sich dann mit dem
     // Namen des Eintrags an und bekam von jedem Server 401.)
     const secretSetting = new Setting(host).setName(t("settings.accounts.password"));
-    if (!this.host.secrets.has(account.secretId)) secretSetting.setDesc(t("settings.accounts.noSecret"));
+    secretSetting.setDesc(this.host.secrets.has(account.secretId) ? t("settings.accounts.passwordDesc") : `${t("settings.accounts.noSecret")} ${t("settings.accounts.passwordDesc")}`);
     new SecretComponent(this.app, secretSetting.controlEl)
       .setValue(account.secretId)
       .onChange((secretId: string | null) => this.updateAccount(account.id, { secretId: secretId ?? "" }));
 
-    new Setting(host).addButton((b) => b.setButtonText(t("settings.accounts.testButton")).onClick(() => void this.testAccount(account)));
+    new Setting(host)
+      .setName(t("settings.accounts.testButton"))
+      .setDesc(t("settings.accounts.testButtonDesc"))
+      .addButton((b) => b.setButtonText(t("settings.accounts.testButton")).onClick(() => void this.testAccount(account)));
   }
 
   private updateAccount(id: string, patch: Partial<Account>): void {
@@ -180,12 +192,16 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
   // ihrerseits Gruppen (je Sammlung) enthalten.
   private collectionsGroup(): SettingDefinitionGroup {
     const s = this.host.settings;
-    const items: SettingGroupItem[] = [];
+    const items: SettingGroupItem[] = [{ name: t("settings.collections.intro"), desc: t("settings.collections.introDesc") }];
     for (const account of s.accounts) {
       const cols = s.collections.filter((c) => c.accountId === account.id);
       if (cols.length === 0) continue;
-      items.push({ type: "page", name: account.name, items: cols.map((c) => this.collectionGroup(c, s)) });
+      // Die Seite traegt den KONTOnamen, weil eine Obsidian-Gruppe keine Gruppe enthalten darf
+      // (nur Seiten). Ohne Zusatz liest sich der Kontoname wie der Name einer Sammlung — genau
+      // dieser Eindruck entstand beim Erstkontakt 2026-08-29 ("sieht aus, als haette ich nur eine").
+      items.push({ type: "page", name: t("settings.collections.accountPage", account.name, String(cols.length)), items: cols.map((c) => this.collectionGroup(c, s)) });
     }
+    if (items.length === 1) items.push({ name: t("settings.collections.empty") });
     return { type: "group", heading: t("settings.collections.heading"), items };
   }
 
@@ -201,13 +217,13 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
         // der Zeile stehen, sonst schaltet der Nutzer sie ein und wartet wortlos auf nichts.
         {
           name: t("settings.collections.enabled"),
-          ...(holdsEvents(c) ? {} : { desc: t("settings.collections.enabledNoEvents", (c.components ?? []).join(", ")) }),
+          desc: holdsEvents(c) ? t("settings.collections.enabledDesc") : t("settings.collections.enabledNoEvents", (c.components ?? []).join(", ")),
           control: { type: "toggle", key: `collections.${c.id}.enabled` },
         },
-        { name: t("settings.collections.profile"), control: { type: "dropdown", key: `collections.${c.id}.profileId`, options: profileOptions } },
+        { name: t("settings.collections.profile"), desc: t("settings.collections.profileDesc"), control: { type: "dropdown", key: `collections.${c.id}.profileId`, options: profileOptions } },
         { name: t("settings.collections.folder"), desc: t("settings.collections.folderDesc"), render: (setting: Setting) => this.renderFolderOverride(setting, c) },
         { name: t("settings.collections.syncButton"), desc: this.statusDesc(c), action: () => this.host.syncNow(c.id) },
-        { name: t("settings.collections.adoptButton"), action: () => this.host.adopt(c.id) },
+        { name: t("settings.collections.adoptButton"), desc: t("settings.collections.adoptButtonDesc"), action: () => this.host.adopt(c.id) },
       ],
     };
   }
@@ -235,6 +251,19 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
   }
 
   // ── Profile ──────────────────────────────────────────────────────────────
+  /** Erklaerung + der Weg zum ersten Profil. Bewusst NICHT in `profilesGroup()`: dort wuerde
+   *  jede Fremdzeile die `onDelete`-Indizes der Liste verschieben. */
+  private profilesIntroGroup(): SettingDefinitionGroup {
+    return {
+      type: "group",
+      heading: t("settings.profiles.heading"),
+      items: [
+        { name: t("settings.profiles.intro"), desc: t("settings.profiles.introDesc") },
+        { name: t("settings.profiles.fromNote"), desc: t("settings.profiles.fromNoteDesc"), action: () => this.host.profileFromActiveNote() },
+      ],
+    };
+  }
+
   private profilesGroup(): SettingDefinitionList {
     const s = this.host.settings;
     const items: SettingGroupItem[] = s.profiles.map((p) => ({
@@ -244,7 +273,6 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
     }));
     return {
       type: "list",
-      heading: t("settings.profiles.heading"),
       items,
       emptyState: t("settings.profiles.empty"),
       onDelete: (index) => this.deleteProfile(s.profiles[index]!.id),
@@ -347,17 +375,30 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
   // ── Synchronisation ──────────────────────────────────────────────────────
   private syncGroup(): SettingDefinitionGroup {
     const items: SettingGroupItem[] = [
-      { name: t("settings.sync.intervalMinutes"), control: { type: "number", key: "sync.intervalMinutes", min: 0 } },
-      { name: t("settings.sync.mobileIntervalMinutes"), control: { type: "number", key: "sync.mobileIntervalMinutes", min: 0 } },
-      { name: t("settings.sync.pastDays"), control: { type: "number", key: "sync.pastDays", min: 0 } },
-      { name: t("settings.sync.futureDays"), control: { type: "number", key: "sync.futureDays", min: 0 } },
-      { name: t("settings.sync.startupDelaySeconds"), control: { type: "number", key: "sync.startupDelaySeconds", min: 0 } },
-      {
-        name: t("settings.sync.language"),
-        control: { type: "dropdown", key: "language", options: { auto: t("settings.sync.languageAuto"), de: "Deutsch", en: "English" } },
-      },
+      { name: t("settings.sync.intervalMinutes"), desc: t("settings.sync.intervalMinutesDesc"), control: { type: "number", key: "sync.intervalMinutes", min: 0 } },
+      { name: t("settings.sync.mobileIntervalMinutes"), desc: t("settings.sync.mobileIntervalMinutesDesc"), control: { type: "number", key: "sync.mobileIntervalMinutes", min: 0 } },
+      { name: t("settings.sync.pastDays"), desc: t("settings.sync.pastDaysDesc"), control: { type: "number", key: "sync.pastDays", min: 0 } },
+      { name: t("settings.sync.futureDays"), desc: t("settings.sync.futureDaysDesc"), control: { type: "number", key: "sync.futureDays", min: 0 } },
+      { name: t("settings.sync.startupDelaySeconds"), desc: t("settings.sync.startupDelaySecondsDesc"), control: { type: "number", key: "sync.startupDelaySeconds", min: 0 } },
     ];
     return { type: "group", heading: t("settings.sync.heading"), items };
+  }
+
+  // ── Darstellung ──────────────────────────────────────────────────────────
+  // Die Sprachwahl stand bis 2026-08-29 unter "Synchronisation" — dort sucht sie niemand,
+  // und sie hat mit dem Abgleich nichts zu tun (Erstkontakt-Befund B5).
+  private displayGroup(): SettingDefinitionGroup {
+    return {
+      type: "group",
+      heading: t("settings.display.heading"),
+      items: [
+        {
+          name: t("settings.sync.language"),
+          desc: t("settings.sync.languageDesc"),
+          control: { type: "dropdown", key: "language", options: { auto: t("settings.sync.languageAuto"), de: "Deutsch", en: "English" } },
+        },
+      ],
+    };
   }
 
   // ── Aktionen ─────────────────────────────────────────────────────────────
@@ -366,8 +407,8 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
       type: "group",
       heading: t("settings.actions.heading"),
       items: [
-        { name: t("settings.actions.syncAll"), action: () => this.host.syncNow() },
-        { name: t("settings.actions.preview"), action: () => this.host.preview() },
+        { name: t("settings.actions.preview"), desc: t("settings.actions.previewDesc"), action: () => this.host.preview() },
+        { name: t("settings.actions.syncAll"), desc: t("settings.actions.syncAllDesc"), action: () => this.host.syncNow() },
       ],
     };
   }

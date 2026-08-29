@@ -84,10 +84,15 @@ Erklären.
 > profile-from-note Prinzip funktioniert, also dass man ein Notiz öffnen oder anlegen soll,
 > und dass man dann das schema der aktiven Notiz übernehmen kann."
 
-Der zentrale Einrichtungsschritt existiert **nur als Kommando** (`profile-from-note`) und ist
-in den Einstellungen mit keinem Wort vertreten. Wer die Settings öffnet, um das Plugin
-einzurichten, kann den Weg nicht finden. Das ist der schwerste Einzelbefund, weil er nicht
-Verständlichkeit betrifft, sondern **Erreichbarkeit**.
+**Korrektur zur ersten Fassung dieses Befunds:** Hier stand, der Schritt sei „in den
+Einstellungen mit keinem Wort vertreten". Das war falsch — es gibt ihn, als
+`extraButton` der Profil-Liste (`settings-tab.ts:254`). Er ist ein **unbeschriftetes
+Zauberstab-Icon**, dessen Bedeutung erst beim Darüberfahren erscheint.
+
+Der Befund wird dadurch nicht schwächer, sondern präziser: der zentrale Einrichtungsschritt
+war ein Icon ohne Text neben zwei anderen Icons. Dass der Autor ihn beim Suchen nicht fand,
+ist die Messung. Das ist der schwerste Einzelbefund, weil er nicht Verständlichkeit betrifft,
+sondern **Erreichbarkeit** — und weil ein Tooltip auf Mobilgeräten gar nicht existiert.
 
 ### B7 · Keine mitgelieferten Schemata, keine Antwort auf „was ist das für ein Kalender?"
 > „Ich denke wir müssen auch irgendwie Schemata als Standard anbieten, bzw. die Möglichkeit
