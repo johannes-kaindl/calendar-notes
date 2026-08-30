@@ -292,6 +292,41 @@ async function checkP1(cdp: Cdp): Promise<void> {
   }
 }
 
+// ── P2a: Gegenprobe — falsches Passwort MUSS scheitern ───────────────────
+// Anlass ist der 401-Fehler vom 2026-08-25 (SecretComponent.onChange liefert die Secret-ID,
+// nicht das Passwort — Fix in 0.1.5/0.1.6): kein Test und kein Pruefpunkt hat ihn gesehen.
+// Ein Pruefpunkt, der nur den Erfolgsfall kennt, haette auch den kaputten 0.1.4-Stand gruen
+// gemeldet — er belegt nicht, dass Auth wirkt, sondern nur, dass irgendetwas antwortet.
+// Die Fixture-Auth traegt das: `fixtures/radicale/config` faehrt `htpasswd` + `owner_only`,
+// gemessen 2026-08-30 (ohne Header 401, falsches Passwort 401, falscher Benutzer 401,
+// test:test 207). Geprueft wird zusaetzlich, dass die Meldung den Status NENNT — eine
+// Fehlermeldung, die den Grund verschweigt, hat am 2026-08-29 einen ganzen Tag gekostet
+// (s. _docs/LESSONS.md, "Wenn zwei direkte Wege scheitern …").
+async function checkP2aAuth(cdp: Cdp, radicale: RunningServer): Promise<void> {
+  try {
+    const r = await cdp.evaluate<{ threw: boolean; msg: string }>(`
+      const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      const account = plugin.settings.accounts.find((a) => a.id === ${JSON.stringify(ACCOUNT_ID)});
+      await app.secretStorage.setSecret(${JSON.stringify(SECRET_ID)}, "definitiv-falsches-passwort");
+      let threw = false, msg = "";
+      try {
+        await plugin.discoverAccount(account);
+      } catch (e) {
+        threw = true;
+        msg = String((e && e.message) || e);
+      }
+      // Richtiges Passwort zuruecksetzen, sonst scheitert jeder folgende Pruefpunkt an DIESER
+      // Manipulation statt an seinem eigenen Gegenstand.
+      await app.secretStorage.setSecret(${JSON.stringify(SECRET_ID)}, ${JSON.stringify(radicale.pass)});
+      return { threw, msg };
+    `);
+    const nennt401 = /401/.test(r.msg);
+    record("P2a", "Gegenprobe: falsches Passwort scheitert (401)", r.threw && nennt401, `warf=${r.threw}, Meldung nennt 401=${nennt401}, Meldung: ${JSON.stringify(r.msg.slice(0, 200))}`);
+  } catch (e) {
+    record("P2a", "Gegenprobe: falsches Passwort scheitert (401)", false, e instanceof Error ? e.message : String(e));
+  }
+}
+
 // ── P2: Konto + Discovery ────────────────────────────────────────────────
 async function checkP2(info: DiscoverInfo, variant: "generic" | "pallas"): Promise<void> {
   const ok = info.collections === 2 && info.warnings === 0 && info.calendarId !== "" && info.addressbookId !== "";
@@ -951,6 +986,9 @@ async function main(): Promise<void> {
 
     await checkP1(cdp);
     await seedAccount(cdp, radicale);
+    // Gegenprobe VOR der echten Discovery: sie stellt das richtige Passwort selbst wieder her,
+    // und P2 belegt danach den Erfolgsfall — erst beide zusammen sagen etwas ueber Auth aus.
+    await checkP2aAuth(cdp, radicale);
     const discovery = await discoverAndMerge(cdp);
     await checkP2(discovery, section);
 
