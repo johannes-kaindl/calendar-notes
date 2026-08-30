@@ -69,6 +69,7 @@ ausgewählt wird; mehrere offene Vault-Fenster erzwingen eine eindeutige Auswahl
 | # | Titel | Wie gemessen |
 |---|---|---|
 | P1 | Laden | `Object.keys(app.commands.commands)` → 10 `calendar-notes:*`-Kommandos (5 aus M1–M3 + 5 seit M4: `run-on-note`/`new-event`/`new-contact`/`undo-last-change`/`push-hand-edits`); `app.setting.pluginTabs.find(id).getSettingDefinitions()` → 6 **benannte** Gruppen (Konten/Kalender & Adressbücher/Profile — welches Feld gehört wohin/Abgleich/Darstellung/Aktionen; Definitionen ohne `heading` werden vorher herausgefiltert). Stand 0.1.9 — die Liste ist wörtlich und soll rot werden, wenn sich die Oberfläche ändert |
+| P2b | Auth über den echten UI-Weg | Läuft **vor** `seedAccount` und richtet sein eigenes Konto durch die Oberfläche ein: „+“ an der Konten-Überschrift (ein `.clickable-icon[aria-label]`, **kein** `<button>`) → Name/Server-Adresse/Benutzername in die Textfelder (mit `input`-Event, sonst läuft der `onChange` nicht) → an der Passwort-Zeile „Link…“ → Obsidian-Modal `.modal.mod-secret` → „Add secret…“ → Felder `ID` und `Secret` → Save. Zusicherung ist **nicht** „`secretId` ist gesetzt“, sondern dass `plugin.discoverAccount` danach **antwortet** (kein Wurf, ≥1 Sammlung). Grund, gemessen: mit dem nachgestellten 0.1.4-Defekt meldet der Punkt `"Zugang verweigert (401)"` **bei korrekt gesetzter `secretId`** — die naheliegende Zusicherung wäre in genau diesem Lauf grün gewesen. Räumt Konto, Sammlungen und Schlüsselbund-Eintrag selbst wieder weg, **und zwar auch vorher**: `deleteSecret` statt `setSecret("")` — ein nur geleerter Eintrag kollidiert beim nächsten „Add secret“ und lässt das Konto still auf `secretIdFor(account)` zurückfallen (Symptom: „No keychain entry is linked to this account“ statt 401). Erster Lauf grün, jeder weitere rot — genau so gemessen |
 | P2a | Gegenprobe Auth | Läuft **vor** P2: Secret auf ein falsches Passwort setzen, `plugin.discoverAccount(account)` muss **werfen**, und die Meldung muss den Status **nennen** (`401`); danach setzt der Prüfpunkt das richtige Passwort selbst zurück. Radicale läuft dafür mit `htpasswd`-Auth (`fixtures/radicale/config`, Nutzer `test:test`, `rights = owner_only`). Erst P2a und P2 zusammen sagen etwas über Auth aus — ein Prüfpunkt, der nur den Erfolgsfall kennt, hätte auch den kaputten 0.1.4-Stand grün gemeldet |
 | P2 | Konto + Discovery | Konto anlegen, Secret setzen, `plugin.discoverAccount(account)` + `plugin.settingTab.mergeDiscoveredCollections(...)` → 2 Sammlungen, 0 Warnungen. Läuft in **beiden** Sektionen — `generic` mit den Standard-Profilen (`default-contact`/`default-event`), `pallas` mit aus Pallas-Notizen abgeleiteten Profilen (`plugin.createProfileFromNote(kind, file)`) |
 | P3 | Adoption (nur `--section pallas`) | `plugin.startAdoption(collectionId)` öffnet die echte AdoptionModal (vorbelegt: sure/likely → link, weak → skip, `defaultAction` in `adoption-modal.ts`); der Treiber klickt nur den vorbelegten „Verknüpfen“-Button (`.modal-container .mod-cta`), ohne Dropdowns zu ändern. Danach `plugin.service.runAll()` — verknüpfte Notizen werden aktualisiert statt neu angelegt, freier Body bleibt erhalten. |
@@ -166,8 +167,43 @@ sparen:
    danach aufgeschlagen — beim Versuch, einen Eintrag zu ergänzen, der schon dastand. Vor der
    Ursachensuche gehört der Blick in die REGISTRY, nicht davor die eigene Hypothese.
 
+## Ein deklarativer Settings-Tab lässt sich vom Workspace-Target aus bedienen
+
+Beim Bau von P2b (2026-08-30) gemessen, weil drei Annahmen im Weg standen — alle drei waren falsch:
+
+1. **Der Tab zeichnet nicht nach.** Er ist deklarativ (`getSettingDefinitions()`, kein
+   `display()` — s. Kopf von `settings-tab.ts`); ein `display()`-Aufruf ist wirkungslos, und ein
+   bereits offener Tab zeigt ein neu angelegtes Konto **nicht**. Wer den Kontostand ändert, muss
+   `app.setting.close()` → warten → `open()` + `openTabById()` fahren. Symptom sonst: der
+   Empty-State „No account yet." steht da, während `settings.accounts.length === 1` gilt.
+2. **Es braucht keine zweite CDP-Verbindung.** Das Settings-DOM hängt in einem eigenen Fenster
+   (`containerEl.ownerDocument !== document`, Fenstertitel „Settings - …"), ist aber über
+   `plugin.settingTab.containerEl` aus dem **Workspace-Target** vollständig erreichbar — lesend
+   wie klickend. Damit entfällt die Identitätsfrage, welches von mehreren Einstellungen-Fenstern
+   `attachTo("settings")` erwischt: die Brücke trennt nach Vault, nicht nach Fenster. P8 nutzt
+   weiterhin den zweiten Weg (er will einen Screenshot des Fensters); für alles andere ist
+   `containerEl` der kürzere und eindeutige.
+3. **Der Secret-Dialog blockiert nichts.** „Link…" öffnet ein normales Obsidian-Modal
+   (`.modal.mod-secret`, „Select secret" → „Add secret" mit den Feldern `ID`/`Secret`), kein
+   nativer Dialog: der Renderer antwortet, während es offen steht. Das war die Frage, an der der
+   Prüfpunkt zwei Sessions lang hing.
+
+⚠️ Und ein vierter Befund, der nichts mit Obsidian zu tun hat, sondern mit Prüfpunkten: **der
+erste grüne Lauf war ein Zufall.** P2b legte sein Secret an und *leerte* es beim Aufräumen
+(`setSecret(id, "")`) statt es zu löschen; ab Lauf 2 kollidierte die ID im „Add secret"-Dialog,
+die Verknüpfung unterblieb still, und das Konto fiel auf `secretIdFor(account)` zurück. Gefunden
+wurde das nur, weil nach der Gegenprobe **erneut grün** erwartet und stattdessen rot gemessen
+wurde. Ein Prüfpunkt, der einmal grün war, ist nicht wiederholbar — das ist eine eigene Zusage,
+und sie kostet zwei Läufe hintereinander.
+
 ## Läufe
 
+- **2026-08-31, Lauf mit P2b** — Obsidian 1.13.7, macOS, Commit vor dem P2b-Commit.
+  `--section generic` **14/14**, zweimal hintereinander (Wiederholbarkeit), und mit
+  `--focus` **15/15**. Gegenprobe gefahren: `onChange` auf den 0.1.4-Fehler zurückgedreht,
+  gebaut, deployt, Plugin per `disablePlugin`/`enablePlugin` neu geladen → **P2b rot**
+  (`"Zugang verweigert (401)"`, `Sammlungen=0`, `secretId` korrekt gesetzt), P2a und P2
+  blieben grün. Zurückgedreht → wieder 14/14.
 - **2026-08-22, Lauf 1** — Obsidian 1.13.7, macOS, Commit `bbd9fe0`. `--setup` +
   `--section generic` (8/8) + `--section pallas` (2/4 — P3/P3b rot, Fixture/Matcher-Befund
   oben, seither behoben).

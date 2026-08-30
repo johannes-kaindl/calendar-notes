@@ -121,6 +121,12 @@ beim Anzeigen `\Seen` setzt, zerstört Zustand, auf den andere Dienste sich verl
 
 ## Frage 1 vollständig beantwortet (2026-08-23, aus Teilprojekt ④)
 
+> [!warning] ÜBERHOLT — dieser Abschnitt ist als Messprotokoll erhalten, nicht als Anweisung.
+> Die Kurzfassung unten ist **falsch**; richtig ist ein **Applikationspasswort mit dem Recht
+> `dav`**. Widerlegt in § „KORREKTUR zu Frage 1 (2026-08-27)" und gemessen bestätigt in
+> § „D11 — Auth" (2026-08-29): `PROPFIND /` mit App-Passwort → **207**. Wer nur diesen
+> Abschnitt liest, richtet das Konto falsch ein und bekommt ein nacktes 401.
+
 **Kurzfassung: `dav.mailbox.org` nimmt kein App-Passwort. Es verlangt das Kontopasswort.**
 Basic-Auth, kein OAuth. Damit ist die Verzweigung entschieden, an der die geplante
 Einstellungs-Warnung hängt — **der Fall ist eingetreten.**

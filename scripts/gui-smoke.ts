@@ -44,6 +44,7 @@ import {
   notices,
   pollUntil,
   releaseAlwaysOnTop,
+  requireUntil,
   requireVisible,
 } from "../../tools/obsidian-cdp/cdp.js";
 import { buildVault, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
@@ -82,6 +83,19 @@ const DISCOVER_BUTTON_LABELS = ["Test connection and find calendars", "Verbindun
 const COLLECTION_PICKER_LABELS = ["Found — what should be mirrored?", "Gefunden — was soll gespiegelt werden?"];
 
 const ACCOUNT_NAME = "Smoke";
+
+// P2b geht den Weg des Nutzers durch die Oberflaeche — deshalb braucht er die Beschriftungen
+// beider Sprachen (der Staging-Vault laeuft auf Englisch, ein fremder Rechner kann Deutsch
+// stehen haben). Die Obsidian-EIGENEN Beschriftungen im Secret-Dialog ("Add secret…", "Save")
+// folgen der APP-Sprache, nicht der Plugin-Sprache; sie werden deshalb tolerant per Regex
+// gesucht und nicht gegen eine Liste geprueft.
+const ADD_ACCOUNT_LABELS = ["Add account", "Konto hinzufügen"];
+const FIELD_NAME_LABELS = ["Name"];
+const FIELD_BASEURL_LABELS = ["Server address", "Server-Adresse"];
+const FIELD_USERNAME_LABELS = ["Username", "Benutzername"];
+const FIELD_PASSWORD_LABELS = ["Password", "Passwort"];
+const UI_ACCOUNT_NAME = "Smoke-UI";
+const UI_SECRET_ID = "calendar-notes-smoke-ui";
 
 // `import.meta.url` zeigt nach dem esbuild-Buendeln auf `.gui-smoke.mjs` — das liegt im
 // Repo-Root (esbuild schreibt dorthin, `outfile` ohne Pfadpraefix), NICHT in `scripts/`.
@@ -316,6 +330,211 @@ async function checkP1(cdp: Cdp): Promise<void> {
   } catch (e) {
     record("P1", "Laden", false, e instanceof Error ? e.message : String(e));
   }
+}
+
+// ── P2b: Auth ueber den echten UI-Weg ────────────────────────────────────
+// Der Anlass ist derselbe wie bei P2a — der 401-Fehler vom 2026-08-25 —, aber die Luecke ist
+// eine andere: P2a und P2 setzen `secretId` und das Geheimnis per `seedAccount` DIREKT, also
+// auf einem Weg, den kein Nutzer geht. Genau dort sass der Defekt (0.1.4):
+// `SecretComponent.onChange` liefert die ID des Schluesselbund-Eintrags, nicht dessen Wert —
+// wer die ID als Passwort speichert, meldet sich mit dem Namen des Eintrags an und bekommt
+// von jedem Server 401. `seedAccount` umgeht diesen Rueckruf und kann ihn deshalb nicht
+// pruefen; die Zusicherung hier ist folglich NICHT "secretId ist gesetzt" (das waere beim
+// 0.1.4-Stand ebenfalls wahr), sondern: **nach dem Weg durch die Oberflaeche antwortet die
+// Discovery mit 207 statt 401.**
+//
+// Gemessen 2026-08-30 in der Gegenprobe (`onChange` auf den 0.1.4-Fehler zurueckgedreht,
+// gebaut, deployt, Plugin neu geladen): P2b meldet dann `warf=true, "Zugang verweigert
+// (401)", Sammlungen=0` — **bei korrekt gesetzter `secretId`**. Das ist der Beleg fuer die
+// Wahl der Zusicherung: der Punkt "secretId ist gesetzt" waere in genau diesem Lauf gruen
+// gewesen. P2a und P2 blieben beide gruen, weil sie ueber `seedAccount` laufen — die Luecke,
+// um die es hier geht, ist also nicht theoretisch, sondern gemessen.
+//
+// Drei Dinge, die den Aufbau bestimmen und am 2026-08-30 gemessen wurden:
+//   1. Der Tab ist DEKLARATIV (`getSettingDefinitions()`, kein `display()` — s. Kopf von
+//      `settings-tab.ts`). Ein bereits offener Tab zeichnet einen neuen Kontostand nicht
+//      nach, und `display()` ist wirkungslos. Deshalb wird hier geschlossen und neu geoeffnet.
+//   2. Das Settings-DOM haengt zwar in einem EIGENEN Fenster (`ownerDocument !== document`),
+//      ist aber ueber `plugin.settingTab.containerEl` aus dem Workspace-Target erreichbar.
+//      Das erspart eine zweite Verbindung — und damit die Identitaetsfrage, welches von
+//      mehreren Einstellungen-Fenstern man erwischt hat (`attachTo("settings")` trennt nach
+//      Vault, nicht nach Fenster).
+//   3. Der Secret-Dialog ist ein normales Obsidian-Modal (`.modal.mod-secret`, "Select
+//      secret" → "Add secret" mit den Feldern ID und Secret), KEIN nativer Dialog: der
+//      Renderer antwortet waehrend er offen steht. Das war vorher offen und ist der Grund,
+//      warum dieser Pruefpunkt ueberhaupt baubar ist.
+async function checkP2bUiAuth(cdp: Cdp, radicale: RunningServer): Promise<void> {
+  const TAB = `app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}].settingTab.containerEl`;
+  const DOC = `${TAB}.ownerDocument`;
+  const NAME_OF = `((el) => (el.querySelector(".setting-item-name") ? el.querySelector(".setting-item-name").textContent : "").trim())`;
+  const ITEM_BY = (labels: string[]) =>
+    `[...${TAB}.querySelectorAll(".setting-item")].find((el) => ${JSON.stringify(labels)}.includes(${NAME_OF}(el)))`;
+  const MODAL = `${DOC}.querySelector(".modal-container")`;
+  const MODAL_TITLE = `(${MODAL} && ${MODAL}.querySelector(".modal-title") ? ${MODAL}.querySelector(".modal-title").textContent.trim() : "")`;
+  let angelegt = false;
+
+  try {
+    // (1) Einstellungen frisch aufbauen. Schliessen und Oeffnen sind getrennte Aufrufe mit
+    //     einer Wartephase dazwischen — Mutation und Warten nicht im selben `evaluate`
+    //     (Doktrin aus der Dach-AGENTS.md: warten gehoert auf die Node-Seite).
+    // Vorbedingung: ein Schluesselbund-Eintrag dieser ID darf NICHT existieren. Sonst
+    // kollidiert der Dialog "Add secret" mit ihm, die Verknuepfung unterbleibt still, und
+    // das Konto faellt auf `secretIdFor(account)` zurueck — die Discovery meldet dann
+    // "No keychain entry is linked to this account" statt 401. Gemessen 2026-08-30: der
+    // erste Lauf war gruen, jeder weitere rot, weil das Aufraeumen den Eintrag nur GELEERT
+    // statt geloescht hat. Vorher aufraeumen deckt zusaetzlich den abgebrochenen Vorlauf ab,
+    // der nachher gar nicht mehr zum Aufraeumen kommt.
+    await cdp.evaluate(`
+      const ids = await app.secretStorage.listSecrets();
+      if (ids.includes(${JSON.stringify(UI_SECRET_ID)})) await app.secretStorage.deleteSecret(${JSON.stringify(UI_SECRET_ID)});
+      return true;
+    `);
+    await cdp.evaluate(`app.setting.close(); return true;`);
+    await new Promise((r) => setTimeout(r, 400));
+    await cdp.evaluate(`app.setting.open(); app.setting.openTabById(${JSON.stringify(PLUGIN_ID)}); return true;`);
+    await requireUntil(cdp, ITEM_BY(["Accounts", "Konten"]), "Konten-Ueberschrift nicht gezeichnet");
+
+    // (2) Konto ueber den "+"-Knopf anlegen. Er ist ein `.clickable-icon` mit `aria-label`,
+    //     kein <button> — ein Suchen nach <button> geht hier ins Leere.
+    const vorher = await cdp.evaluate<number>(`return app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}].settings.accounts.length;`);
+    await cdp.evaluate(`
+      const add = [...${TAB}.querySelectorAll(".clickable-icon")]
+        .find((e) => ${JSON.stringify(ADD_ACCOUNT_LABELS)}.includes(e.getAttribute("aria-label")));
+      if (!add) throw new Error("Knopf \\"Konto hinzufuegen\\" nicht gefunden");
+      add.click();
+      return true;
+    `);
+    angelegt = true;
+    await requireUntil(cdp, `app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}].settings.accounts.length > ${vorher}`, "Add-Knopf hat kein Konto angelegt");
+    await requireUntil(cdp, ITEM_BY(FIELD_PASSWORD_LABELS), "Passwort-Zeile nicht gezeichnet");
+
+    // (3) Name, Server-Adresse und Benutzername ueber die Textfelder setzen — mit
+    //     `input`-Event, sonst laeuft der `onChange`-Rueckruf des Plugins nicht.
+    await cdp.evaluate(`
+      const setzen = (labels, wert) => {
+        const item = [...${TAB}.querySelectorAll(".setting-item")].find((el) => labels.includes(${NAME_OF}(el)));
+        if (!item) throw new Error("Feld nicht gefunden: " + labels[0]);
+        const input = item.querySelector("input");
+        if (!input) throw new Error("Kein Eingabefeld in: " + labels[0]);
+        input.value = wert;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      };
+      setzen(${JSON.stringify(FIELD_NAME_LABELS)}, ${JSON.stringify(UI_ACCOUNT_NAME)});
+      setzen(${JSON.stringify(FIELD_BASEURL_LABELS)}, ${JSON.stringify(radicale.baseUrl)});
+      setzen(${JSON.stringify(FIELD_USERNAME_LABELS)}, ${JSON.stringify(radicale.user)});
+      return true;
+    `);
+
+    // (4) Passwort ueber die SecretComponent hinterlegen: "Link…" → "Add secret…" → ID+Wert
+    //     → Save. Das ist der Rueckruf, den `seedAccount` ueberspringt.
+    await cdp.evaluate(`
+      const item = [...${TAB}.querySelectorAll(".setting-item")].find((el) => ${JSON.stringify(FIELD_PASSWORD_LABELS)}.includes(${NAME_OF}(el)));
+      const btn = item.querySelector(".setting-item-control button");
+      if (!btn) throw new Error("Kein Knopf an der Passwort-Zeile (SecretComponent nicht gezeichnet?)");
+      btn.click();
+      return true;
+    `);
+    await requireUntil(cdp, `${MODAL} && ${MODAL}.querySelector(".modal.mod-secret")`, "Secret-Dialog nicht geoeffnet");
+
+    await cdp.evaluate(`
+      const add = [...${MODAL}.querySelectorAll("button")].find((b) => /add secret|geheimnis hinzu/i.test(b.textContent || ""));
+      if (!add) throw new Error("Knopf \\"Add secret…\\" nicht gefunden");
+      add.click();
+      return true;
+    `);
+    await requireUntil(cdp, `${MODAL} && ${MODAL}.querySelector('input[type="password"]')`, "Dialog \"Add secret\" nicht geoeffnet");
+
+    await cdp.evaluate(`
+      const m = ${MODAL};
+      const id = m.querySelector('input[type="text"]');
+      const wert = m.querySelector('input[type="password"]');
+      if (!id || !wert) throw new Error("Felder ID/Secret nicht gefunden");
+      id.value = ${JSON.stringify(UI_SECRET_ID)};
+      id.dispatchEvent(new Event("input", { bubbles: true }));
+      wert.value = ${JSON.stringify(radicale.pass)};
+      wert.dispatchEvent(new Event("input", { bubbles: true }));
+      const save = [...m.querySelectorAll("button")].find((b) => /^(save|speichern)$/i.test((b.textContent || "").trim()));
+      if (!save) throw new Error("Speichern-Knopf im Dialog nicht gefunden");
+      save.click();
+      return true;
+    `);
+
+    // Nach dem Anlegen kehrt der Dialog zur Auswahl zurueck; dort muss die Wahl bestaetigt
+    // werden. Steht der Dialog schon nicht mehr, ist die Verknuepfung bereits erfolgt —
+    // beides ist zulaessig, deshalb wird auf den ZUSTAND gewartet, nicht auf einen Klick.
+    await new Promise((r) => setTimeout(r, 600));
+    await cdp.evaluate(`
+      const m = ${MODAL};
+      if (!m) return "kein Dialog mehr offen";
+      const save = [...m.querySelectorAll("button")].find((b) => /^(save|speichern)$/i.test((b.textContent || "").trim()));
+      if (save) { save.click(); return "Auswahl bestaetigt"; }
+      return "Dialog offen, kein Speichern-Knopf";
+    `);
+    const secretGesetzt = await requireUntilSecret(cdp);
+
+    // (5) Die eigentliche Zusicherung: Discovery ueber das UI-eingerichtete Konto.
+    const r = await cdp.evaluate<{ threw: boolean; msg: string; collections: number; secretId: string }>(`
+      const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      const account = plugin.settings.accounts.find((a) => a.name === ${JSON.stringify(UI_ACCOUNT_NAME)});
+      if (!account) throw new Error("UI-Konto nicht in den Einstellungen");
+      let threw = false, msg = "", collections = 0;
+      try {
+        const result = await plugin.discoverAccount(account);
+        collections = result.collections.length;
+      } catch (e) {
+        threw = true;
+        msg = String((e && e.message) || e);
+      }
+      return { threw, msg, collections, secretId: account.secretId || "" };
+    `);
+    const ok = !r.threw && r.collections > 0 && r.secretId !== "";
+    record(
+      "P2b",
+      "Konto ueber die Oberflaeche eingerichtet: Discovery antwortet (207, nicht 401)",
+      ok,
+      `warf=${r.threw}${r.msg ? `, Meldung: ${JSON.stringify(r.msg.slice(0, 160))}` : ""}, Sammlungen=${r.collections}, secretId=${JSON.stringify(r.secretId)}, Secret hinterlegt=${secretGesetzt}`,
+    );
+  } catch (e) {
+    record("P2b", "Konto ueber die Oberflaeche eingerichtet: Discovery antwortet (207, nicht 401)", false, e instanceof Error ? e.message : String(e));
+  } finally {
+    // Aufraeumen im Pruefpunkt selbst, nicht erst am Laufende: das UI-Konto brauchte eine
+    // eigene ID, und ein zweites Konto mit denselben Sammlungen wuerde P2 und alles danach
+    // an DIESER Hinterlassenschaft scheitern lassen statt an ihrem eigenen Gegenstand.
+    if (angelegt) {
+      await cdp.evaluate(`
+        const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+        const weg = plugin.settings.accounts.filter((a) => a.name === ${JSON.stringify(UI_ACCOUNT_NAME)}).map((a) => a.id);
+        plugin.settings = {
+          ...plugin.settings,
+          accounts: plugin.settings.accounts.filter((a) => !weg.includes(a.id)),
+          collections: plugin.settings.collections.filter((c) => !weg.includes(c.accountId)),
+        };
+        await plugin.saveSettings();
+        const ids = await app.secretStorage.listSecrets();
+        if (ids.includes(${JSON.stringify(UI_SECRET_ID)})) await app.secretStorage.deleteSecret(${JSON.stringify(UI_SECRET_ID)});
+        const doc = plugin.settingTab.containerEl.ownerDocument;
+        const close = doc.querySelector(".modal-container .modal-close-button");
+        if (close) close.click();
+        app.setting.close();
+        return true;
+      `).catch(() => undefined);
+    }
+  }
+}
+
+/** Wartet darauf, dass der SecretComponent-Rueckruf eine ID am Konto hinterlassen hat.
+ *  Eigene Funktion, weil die Bedingung ueber das PLUGIN laeuft und nicht ueber das DOM —
+ *  genau das ist der Unterschied zwischen "der Dialog sah gut aus" und "es ist angekommen". */
+async function requireUntilSecret(cdp: Cdp): Promise<boolean> {
+  const da = await pollUntil<boolean>(
+    cdp,
+    `const p = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+     const a = p.settings.accounts.find((a) => a.name === ${JSON.stringify(UI_ACCOUNT_NAME)});
+     return Boolean(a && a.secretId);`,
+    10_000,
+    400,
+  );
+  return Boolean(da);
 }
 
 // ── P2a: Gegenprobe — falsches Passwort MUSS scheitern ───────────────────
@@ -1032,6 +1251,10 @@ async function main(): Promise<void> {
     console.log(`Radicale: ${radicale.baseUrl}`);
 
     await checkP1(cdp);
+    // P2b VOR `seedAccount`: er richtet sein eigenes Konto ueber die Oberflaeche ein und
+    // raeumt es selbst wieder weg. Danach erst die Abkuerzung fuer alles Weitere — die
+    // restlichen Pruefpunkte haben einen anderen Gegenstand als die Einrichtung.
+    await checkP2bUiAuth(cdp, radicale);
     await seedAccount(cdp, radicale);
     // Gegenprobe VOR der echten Discovery: sie stellt das richtige Passwort selbst wieder her,
     // und P2 belegt danach den Erfolgsfall — erst beide zusammen sagen etwas ueber Auth aus.
