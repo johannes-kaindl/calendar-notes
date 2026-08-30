@@ -19,7 +19,6 @@
  * vor jeder Aenderung, Restore im `finally` — s. Skill gui-smoke-setup § Aufraeumen). `--keep`
  * laesst den erzeugten Zustand stehen (zum Nachschauen).
  */
-import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Buffer } from "node:buffer";
@@ -31,7 +30,7 @@ import {
   releaseAlwaysOnTop,
   requireVisible,
 } from "../../tools/obsidian-cdp/cdp.js";
-import { buildVault } from "../../tools/obsidian-cdp/vault.js";
+import { buildVault, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
 import { capture, writeShot } from "../../tools/obsidian-cdp/shot.js";
 import { startRadicale, type RunningServer } from "./dav-server.js";
 
@@ -40,12 +39,17 @@ const RADICALE_PORT = 5298;
 const ACCOUNT_ID = "acc-smoke";
 const SECRET_ID = `calendar-notes-${ACCOUNT_ID}`;
 
-// Erwartete Reihenfolge der 5 Settings-Gruppen (getSettingDefinitions() in settings-tab.ts:
-// accountsGroup, collectionsGroup, profilesGroup, syncGroup, actionsGroup) — aus
-// src/i18n/strings.ts, Schluessel `settings.*.heading`, DE und EN, weil `initI18n` in
-// main.ts auf `getLanguage()` faellt (systemabhaengig, im Treiber nicht erzwingbar).
-const SETTING_HEADINGS_DE = ["Konten", "Sammlungen", "Profile", "Synchronisation", "Aktionen"];
-const SETTING_HEADINGS_EN = ["Accounts", "Collections", "Profiles", "Sync", "Actions"];
+// Erwartete Reihenfolge der 6 benannten Settings-Gruppen (getSettingDefinitions() in
+// settings-tab.ts: accountsGroup, collectionsGroup, profilesGroup, syncGroup, displayGroup,
+// actionsGroup) — aus src/i18n/strings.ts, Schluessel `settings.*.heading`, DE und EN, weil
+// `initI18n` in main.ts auf `getLanguage()` faellt (systemabhaengig, im Treiber nicht erzwingbar).
+//
+// Stand 0.1.9 (Settings-Ueberarbeitung aus dem Erstkontakt-Befund, docs/ux/2026-08-29-*):
+// sechs Gruppen statt fuenf, und drei sind umbenannt. Diese Listen sind bewusst woertlich —
+// P1 SOLL rot werden, wenn sich die Oberfläche aendert; er hat es getan, nur hat den Lauf
+// zwischen dem 23.08. und heute niemand gefahren. Wer eine Ueberschrift aendert, zieht hier nach.
+const SETTING_HEADINGS_DE = ["Konten", "Kalender & Adressbücher", "Profile — welches Feld gehört wohin", "Abgleich", "Darstellung", "Aktionen"];
+const SETTING_HEADINGS_EN = ["Accounts", "Calendars & address books", "Profiles — which field goes where", "Sync", "Appearance", "Actions"];
 
 // `settings.accounts.testButton` aus src/i18n/strings.ts, DE + EN — P8 matcht den
 // Discovery-Button exakt gegen dieses Label, statt per Substring-Regex zu raten.
@@ -96,17 +100,16 @@ function flag(name: string): boolean {
   return process.argv.includes(`--${name}`);
 }
 
+// Der Ort wird ueber `stagingVaultDir()` aufgeloest, nicht selbst zusammengebaut — Dach-Regel
+// (obsidian-plugins/AGENTS.md § Staging-Vaults). Der fruehere Fallback auf
+// `~/StagingVaults/calendar-notes` ist ersatzlos weg, und zwar nicht aus Ordnungsliebe: er zeigte
+// seit dem 2026-08-30 auf ein Verzeichnis, das es nicht mehr gibt, und `buildVault` haette es
+// stillschweigend NEU angelegt — der Lauf misst dann gegen ein leeres Fixture, waehrend der echte
+// Vault danebenliegt. Genau diese Sorte Default hat den Drift erzeugt, den das Dach an dem Tag
+// aufloeste (18 Vaults in zwei konkurrierenden Basen). Fehlt die Variable, wirft `stagingVaultDir`
+// mit Anleitung; `--vault-dir <pfad>` bleibt als bewusster Einzelfall-Override.
 function resolveVaultDir(): string {
-  const explicit = arg("vault-dir", "");
-  if (explicit) return explicit;
-  const env = process.env["STAGING_VAULTS_DIR"];
-  if (env) return join(env, "calendar-notes");
-  const fallback = join(homedir(), "StagingVaults", "calendar-notes");
-  console.log(
-    `Hinweis: STAGING_VAULTS_DIR ist nicht gesetzt — verwende Default ${fallback}. ` +
-      `Mit --vault-dir <pfad> ueberschreibbar, mit export STAGING_VAULTS_DIR=… dauerhaft setzbar.`,
-  );
-  return fallback;
+  return arg("vault-dir", "") || stagingVaultDir(PLUGIN_ID);
 }
 
 async function waitForWorkspaceWindow(port: number, vault: string, timeoutMs: number): Promise<Cdp | null> {
@@ -273,12 +276,17 @@ async function checkP1(cdp: Cdp): Promise<void> {
       return tab.getSettingDefinitions().map((d) => d.heading);
     `,
     );
-    const matchesOrder = (expected: string[]): boolean => Array.isArray(headings) && headings.length === expected.length && expected.every((h, i) => headings[i] === h);
+    // Nicht jede Definition traegt eine Ueberschrift: Einzel-Settings zwischen den Gruppen
+    // liefern `undefined`/`null`. Verglichen werden deshalb nur die BENANNTEN Gruppen, in ihrer
+    // Reihenfolge — sonst scheitert der Vergleich schon an der Laenge und sagt nichts ueber die
+    // Namen aus (gemessen 2026-08-30: 8 Definitionen, davon 6 benannt).
+    const named = Array.isArray(headings) ? headings.filter((h): h is string => typeof h === "string" && h.length > 0) : null;
+    const matchesOrder = (expected: string[]): boolean => named !== null && named.length === expected.length && expected.every((h, i) => named[i] === h);
     const headingsOk = matchesOrder(SETTING_HEADINGS_DE) || matchesOrder(SETTING_HEADINGS_EN);
     // Seit M4 (Task 6) kommen 5 weitere Kommandos dazu (run-on-note/new-event/new-contact/
     // undo-last-change/push-hand-edits, s. main.ts registerCommands()) — 5 aus M1-M3 + 5 neu = 10.
     const ok = cmds.length === 10 && headingsOk;
-    record("P1", "Laden", ok, `${cmds.length} Kommandos, Settings-Gruppen: ${JSON.stringify(headings)} (erwartet DE ${JSON.stringify(SETTING_HEADINGS_DE)} oder EN ${JSON.stringify(SETTING_HEADINGS_EN)})`);
+    record("P1", "Laden", ok, `${cmds.length} Kommandos, benannte Settings-Gruppen: ${JSON.stringify(named)} (erwartet DE ${JSON.stringify(SETTING_HEADINGS_DE)} oder EN ${JSON.stringify(SETTING_HEADINGS_EN)})`);
   } catch (e) {
     record("P1", "Laden", false, e instanceof Error ? e.message : String(e));
   }
