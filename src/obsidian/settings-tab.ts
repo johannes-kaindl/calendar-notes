@@ -113,6 +113,41 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
       .setName(t("settings.accounts.testButton"))
       .setDesc(t("settings.accounts.testButtonDesc"))
       .addButton((b) => b.setButtonText(t("settings.accounts.testButton")).onClick(() => void this.testAccount(account)));
+
+    this.renderCollectionPicker(host, account);
+  }
+
+  /** Die Auswahl „was soll gespiegelt werden?" — direkt unter dem Discovery-Button.
+   *
+   *  Sie stand bis 0.1.9 ausschliesslich unter „Kalender & Adressbuecher", dort aber eine
+   *  Ebene tief hinter einer Seite, die den KONTOnamen traegt (eine Obsidian-Gruppe darf keine
+   *  Gruppe enthalten, nur Seiten — s. Kommentar an `collectionsGroup`). Beim Erstkontakt
+   *  2026-08-29 las sich das als „ich habe nur eine Sammlung", und die Anschlussfrage war, ob
+   *  der zweite Menuepunkt ueberhaupt noetig sei. Entschieden am 2026-08-30: die AUSWAHL kommt
+   *  hierher, die Feineinstellung (Profil, Ordner, Abgleichen, Verknuepfen) bleibt dort — ein
+   *  Einrichtungsweg, aber ohne fuenf Zeilen je Sammlung in einer aufklappbaren Zeile zu stapeln.
+   *
+   *  Der Haken ist derselbe Wert wie auf der Sammlungs-Seite (`enabled`), kein zweiter Zustand. */
+  private renderCollectionPicker(host: HTMLElement, account: Account): void {
+    new Setting(host).setName(t("settings.accounts.collectionsHeading")).setHeading();
+    const cols = this.host.settings.collections.filter((c) => c.accountId === account.id);
+    if (cols.length === 0) {
+      new Setting(host).setDesc(t("settings.accounts.collectionsEmpty"));
+      return;
+    }
+    for (const c of cols) {
+      new Setting(host)
+        .setName(c.displayName)
+        .setDesc(this.enabledDesc(c))
+        .addToggle((tg) => tg.setValue(c.enabled).onChange((v) => this.updateCollection(c.id, { enabled: v })));
+    }
+  }
+
+  /** Erklaerung am „spiegeln"-Schalter — EINE Quelle fuer beide Orte, an denen er steht.
+   *  Zwei Texte fuer denselben Schalter waeren zwei Wahrheiten; die Warnung „diese Sammlung
+   *  fuehrt keine Termine" ist genau die, die man an der Auswahl braucht, nicht erst danach. */
+  private enabledDesc(c: CollectionConfig): string {
+    return holdsEvents(c) ? t("settings.collections.enabledDesc") : t("settings.collections.enabledNoEvents", (c.components ?? []).join(", "));
   }
 
   private updateAccount(id: string, patch: Partial<Account>): void {
@@ -217,7 +252,7 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
         // der Zeile stehen, sonst schaltet der Nutzer sie ein und wartet wortlos auf nichts.
         {
           name: t("settings.collections.enabled"),
-          desc: holdsEvents(c) ? t("settings.collections.enabledDesc") : t("settings.collections.enabledNoEvents", (c.components ?? []).join(", ")),
+          desc: this.enabledDesc(c),
           control: { type: "toggle", key: `collections.${c.id}.enabled` },
         },
         { name: t("settings.collections.profile"), desc: t("settings.collections.profileDesc"), control: { type: "dropdown", key: `collections.${c.id}.profileId`, options: profileOptions } },

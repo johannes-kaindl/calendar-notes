@@ -59,6 +59,12 @@ const SETTING_HEADINGS_EN = ["Accounts", "Calendars & address books", "Profiles 
 // ueberspringt. Wer `settings.accounts.testButton` aendert, zieht hier nach.
 const DISCOVER_BUTTON_LABELS = ["Test connection and find calendars", "Verbindung prüfen und Kalender suchen"];
 
+// `settings.accounts.collectionsHeading` — die Auswahl „was spiegeln?" sitzt seit 2026-08-30
+// auf der KONTO-Unterseite (B1 aus dem Erstkontakt-Befund). Der Unit-Test belegt, dass die
+// Zeilen entstehen; dass sie im laufenden Obsidian auch DA sind, kann nur der Smoke sagen —
+// genau die Haelfte, die eine strukturelle Pruefung nie erreicht.
+const COLLECTION_PICKER_LABELS = ["Found — what should be mirrored?", "Gefunden — was soll gespiegelt werden?"];
+
 const ACCOUNT_NAME = "Smoke";
 
 // `import.meta.url` zeigt nach dem esbuild-Buendeln auf `.gui-smoke.mjs` — das liegt im
@@ -913,14 +919,24 @@ async function checkP8(port: number, vault: string): Promise<void> {
   }
   try {
     await requireVisible(settingsCdp);
-    const info = await settingsCdp.evaluate<{ hasPwLabel: boolean; hasDiscoverBtn: boolean; hasAccountRow: boolean }>(
+    const info = await settingsCdp.evaluate<{ hasPwLabel: boolean; hasDiscoverBtn: boolean; hasAccountRow: boolean; hasCollectionPicker: boolean }>(
       `
       const items = [...document.querySelectorAll(".setting-item")];
-      const hasPwLabel = items.some((el) => /password|passwort/i.test(el.querySelector(".setting-item-name")?.textContent ?? ""));
+      const nameOf = (el) => (el.querySelector(".setting-item-name")?.textContent ?? "").trim();
+      const hasPwLabel = items.some((el) => /password|passwort/i.test(nameOf(el)));
       const discoverLabels = ${JSON.stringify(DISCOVER_BUTTON_LABELS)};
       const hasDiscoverBtn = [...document.querySelectorAll("button")].some((b) => discoverLabels.includes((b.textContent ?? "").trim()));
       const hasAccountRow = items.some((el) => (el.textContent ?? "").includes(${JSON.stringify(ACCOUNT_NAME)}));
-      return { hasPwLabel, hasDiscoverBtn, hasAccountRow };
+      // Die Auswahl-Zeilen stehen zwischen der Ueberschrift und der naechsten Ueberschrift.
+      // Geprueft wird ein echter Schalter (.checkbox-container), nicht die blosse Ueberschrift:
+      // eine Ueberschrift ohne Zeilen darunter waere genau der Fehlstand, der gruen aussieht.
+      const pickerLabels = ${JSON.stringify(COLLECTION_PICKER_LABELS)};
+      const heading = items.find((el) => pickerLabels.includes(nameOf(el)));
+      let hasCollectionPicker = false;
+      for (let n = heading?.nextElementSibling; n && !n.classList.contains("setting-item-heading"); n = n.nextElementSibling) {
+        if (n.querySelector(".checkbox-container")) { hasCollectionPicker = true; break; }
+      }
+      return { hasPwLabel, hasDiscoverBtn, hasAccountRow, hasCollectionPicker };
     `,
     );
     const shotsDir = join(REPO_ROOT, "docs/smoke/shots");
@@ -931,8 +947,8 @@ async function checkP8(port: number, vault: string): Promise<void> {
     } catch (e) {
       shotDetail = `Screenshot fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`;
     }
-    const ok = info.hasPwLabel && info.hasDiscoverBtn && info.hasAccountRow;
-    record("P8", "Settings-UI (Konto-Unterseite, SecretComponent, Discovery-Button)", ok, `${JSON.stringify(info)}; ${shotDetail}`);
+    const ok = info.hasPwLabel && info.hasDiscoverBtn && info.hasAccountRow && info.hasCollectionPicker;
+    record("P8", "Settings-UI (Konto-Unterseite: SecretComponent, Discovery-Button, Sammlungs-Auswahl)", ok, `${JSON.stringify(info)}; ${shotDetail}`);
   } finally {
     settingsCdp.close();
   }

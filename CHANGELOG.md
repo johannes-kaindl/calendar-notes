@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+- **Die Kalender eines Kontos stehen jetzt direkt beim Konto zur Auswahl.** Nach „Verbindung prüfen und Kalender suchen" erscheint dort die Liste des Gefundenen mit je einem Schalter — die Einrichtung ist damit ein Weg: Konto anlegen, prüfen, ankreuzen. Bis dahin waren die gefundenen Kalender ausschließlich unter „Kalender & Adressbücher" zu finden, dort aber eine Ebene tief hinter einer Seite, die den **Konto**namen trägt; beim ersten Kontakt las sich das als „ich habe nur einen Kalender, und der heißt wie mein Anbieter". Der Menüpunkt bleibt und führt weiterhin die Feineinstellung je Kalender (Profil, Ordner, Jetzt abgleichen, Bestehende Notizen verknüpfen). Es ist derselbe Schalter an beiden Orten, kein zweiter Zustand — und die Warnung „diese Sammlung führt keine Termine" steht jetzt schon bei der Auswahl statt erst danach.
+
 ## [0.1.9] — 2026-08-29
 
 - **Fix (Abgleich): Eine leere Sammlung brach den Abgleich mit „Antwort ist kein DAV:multistatus" ab.** Ein Kalender ohne Termine antwortet regulär mit einem Wurzelknoten ohne Kinder, und mailbox.org schickt ihn selbstschließend (`<D:multistatus … />`). Der XML-Parser liefert dafür einen leeren *String* statt eines leeren Objekts — die Prüfung hielt das für „gar kein Multistatus" und meldete einen Protokollfehler. Betroffen war damit **jeder leere Kalender und jedes frisch angelegte Adressbuch**, also gerade der Zustand beim ersten Einrichten. Jetzt ist nur noch ein **fehlender** Wurzelknoten ein Fehler; ein leerer bedeutet schlicht „keine Einträge". Gegen mailbox.org verifiziert: sechs Sammlungen, kein Fehler.

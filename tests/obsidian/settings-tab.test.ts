@@ -10,7 +10,7 @@ import type { Account, CollectionConfig } from "../../src/core/settings";
 import type { RunInfo } from "../../src/core/state/collection-state";
 import type { DiscoveryResult } from "../../src/core/dav/discovery";
 import type { SecretStore } from "../../src/obsidian/secrets";
-import { initI18n } from "../../src/i18n/strings";
+import { initI18n, t } from "../../src/i18n/strings";
 
 initI18n("de");
 
@@ -292,5 +292,82 @@ describe("Passwort-Zeile eines Kontos (SecretComponent)", () => {
 
     expect(host.secretWrites).toEqual([]);
     expect(host.secrets.get("calendar-notes-a1")).toBe("geheim");
+  });
+});
+
+// ── B1: die Auswahl „was spiegeln?" lebt beim Konto ───────────────────────────
+// Entschieden 2026-08-30 aus dem Erstkontakt-Befund (docs/ux/2026-08-29-*, B1): die gefundenen
+// Sammlungen erschienen NUR unter „Kalender & Adressbücher", eine Ebene tief hinter einer Seite,
+// die den KONTOnamen trägt — der Erstkontakt las das als „ich habe nur eine Sammlung". Die
+// Auswahl gehört deshalb direkt unter den Discovery-Button; die Feineinstellung (Profil, Ordner,
+// Abgleichen, Verknüpfen) bleibt, wo sie ist.
+function renderedRows(tab: CalendarNotesSettingTab): { nameValue: string; descValue: string; components: any[] }[] {
+  const container = makeFakeEl();
+  accountList(tab).items[0].render(new Setting(container));
+  // `settingBodyHost` nimmt der äußeren Zeile die `setting-item`-Klasse — was der Selektor
+  // findet, sind also genau die INNEREN Zeilen der Konto-Unterseite.
+  return (container.querySelectorAll(".setting-item") as any[]).map((el) => el.__setting).filter(Boolean);
+}
+
+/** Die `enabled`-Zeile derselben Sammlung auf der Sammlungs-Seite — Vergleichsmaßstab. */
+function collectionPageEnabledDesc(tab: CalendarNotesSettingTab, collectionId: string): string {
+  const want = `collections.${collectionId}.enabled`;
+  const walk = (items: any[]): string | null => {
+    for (const item of items ?? []) {
+      if (item?.control?.key === want) return String(item.desc ?? "");
+      const nested = walk(item?.items ?? []);
+      if (nested !== null) return nested;
+    }
+    return null;
+  };
+  const found = walk(tab.getSettingDefinitions() as any[]);
+  expect(found).not.toBeNull();
+  return found!;
+}
+
+describe("Konto-Unterseite: Auswahl der Sammlungen (B1)", () => {
+  it("fuehrt jede gefundene Sammlung des Kontos als Zeile mit Schalter", () => {
+    const rows = renderedRows(newTab(fakeHost(withAccountAndCollections())));
+    const names = rows.map((r) => r.nameValue);
+    expect(names).toContain("Calendar");
+    expect(names).toContain("Contacts");
+    for (const name of ["Calendar", "Contacts"]) {
+      const row = rows.find((r) => r.nameValue === name)!;
+      expect(row.components.some((c) => typeof c.onChangeCB !== "undefined")).toBe(true);
+    }
+  });
+
+  it("der Schalter schreibt dasselbe `enabled` wie die Sammlungs-Seite — kein zweiter Zustand", () => {
+    const host = fakeHost(withAccountAndCollections());
+    const rows = renderedRows(newTab(host));
+    const toggle = rows.find((r) => r.nameValue === "Contacts")!.components.find((c) => typeof c.onChangeCB !== "undefined");
+
+    toggle.onChangeCB(true);
+
+    expect(host.settings.collections.find((c) => c.id === "c2")!.enabled).toBe(true);
+    expect(host.saved.length).toBeGreaterThan(0);
+  });
+
+  it("eine Sammlung ohne Termine traegt WOERTLICH dieselbe Erklaerung wie auf der Sammlungs-Seite", () => {
+    const s = withAccountAndCollections();
+    const todos: CollectionConfig = { id: "c3", accountId: "a1", href: "https://dav.example/todo/", kind: "calendar", displayName: "Aufgaben", enabled: false, profileId: "default-event", readOnly: false, components: ["VTODO"] };
+    const host = fakeHost({ ...s, collections: [...s.collections, todos] });
+    const tab = newTab(host);
+
+    const row = renderedRows(tab).find((r) => r.nameValue === "Aufgaben")!;
+
+    expect(row.descValue).toBe(collectionPageEnabledDesc(tab, "c3"));
+    expect(row.descValue).not.toBe("");
+  });
+
+  it("ohne gefundene Sammlungen steht ein Empty-State statt einer leeren Stelle", () => {
+    const s = withAccountAndCollections();
+    const host = fakeHost({ ...s, collections: [] });
+    const texts = renderedRows(newTab(host)).map((r) => `${r.nameValue} ${r.descValue}`);
+    // Gegen den uebersetzten Text pruefen, nicht gegen ein Wortmuster: ein `/keine|nichts/`
+    // haette an den Bestandszeilen der Konto-Seite zufaellig gruen werden koennen.
+    const expected = t("settings.accounts.collectionsEmpty");
+    expect(expected.length).toBeGreaterThan(10);
+    expect(texts.join(" ")).toContain(expected);
   });
 });

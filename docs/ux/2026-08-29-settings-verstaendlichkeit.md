@@ -38,7 +38,20 @@ sie steht nur nirgends, wo jemand sie liest.**
 
 ## B · Einzelbefunde
 
-### B1 · „Sammlungen" zeigt den Kontonamen, nicht Sammlungen
+### B1 · „Sammlungen" zeigt den Kontonamen, nicht Sammlungen — UMGESETZT 2026-08-30
+
+> **Entschieden und gebaut:** die **Auswahl** („was soll gespiegelt werden?") sitzt jetzt direkt
+> auf der Konto-Unterseite, unter dem Discovery-Button; die **Feineinstellung** je Sammlung
+> (Profil, Ordner, Abgleichen, Verknüpfen) bleibt unter „Kalender & Adressbücher". Verworfen
+> wurde die Vollvariante (alles zum Konto): sie stapelt bei sechs Sammlungen ~30 Zeilen in eine
+> aufklappbare Zeile und lässt eine Gruppe wegfallen, an der Smoke-Prüfpunkte hängen.
+>
+> ⚠️ **Eine Prämisse dieses Befunds stimmte nicht** und ist beim Bauen gemessen worden: die
+> Anschlussfrage unten unterstellt, die Sammlungen erschienen „ohnehin schon beim Konto" — das
+> taten sie **nicht**. Die Konto-Zeile führte Name, Server-Adresse, Benutzername, Passwort und
+> den Test-Button, sonst nichts. Die Zweiteilung war also keine Dopplung, sondern eine echte
+> Trennung; erst durch diesen Umbau ist die Auswahl beim Konto überhaupt wahr.
+
 > „Bei ‚Sammlungen' steht bei mir nun nur ‚mailbox.org', das sieht also aus, als ob das eine
 > Sammlung wäre und ich deswegen nur eine hätte."
 
