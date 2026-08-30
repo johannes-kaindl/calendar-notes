@@ -352,16 +352,60 @@ inkrementell abgleichen und den CTag als billigen Vorabtest nutzen, ob überhaup
 angefasst werden muss. Euer Kern-Verfahren (`sync-token` mit CTag/ETag-Fallback) passt ohne
 Anpassung.
 
-### B6 — Queries: angenommen, inhaltlich nicht belegt
+### B6 — Queries: für CardDAV inhaltlich belegt, für CalDAV weiterhin offen
 
-`calendar-query` mit `time-range` und `addressbook-query` liefern beide **HTTP 207**. Beide
-ergaben **0 Treffer**, weil die Collections zum Messzeitpunkt leer waren — der Datenumzug steht
-noch aus. Belegt ist damit, dass der Server die REPORTs annimmt und wohlgeformt antwortet;
-**nicht** belegt ist, dass die Filterung inhaltlich korrekt arbeitet.
+**Nachtrag 2026-08-30.** Der Stand vom 2026-08-29 lautete „angenommen, inhaltlich nicht belegt":
+`calendar-query` mit `time-range` und `addressbook-query` liefern beide **HTTP 207**, beide
+ergaben **0 Treffer**, weil die Collections leer waren.
 
-### B7 — `multiget`: **nicht geprüft**
+Inzwischen fand sich eine Collection, die **nicht** leer ist — eines der Adressbücher, die der
+Anbieter serverseitig mitbringt, führt einen Eintrag. Damit ließ sich `addressbook-query`
+inhaltlich prüfen, ohne auf den Datenumzug zu warten:
 
-Braucht existierende Ressourcen-URLs. Wird nachgeholt, sobald die Collections befüllt sind.
+| Lauf | Ergebnis |
+|---|---|
+| `prop-filter` auf `FN`, `text-match match-type="contains"` mit einem Teilstring, der **vorkommt** | HTTP 207, **1 Treffer** |
+| derselbe Filter mit einem Text, der **nicht vorkommt** | HTTP 207, **0 Treffer** |
+
+Kollation `i;unicode-casemap`. **Der Filter trennt also tatsächlich** — er nickt nicht bloß jede
+Anfrage ab. Für `addressbook-query` ist B6 damit erledigt.
+
+**`calendar-query` mit `time-range` bleibt offen.** Alle Kalender-Collections dieses Kontos sind
+weiterhin leer; eine Gegenprobe über ein absichtlich sehr weites Fenster (1970–2038) gegen alle
+drei Collections liefert 207 und null Treffer. Das bestätigt die Leere und ist **kein**
+Filterbefund. Der Beleg braucht mindestens einen echten Termin und **zwei** Fenster — eines,
+das ihn enthält, und eines, das ihn ausschließt. Nachgereicht, sobald der Umzug durch ist.
+
+> **Verallgemeinerbar, unabhängig von diesem Anbieter:** Ein Filter, der auf der leeren Menge
+> null liefert, ist nicht geprüft, sondern nur befragt. Wer eine Server-Kompatibilität aus
+> „REPORT wurde mit 207 beantwortet" ableitet, hat den Transport getestet und die Semantik
+> angenommen. Das gilt für jede Test-Matrix, die ihr gegen fremde Server fahrt.
+
+### B7 — `multiget`: beantwortet für CardDAV
+
+**Nachtrag 2026-08-30**, an derselben nicht-leeren Adressbuch-Collection gemessen.
+`addressbook-multiget` mit `getetag` und `address-data`, angefragt wurden die echte
+Ressourcen-URL **und zusätzlich eine URL, die es sicher nicht gibt**:
+
+| angefragte URL | Status im Multistatus | `getetag` | `address-data` |
+|---|---|---|---|
+| existierende Ressource | `200 OK` | ja | ja |
+| erfundene Ressource | `404 NOT FOUND` | — | — |
+
+Zwei Aussagen, und die zweite ist für einen Client die wichtigere:
+
+1. Der Server liefert **ETag und Nutzdaten in einem Zug**. Ressourcen müssen nach dem
+   `multiget` nicht noch einzeln per `GET` nachgeholt werden.
+2. Eine unbekannte URL wird als **eigenes `<response>` mit 404 gemeldet, nicht still
+   weggelassen**. Ein Client kann Antwort auf Anfrage abbilden, statt bei jeder Lücke zu raten,
+   welche URL fehlt.
+
+**Empfehlung für eure Tests:** Hängt an jeden `multiget` grundsätzlich eine garantiert nicht
+existierende URL an. Ein Server, der sie verschweigt, ist an der Antwortlänge allein nicht von
+einem zu unterscheiden, der eine echte Ressource verloren hat — und der Unterschied fällt sonst
+erst im Sync auf.
+
+**`calendar-multiget` bleibt offen**, aus demselben Grund wie oben: keine Termine vorhanden.
 
 ### B8 — ETag bei `PUT`: **nicht geprüft und in dieser Erhebung nicht prüfbar**
 
