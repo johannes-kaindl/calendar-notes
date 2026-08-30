@@ -18,10 +18,13 @@ Radicale oder `uvx` muss im PATH stehen (`pip install radicale` oder `brew insta
 der Treiber startet seinen eigenen Server auf Port **5298** (nicht 5232, damit ein
 parallel laufendes manuelles Radicale nicht kollidiert) und stoppt ihn im `finally`.
 
-`STAGING_VAULTS_DIR` ist optional: gesetzt, zeigt es auf das Verzeichnis mit den
-Staging-Vaults je Plugin (`$STAGING_VAULTS_DIR/calendar-notes`); ungesetzt fällt der
-Treiber auf `$HOME/StagingVaults/calendar-notes` zurück (mit Hinweis-Zeile) — überschreibbar
-mit `--vault-dir <pfad>`.
+`STAGING_VAULTS_DIR` ist **Pflicht**: sie zeigt auf das eine Verzeichnis mit den
+Staging-Vaults je Plugin, der Treiber nimmt daraus `$STAGING_VAULTS_DIR/calendar-notes`.
+Fehlt sie, bricht er mit Anleitung ab — ein Default wäre ein zweiter Ort, und genau daraus
+entstand der Drift vom 2026-08-30 (Vaults in zwei konkurrierenden Basen, ein vorhandener
+Vault sah aus wie ein fehlender). Gesetzt wird sie einmalig in `~/.zshenv`; wo der Ort liegt,
+steht in `obsidian-plugins/AGENTS.md` § Staging-Vaults. Einzelfall-Override:
+`--vault-dir <pfad>`.
 
 ## Aufruf
 

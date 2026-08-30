@@ -23,7 +23,8 @@ Breite aufgenommen und deshalb mit `width="584"` eingebettet (`image-scale`).
 ## Voraussetzung für den Lauf
 
 ```bash
-export STAGING_VAULTS_DIR="$HOME/StagingVaults"     # einmalig
+# STAGING_VAULTS_DIR steht in ~/.zshenv (Ort: obsidian-plugins/AGENTS.md § Staging-Vaults).
+# Hier bewusst KEIN Beispielwert: ein Beispielort in der Doku ist ein zweiter Ort.
 npm run build && OBSIDIAN_PLUGIN_DIR="$STAGING_VAULTS_DIR/calendar-notes/.obsidian/plugins/calendar-notes" npm run deploy
 npm run shots -- --setup                            # baut den Vault aus fixtures/vault neu
 

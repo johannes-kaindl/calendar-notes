@@ -7,7 +7,9 @@
  * ## Ablauf
  *
  * ```bash
- * export STAGING_VAULTS_DIR="$HOME/StagingVaults"   # einmalig
+ * # STAGING_VAULTS_DIR steht in ~/.zshenv (Ort: obsidian-plugins/AGENTS.md § Staging-Vaults).
+ * # Hier bewusst KEIN Beispielwert: ein Beispielort in der Doku ist ein zweiter Ort — genau
+ * # diese Kommentar-Zeile war ein Glied der Kopier-Kette, die den Drift vom 2026-08-30 erzeugte.
  * npm run build && OBSIDIAN_PLUGIN_DIR="$STAGING_VAULTS_DIR/calendar-notes/.obsidian/plugins/calendar-notes" npm run deploy
  * npm run shots -- --setup                          # Vault aus dem Fixture bauen
  *
