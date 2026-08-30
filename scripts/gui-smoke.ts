@@ -53,7 +53,11 @@ const SETTING_HEADINGS_EN = ["Accounts", "Calendars & address books", "Profiles 
 
 // `settings.accounts.testButton` aus src/i18n/strings.ts, DE + EN — P8 matcht den
 // Discovery-Button exakt gegen dieses Label, statt per Substring-Regex zu raten.
-const DISCOVER_BUTTON_LABELS = ["Test connection & find collections", "Verbindung testen & Sammlungen finden"];
+// ⚠️ P8 laeuft NUR mit `--focus` und wird deshalb bei Umbenennungen leicht vergessen: bis
+// 2026-08-30 standen hier die Labels von VOR der 0.1.9-Ueberarbeitung ("... & Sammlungen
+// finden"), P8 waere also rot gewesen — gemerkt hat es niemand, weil der Normallauf ihn
+// ueberspringt. Wer `settings.accounts.testButton` aendert, zieht hier nach.
+const DISCOVER_BUTTON_LABELS = ["Test connection and find calendars", "Verbindung prüfen und Kalender suchen"];
 
 const ACCOUNT_NAME = "Smoke";
 
