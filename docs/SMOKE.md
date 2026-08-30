@@ -148,11 +148,23 @@ sparen:
 1. **P8 lief monatelang nicht** und trug deshalb die Discovery-Button-Beschriftung von *vor*
    0.1.9 — er wäre rot gewesen (`53b221a`). Ein Prüfpunkt hinter `--focus` altert unbemerkt,
    weil der Standardlauf ihn überspringt. Wer ein Label ändert, das P8 prüft, zieht es dort nach.
-2. **`vault-open` erzeugt ein Fenster, das den Vault nicht zwingend lädt.** Beim ersten Versuch
-   antwortete das neue Target nicht auf `Runtime.evaluate` (auch nach `Page.bringToFront`), und
-   im Vault entstand **keine `.obsidian/workspace.json`** — das ist die Gegenprobe, die den Fall
-   entscheidet: kein `workspace.json` heißt *nicht geladen*, nicht *langsam*. Ein nativer Dialog
-   im Fenster blockiert den Renderer und sieht von außen wie ein hängendes CDP aus.
+2. **Zwei Targets antworteten nicht auf `Runtime.evaluate`** (auch nach `Page.bringToFront`),
+   und im Vault entstand **keine `.obsidian/workspace.json`**. Letzteres bleibt die nützliche
+   Gegenprobe: kein `workspace.json` heißt *nicht geladen*, nicht *langsam*.
+
+   ⚠️ **Korrektur der ersten Fassung dieses Absatzes (2026-08-30, noch am selben Abend):** hier
+   stand als Ursache „ein nativer Dialog blockiert den Renderer". Das war **geraten, nicht
+   gemessen** — und die Antwort stand längst im Dach. Die REGISTRY (§ Testing, erste Zeile,
+   eingetragen am selben Tag) beschreibt exakt dieses Bild: ein **geschlossenes** Fenster bleibt
+   bis zu ~90 s in `/json/list`, nimmt WebSocket-Verbindungen an und antwortet auf
+   `Runtime.evaluate` **nie** — 30 s Hänger pro Leiche. **Merkmal: `title === url`.** Genau das
+   trugen beide Targets (`app://obsidian.md/index.html` als Titel *und* als URL); ich habe es
+   protokolliert, ohne es zu erkennen.
+
+   **Die Lehre ist nicht der Fehlschluss, sondern der übersprungene Schritt:** der Katalog wird
+   bei jedem Session-Start injiziert, damit man ihn *vor* dem Lösen liest. Ich habe ihn erst
+   danach aufgeschlagen — beim Versuch, einen Eintrag zu ergänzen, der schon dastand. Vor der
+   Ursachensuche gehört der Blick in die REGISTRY, nicht davor die eigene Hypothese.
 
 ## Läufe
 
