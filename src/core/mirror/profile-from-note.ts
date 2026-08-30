@@ -101,8 +101,20 @@ export function suggestProfileFromNote(
   // immer unbelegt (null), auch wenn die Notiz eine literale "status"-Spalte trägt.
   const mapped: Record<string, string> = {};
   const keys = Object.keys(frontmatter);
+
+  // `uhrzeit` hat kein Server-Gegenstück — VEVENT kennt nur volle Zeitstempel. Trägt eine Notiz
+  // datum+uhrzeit, ist `datum → start` in der SCHREIB-Richtung zerstörerisch: der erste Sync
+  // ersetzt das reine Datum durch "2026-09-01T10:00:00", und `uhrzeit` widerspricht ihm ab da.
+  // Fürs FINDEN ist das Mapping entbehrlich — noteEventMoment() (adopt/match.ts) setzt datum und
+  // uhrzeit selbst zusammen. Unterdrückt wird deshalb nur das Synonym, nicht der Schlüssel: gibt
+  // es daneben ein `termin_start`, gewinnt das; sonst bleibt `start` leer und `datum` landet in
+  // `unmapped`, damit die Notice es zeigt statt es stillschweigend fallen zu lassen.
+  const lowerKeys = new Set(keys.map((k) => k.toLowerCase()));
+  const suppressed = kind === "event" && lowerKeys.has("uhrzeit") ? "datum" : null;
+
   for (const key of keys) {
     if (ON_CREATE_KEYS.includes(key)) continue;
+    if (suppressed !== null && key.toLowerCase() === suppressed) continue;
     const serverField = synonyms[key.toLowerCase()];
     if (serverField && Object.hasOwn(fields, serverField) && fields[serverField] === null) {
       fields[serverField] = key;

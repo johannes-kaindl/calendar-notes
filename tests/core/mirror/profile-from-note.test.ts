@@ -150,3 +150,32 @@ describe("suggestProfileFromNote — onCreate edge cases", () => {
     expect(r.ok).toBe(true);
   });
 });
+
+describe("suggestProfileFromNote — datum/uhrzeit-Paare", () => {
+  // `uhrzeit` hat kein Server-Gegenstück: VEVENT kennt nur volle Zeitstempel. Mappt man in so
+  // einer Notiz `datum` auf `start`, schreibt der erste Sync "2026-09-01T10:00:00" in ein Feld,
+  // das ein reines Datum trug — und `uhrzeit` widerspricht ihm ab da. Fürs Finden ist das
+  // Mapping entbehrlich: noteEventMoment() setzt datum+uhrzeit selbst zusammen.
+  it("leaves start unmapped when the note carries datum next to uhrzeit", () => {
+    const fm = { datum: "2026-09-01", uhrzeit: "10:00", titel: "Zahnarzt" };
+    const { profile, mapped, unmapped } = suggestProfileFromNote("event", fm, { folder: "Termine", name: "Termine", rand });
+    expect(profile.fields.start).toBeNull();
+    expect(mapped.start).toBeUndefined();
+    expect(unmapped).toContain("datum");
+  });
+
+  it("still maps termin_start onto start when datum and uhrzeit are present too", () => {
+    const fm = { datum: "2026-09-01", uhrzeit: "10:00", termin_start: "2026-09-01 10:00" };
+    const { profile, mapped, unmapped } = suggestProfileFromNote("event", fm, { folder: "Termine", name: "Termine", rand });
+    expect(profile.fields.start).toBe("termin_start");
+    expect(mapped.start).toBe("termin_start");
+    expect(unmapped).toContain("datum");
+  });
+
+  it("maps datum onto start when no uhrzeit key is present", () => {
+    const fm = { datum: "2026-09-01", titel: "Zahnarzt" };
+    const { profile, mapped } = suggestProfileFromNote("event", fm, { folder: "Termine", name: "Termine", rand });
+    expect(profile.fields.start).toBe("datum");
+    expect(mapped.start).toBe("datum");
+  });
+});

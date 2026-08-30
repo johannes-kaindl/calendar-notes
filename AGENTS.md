@@ -124,15 +124,18 @@ versteht skalare Top-Level-Keys — für `type` und das Source-Feld genügt das,
   und die Abweichler von Hand verknüpfen — ist nur bei wenigen Abweichlern billiger.
 - (c) **Profil-aus-Notiz setzt den Ordner der Beispielnotiz** wörtlich. Bei Lifecycle-Unterordnern (z. B. `70_Termine/10_Anstehend`) den Ordner im generierten Profil vorher auf den übergeordneten Ordner (`70_Termine`) weiten — sonst sieht die Adoption nur den einen Unterordner, in dem die Beispielnotiz lag.
 - (d) `datum`+`uhrzeit`-Termine: `uhrzeit` hat **kein Server-Gegenstück** (VEVENT kennt nur `start`/`end` als volle Zeitstempel) und bleibt unverwaltet — Änderungen daran werden von der Synchronisation weder gelesen noch überschrieben.
-  **Daraus folgt eine Mapping-Regel, die `profile-from-note` von sich aus nicht einhält:** dessen
-  Synonym-Tabelle mappt `datum` auf `start` (`src/core/mirror/profile-from-note.ts`) — dieses
-  Mapping gehört bei getrennten `datum`/`uhrzeit`-Notizen **entfernt**, bevor das Profil
-  gespeichert wird. Sonst schreibt der erste Sync den vollen Server-Zeitstempel
+  **Daraus folgt eine Mapping-Regel, die `profile-from-note` seit 2026-08-30 selbst einhält:**
+  die Synonym-Tabelle mappt `datum` auf `start` (`src/core/mirror/profile-from-note.ts`), aber
+  trägt dieselbe Notiz ein `uhrzeit`, wird genau dieses Synonym **unterdrückt** — `start` bleibt
+  leer (bzw. bekommt ein daneben vorhandenes `termin_start`) und `datum` erscheint in `unmapped`,
+  damit die Notice es zeigt. Sonst schriebe der erste Sync den vollen Server-Zeitstempel
   (`"2026-09-01T10:00:00"`, `src/core/mirror/fields.ts`) in ein Feld, das bisher ein reines
-  Datum trug, und `uhrzeit` widerspricht ihm ab da. Fürs **Finden** ist das Mapping ohnehin
+  Datum trug, und `uhrzeit` widerspräche ihm ab da. Fürs **Finden** ist das Mapping ohnehin
   entbehrlich: `noteEventMoment()` (`src/core/adopt/match.ts`) setzt `datum` und `uhrzeit` selbst
   zusammen und probiert zusätzlich `termin_start`/`start` als feste Fallback-Keys — die Adoption
-  erkennt solche Termine also auch bei leerem `start`-Mapping.
+  erkennt solche Termine also auch bei leerem `start`-Mapping. **Der Handgriff im Rollout entfällt
+  damit**; er bleibt nur dort nötig, wo ein Profil aus einer Notiz OHNE `uhrzeit` abgeleitet und
+  danach auf Notizen mit `uhrzeit` angewandt wird.
 - (e) **Ein Ordner, zwei Feldmuster** ist der Normalfall in gewachsenen Vaults (etwa Termine, die
   teils `termin_start`, teils `datum` tragen). Ein Profil kann pro Server-Feld nur **einen**
   Notiz-Key führen, und `suggestProfileFromNote` nimmt den ersten Treffer der
