@@ -198,7 +198,7 @@ und sie kostet zwei Läufe hintereinander.
 
 ## Läufe
 
-- **2026-08-31, Lauf mit P2b** — Obsidian 1.13.7, macOS, Commit vor dem P2b-Commit.
+- **2026-08-30, Lauf mit P2b** — Obsidian 1.13.7, macOS, Commit vor dem P2b-Commit.
   `--section generic` **14/14**, zweimal hintereinander (Wiederholbarkeit), und mit
   `--focus` **15/15**. Gegenprobe gefahren: `onChange` auf den 0.1.4-Fehler zurückgedreht,
   gebaut, deployt, Plugin per `disablePlugin`/`enablePlugin` neu geladen → **P2b rot**
