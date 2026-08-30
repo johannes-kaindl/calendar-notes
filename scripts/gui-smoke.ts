@@ -380,6 +380,17 @@ async function runAdoption(cdp: Cdp, collectionId: string): Promise<void> {
     await plugin.startAdoption(${JSON.stringify(collectionId)});
     return true;
   `);
+  // `.modal-container` ist Obsidians GETEILTE Modal-Wurzel, nicht unsere: jedes Plugin haengt
+  // seine Modals dort ein. Dass die drei Zugriffe hier trotzdem treffen, ist eine Eigenschaft
+  // der UMGEBUNG, nicht des Codes — im Staging-Vault ist nur calendar-notes aktiv, ein
+  // Fremdmodal also praktisch ausgeschlossen. Waere beim Start eines offen, wuerde `opened`
+  // sofort true liefern und dessen CTA klicken, und der `closed`-Check unten wuerde NIE true
+  // (Meldung "Adoption-Modal schließt nicht", obwohl unseres laengst zu ist).
+  // Das ist falsch-ROT, also laut und billig — deshalb bleibt es so. Wer diesen Treiber je gegen
+  // einen Vault mit weiteren Plugins laufen laesst, muss vorher haerten: fremde Modals zaehlen,
+  // `.pop()` statt des ersten Treffers, Titel pruefen (Referenzform koda-agent `e907f4c`).
+  // Geprueft und so entschieden am 2026-08-30 mit der Dach-Session (Task "GUI-Smoke greift
+  // geteilte Obsidian-DOM-Regionen").
   const opened = await pollUntil<boolean>(cdp, `return !!document.querySelector(".modal-container .mod-cta") || null;`, 15_000, 300);
   if (!opened) throw new Error(`Adoptions-Modal fuer Sammlung ${collectionId} ist nicht erschienen`);
   await cdp.evaluate(`document.querySelector(".modal-container .mod-cta").click(); return true;`);
