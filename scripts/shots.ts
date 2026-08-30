@@ -271,7 +271,7 @@ async function settingsBild(port: number, opts: ShotOptions): Promise<string> {
     return true;
   `);
   werkspace.close();
-  const fenster = await attachTo("settings", port);
+  const fenster = await attachTo("settings", port, REPO_NAME);
   if (!fenster) return "settings.png — kein Einstellungen-Fenster gefunden";
   try {
     await requireVisible(fenster);

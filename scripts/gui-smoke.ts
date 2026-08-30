@@ -907,7 +907,7 @@ async function checkP8(port: number, vault: string): Promise<void> {
   const settingsCdp = await (async () => {
     const deadline = Date.now() + 15_000;
     while (Date.now() < deadline) {
-      const c = await attachTo("settings", port).catch(() => null);
+      const c = await attachTo("settings", port, PLUGIN_ID).catch(() => null);
       if (c) return c;
       await new Promise((r) => setTimeout(r, 500));
     }
