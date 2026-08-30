@@ -143,6 +143,19 @@ versteht skalare Top-Level-Keys — für `type` und das Source-Feld genügt das,
   Adoption auszählen, welches Muster häufiger ist, und die Beispielnotiz danach wählen; das
   andere Muster findet der Matcher über die Fallback-Keys aus (d), sofern sie zu den dort
   genannten gehören.
+- (f) **Eine fremde UID im Frontmatter ist keine DAV-UID — `event_uid` bleibt draußen.**
+  `UID_KEYS` (`src/core/mirror/profile-from-note.ts`) erkennt `vcard_uid`/`ical_uid`/`uid` als
+  abweichendes Identitätsfeld, **nicht** `event_uid`. Das ist eine gemessene Entscheidung
+  (2026-08-30), keine Lücke: 9 der 24 Pallas-Terminnotizen tragen den Schlüssel, seine Werte sind
+  Apple-Kalender-UUIDs (Großbuchstaben-Form, `kalender:` daneben), und zwei Notizen teilen sich
+  denselben Wert. `adoptionPlan` **beschreibt** `profile.uidField` mit der Server-UID
+  (`src/core/adopt/plan.ts`) — stünde `event_uid` in der Liste, überschriebe die Adoption einen
+  fremden Bezug unwiederbringlich. Folge fürs Vault: neben `event_uid` entsteht ein zweites
+  Identitätsfeld (`dav_uid`). **Das ist gewollt** — zwei Systeme, zwei Identitäten, und der
+  `dav_`-Präfix trennt die Namensräume. Wer es anders will, setzt `uidField` im Profil-JSON von
+  Hand. Gegen ein stilles Zurückdrehen steht ein Pin in
+  `tests/core/mirror/profile-from-note.test.ts` (Gegenprobe gefahren: mit `event_uid` in
+  `UID_KEYS` wird er rot).
 - Profil-Ableitungs-Modul (`src/core/mirror/profile-from-note.ts`): Case-insensitives Mapping aus beliebigen Frontmatter-Keys (`organisation→org`, `mobil→tel_cell` u.a.) mit Heuristik-Synonymen; Kommando `profile-from-note` auf aktiver Notiz → Profil in Settings anlegen → Notice mit mapped/unmapped
 - Matching-Regeln (E-Mail exakt → Telefon normalisiert E.164 → Name fuzzy bis Konfidenz-Schwelle; Termine: Start exakt + Titel-Ähnlichkeit) mit `sure/likely/weak`-Stufen (`src/core/adopt/match.ts`, `src/core/adopt/phone.ts`)
 - Staging-Vault-Fixture (`fixtures/vault/`) mit Pallas-ähnlicher Struktur (Kontakte + Termine mit echten Feldmustern) und Default-Profil-Vorlage, über `npm run smoke:gui -- --setup|--section generic|pallas` abrufbar

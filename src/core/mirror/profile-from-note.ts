@@ -70,6 +70,11 @@ const EVENT_SYNONYMS: Record<string, string> = {
   status: "status",
 };
 
+// Bewusst OHNE `event_uid` (Entscheidung 2026-08-30, an 24 Pallas-Terminnotizen gemessen): dessen
+// Werte sind Apple-Kalender-UUIDs, also die Identitaet eines fremden Systems. `adoptionPlan`
+// beschreibt `uidField` mit der Server-UID (`adopt/plan.ts`) und wuerde den Fremdbezug zerstoeren;
+// zwei der gemessenen Notizen teilen sich denselben Wert. Wer es doch will, setzt `uidField` im
+// Profil-JSON. Festgehalten als Pin in `tests/core/mirror/profile-from-note.test.ts`.
 const UID_KEYS = ["vcard_uid", "ical_uid", "uid"];
 const ON_CREATE_KEYS = ["type", "status", "up"];
 

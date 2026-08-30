@@ -104,6 +104,23 @@ describe("suggestProfileFromNote — event", () => {
     expect(profile.id.startsWith("profile-e-")).toBe(true);
   });
 
+  // Entscheidungs-Pin (2026-08-30), kein Verhaltenswunsch: `event_uid` gehoert BEWUSST nicht in
+  // UID_KEYS. Gemessen an den 24 Pallas-Terminnotizen tragen 9 den Schluessel, und seine Werte sind
+  // Apple-Kalender-UUIDs (Grossbuchstaben-Form, `kalender:` daneben) — also die Identitaet eines
+  // FREMDEN Systems. `adoptionPlan` schreibt `profile.uidField` bei der Verknuepfung mit der
+  // Server-UID (`src/core/adopt/plan.ts:33`); waere `event_uid` das uidField, zerstoerte die
+  // Adoption diesen Bezug unwiederbringlich. Zwei der gemessenen Notizen teilen sich zudem
+  // denselben Wert — als Identitaet taugt er auch dort nicht. Wer `event_uid` doch als uidField
+  // will, setzt es im Profil-JSON von Hand; der Default darf es nicht sein.
+  // Dieser Test wird rot, sobald jemand den Schluessel zu UID_KEYS hinzufuegt (Gegenprobe
+  // gefahren) — dann bitte diesen Kommentar lesen, nicht den Test anpassen.
+  it("leaves event_uid alone — it is a foreign calendar's identity, not the DAV uid", () => {
+    const fm = { ...frontmatter, event_uid: "3F1C0A94-77B2-4E31-9D08-51AC6E2B4470", kalender: "Privat" };
+    const { profile, unmapped } = suggestProfileFromNote("event", fm, { folder: "Termine", name: "Termine", rand });
+    expect(profile.uidField).toBe("dav_uid");
+    expect(unmapped).toContain("event_uid");
+  });
+
   it("keeps unrecognized event keys in unmapped", () => {
     const fm = { ...frontmatter, laenge_minuten: 60 };
     const { unmapped } = suggestProfileFromNote("event", fm, { folder: "Termine", name: "Termine", rand });
