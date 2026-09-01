@@ -43,8 +43,8 @@ Files: `src/vendor/kit/vault-path.ts`, `src/vendor/kit/frontmatter.ts`,
 
 `src/vendor/code-kit/` contains modules copied from `code-kit` (`code-kit@0.1.0`, see
 `src/vendor/code-kit/VENDOR.json` for the exact commit and vendoring date) — the maintainer's
-shared, platform-neutral module library for the whole `code/` workspace (source at
-`/Users/Shared/code/code-kit`, not published to a public remote at time of writing). Like
+shared, platform-neutral module library for the whole `code/` workspace (kept locally,
+not published to a public remote at time of writing). Like
 `obsidian-kit`, it is authored by Johannes Kaindl and licensed AGPL-3.0-or-later (see its
 `package.json`/`LICENSE`), so no separate license section applies here either — see
 [`LICENSE`](LICENSE).

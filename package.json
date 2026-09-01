@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "typecheck:scripts": "if test -d ../tools/obsidian-cdp; then tsc -p tsconfig.scripts.json --noEmit; else echo 'typecheck:scripts uebersprungen: ../tools/obsidian-cdp fehlt (die Treiber importieren die zentrale CDP-Bruecke aus dem Dach-Checkout; in CI/fremden Checkouts nicht vorhanden)'; fi",
-    "test": "vitest run --passWithNoTests --exclude tests/integration/**",
+    "test": "node scripts/check-no-abs-paths.mjs && vitest run --passWithNoTests --exclude tests/integration/**",
     "test:integration": "vitest run tests/integration --testTimeout 60000",
     "lint": "node scripts/check-no-inline-disables.mjs && eslint src --max-warnings 0",
     "check:pure": "node scripts/check-pure.mjs",

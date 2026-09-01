@@ -1,8 +1,8 @@
 # calendar-notes — Design-Spec
 
 **Datum:** 2026-08-22 · **Status:** vom Maintainer abgenommen (Abschnitte 1–6 einzeln), Umsetzung freigegeben
-**Repo:** `/Users/Shared/code/obsidian-plugins/calendar-notes/` · **Arbeitsname:** `calendar-notes` (Anzeigename-Vorschlag „Calendar & Contact Notes", entscheidbar bis Erst-Release)
-**Nachbar-Spuren:** `/Users/Shared/40_Tools/mailbox-org/` (DAV-Quelle, liefert Befunde nach `docs/dav/befunde/`), `../mailstone/` (künftiges IMAP-Plugin, Vertrag in `mailstone/docs/2026-08-22-anforderungen-aus-calendar-notes.md`)
+**Repo:** `obsidian-plugins/calendar-notes/` · **Arbeitsname:** `calendar-notes` (Anzeigename-Vorschlag „Calendar & Contact Notes", entscheidbar bis Erst-Release)
+**Nachbar-Spuren:** `<shared>/40_Tools/mailbox-org/` (DAV-Quelle, liefert Befunde nach `docs/dav/befunde/`), `../mailstone/` (künftiges IMAP-Plugin, Vertrag in `mailstone/docs/2026-08-22-anforderungen-aus-calendar-notes.md`)
 
 ---
 
