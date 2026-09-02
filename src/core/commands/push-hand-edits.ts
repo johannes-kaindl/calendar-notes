@@ -7,7 +7,7 @@ import { applyContactMutation, type ContactMutation } from "../vcard/mutate";
 import { diffEventFields, hrefOfEventTarget } from "./event-commands";
 import { diffContactFields, hrefOfContactTarget } from "./contact-commands";
 import type { CommandContext, CommandPlan } from "./types";
-import { assertNever } from "../mirror/kind";
+import { assertNever, nichtUnterstuetzt } from "../mirror/kind";
 
 export interface SkippedField {
   key: string;
@@ -126,6 +126,7 @@ export function planPushHandEdits(ctx: CommandContext, frontmatter: Record<strin
   let plan: CommandPlan | null;
   if (ctx.profile.kind === "event") plan = planEventHandEdits(ctx, frontmatter, keys, skipped);
   else if (ctx.profile.kind === "contact") plan = planContactHandEdits(ctx, frontmatter, keys, skipped);
+  else if (ctx.profile.kind === "todo") nichtUnterstuetzt(ctx.profile.kind, "Hand-Edits");
   else assertNever(ctx.profile.kind, "Hand-Edits");
   return { plan, skipped };
 }

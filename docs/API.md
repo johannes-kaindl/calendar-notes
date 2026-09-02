@@ -63,7 +63,9 @@ get(ref: { uid: string; source?: string }): Promise<ApiEvent | ApiContact | null
   gespeicherter State kann veraltet sein — die Lese-API liefert also nur, was aus aktuell
   aktivierten Sammlungen stammt. Genauso lehnt `plan()` ein Ziel in einer deaktivierten
   Sammlung ab (`{ error: "collection-disabled" }`) — sowohl für ein bestehendes Objekt
-  (`{ uid, source }`) als auch für ein neues (`{ new: true, collectionId }`).
+  (`{ uid, source }`) als auch für ein neues (`{ new: true, collectionId }`). Genauso lehnt
+  `plan()` ein Ziel in einer Sammlung mit Aufgaben-Profil ab (`{ error: "unsupported-kind" }`)
+  — die Sammlung führt eine Objektsorte, für die es keine Kommandos gibt (Aufgaben).
 
 ## Kommandos / Tool-Calling
 

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { defaultContactProfile, defaultEventProfile, validateProfile, fmKeyFor, managedKeys, identityKeys, CONTACT_SERVER_FIELDS, EVENT_SERVER_FIELDS } from "../../../src/core/mirror/profile";
+import { defaultTodoProfile, TODO_SERVER_FIELDS } from "../../../src/core/mirror/profile";
 
 describe("defaults", () => {
   it("contact default maps the core fields and keeps note/photo out of frontmatter", () => {
@@ -78,5 +79,38 @@ describe("validateProfile", () => {
     if (!r1.ok) expect(r1.errors.join(" ")).toMatch(/body/);
     const r2 = validateProfile({ ...base, attendeeLinks: "false" });
     expect(r2.ok).toBe(false);
+  });
+});
+
+describe("defaultTodoProfile", () => {
+  it("ist ein gueltiges Profil mit kind todo", () => {
+    const p = defaultTodoProfile();
+    expect(p.kind).toBe("todo");
+    expect(validateProfile(p).ok).toBe(true);
+  });
+
+  it("bildet jedes Serverfeld ab oder setzt es ausdruecklich auf null", () => {
+    const p = defaultTodoProfile();
+    for (const f of TODO_SERVER_FIELDS) expect(Object.hasOwn(p.fields, f)).toBe(true);
+  });
+
+  it("traegt eine Statusabbildung und eine Prioritaetsabbildung", () => {
+    const p = defaultTodoProfile();
+    expect(p.statusMap).toEqual({ needsAction: "open", inProcess: "in-progress", completed: "done", cancelled: "done" });
+    expect(p.priorityMap).toEqual({ high: "high", normal: "normal", low: "low" });
+  });
+
+  it("kollidiert nicht mit den anderen Default-Profilen", () => {
+    const ids = [defaultContactProfile().id, defaultEventProfile().id, defaultTodoProfile().id];
+    expect(new Set(ids).size).toBe(3);
+  });
+
+  it("validateProfile akzeptiert kind todo und weist Unsinn ab", () => {
+    expect(validateProfile({ ...defaultTodoProfile(), kind: "aufgabe" }).ok).toBe(false);
+  });
+
+  it("validateProfile verwirft eine unvollstaendige statusMap", () => {
+    const bad = { ...defaultTodoProfile(), statusMap: { needsAction: "open", inProcess: "in-progress", completed: "done" } };
+    expect(validateProfile(bad).ok).toBe(false);
   });
 });

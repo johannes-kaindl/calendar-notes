@@ -11,7 +11,7 @@ import type { MappingProfile } from "./profile";
 import type { Window } from "./window";
 import { upsertObject, removeObject, withSnapshot, type CollectionState, type RunInfo } from "../state/collection-state";
 import { sha256HexUtf8 } from "../../vendor/code-kit/sha256";
-import { assertNever } from "./kind";
+import { assertNever, nichtUnterstuetzt } from "./kind";
 
 export interface NoteLookup {
   byUid(uid: string, source: string, recurrenceId?: string): ExistingNote | undefined;
@@ -82,6 +82,8 @@ export function applyDelta(i: ApplyInput): ApplyResult {
         for (const e of parseEvents(obj.data)) {
           items.push({ data: e, uid: e.uid, ...(e.recurrenceId ? { recurrenceId: e.recurrenceId } : {}), values: eventValues(e, { resolveAttendee: i.resolveAttendee, attendeeLinks: i.profile.attendeeLinks }), block: renderEventBlock(e) });
         }
+      } else if (kind === "todo") {
+        nichtUnterstuetzt(kind, "Notiz-Plan");
       } else {
         assertNever(kind, "Notiz-Plan");
       }

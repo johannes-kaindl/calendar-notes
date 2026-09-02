@@ -3,7 +3,7 @@ import { parseContact } from "../vcard/contact";
 import { diffEventFields, hrefOfEventTarget } from "./event-commands";
 import { diffContactFields, hrefOfContactTarget } from "./contact-commands";
 import type { CommandContext, CommandDescriptor, CommandPlan } from "./types";
-import { assertNever } from "../mirror/kind";
+import { assertNever, nichtUnterstuetzt } from "../mirror/kind";
 
 export interface HistoryEntry {
   etag: string;
@@ -26,7 +26,8 @@ export function planUndoLast(ctx: CommandContext, history: HistoryEntry[]): Comm
       etag: ctx.etag, contentType: "text/calendar", hrefForPut: hrefOfEventTarget(ctx.target), createsNew: false,
     };
   }
-  if (ctx.profile.kind !== "contact") assertNever(ctx.profile.kind, "Undo");
+  if (ctx.profile.kind === "todo") nichtUnterstuetzt(ctx.profile.kind, "Undo");
+  else if (ctx.profile.kind !== "contact") assertNever(ctx.profile.kind, "Undo");
   const beforeContact = ctx.raw ? parseContact(ctx.raw) : undefined;
   const afterContact = parseContact(prev.raw);
   return {

@@ -1,5 +1,5 @@
 import { mergeSettings } from "../vendor/code-kit/settings";
-import { defaultContactProfile, defaultEventProfile, validateProfile, type MappingProfile } from "./mirror/profile";
+import { defaultContactProfile, defaultEventProfile, defaultTodoProfile, validateProfile, type MappingProfile } from "./mirror/profile";
 import type { SchedulingInfo } from "./dav/scheduling";
 import type { SecretStore } from "./sync/types";
 
@@ -85,7 +85,7 @@ export function defaultSettings(): PluginSettings {
     version: 1,
     accounts: [],
     collections: [],
-    profiles: [defaultContactProfile(), defaultEventProfile()],
+    profiles: [defaultContactProfile(), defaultEventProfile(), defaultTodoProfile()],
     sync: { ...DEFAULT_SYNC },
     language: "auto",
   };
@@ -117,7 +117,7 @@ function normalizeProfiles(raw: unknown): MappingProfile[] {
       if (v.ok) out.push(v.profile);
     }
   }
-  for (const def of [defaultContactProfile(), defaultEventProfile()]) {
+  for (const def of [defaultContactProfile(), defaultEventProfile(), defaultTodoProfile()]) {
     if (!out.some((p) => p.id === def.id)) out.push(def);
   }
   return out;

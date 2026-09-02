@@ -1,6 +1,9 @@
-export type ProfileKind = "contact" | "event";
+export type ProfileKind = "contact" | "event" | "todo";
 export type FmScalar = string | number | boolean;
 export type FmVal = FmScalar | string[];
+
+export interface StatusMap { needsAction: string; inProcess: string; completed: string; cancelled: string }
+export interface PriorityMap { high: string; normal: string; low: string }
 
 export interface MappingProfile {
   id: string; name: string; kind: ProfileKind;
@@ -10,10 +13,17 @@ export interface MappingProfile {
   onCreate: Record<string, FmVal>;
   body: "block" | "none";
   attendeeLinks: boolean;
+  /** Nur bei kind "todo": VTODO-Zustand → TaskNotes-Statuswert. Wird abgeleitet (§5 der Spec),
+   *  nie im Code geraten. */
+  statusMap?: StatusMap;
+  priorityMap?: PriorityMap;
+  /** Die beim Ableiten gelesene TaskNotes-specVersion — macht einen API-Bruch sichtbar. */
+  taskNotesSpec?: string;
 }
 
 export const CONTACT_SERVER_FIELDS = ["fn", "given", "family", "nickname", "email", "email_home", "email_work", "tel_cell", "tel_home", "tel_work", "org", "title", "role", "url", "adr", "bday", "note", "categories", "photo"] as const;
 export const EVENT_SERVER_FIELDS = ["title", "start", "end", "allday", "tzid", "location", "url", "online", "description", "status", "rrule", "attendees", "organizer", "categories", "last_modified"] as const;
+export const TODO_SERVER_FIELDS = ["title", "due", "start", "allday", "tzid", "description", "status", "priority", "percent", "completed", "rrule", "categories", "last_modified"] as const;
 
 const IDENTITY = { uidField: "dav_uid", sourceField: "dav_source", etagField: "dav_etag", stateField: "dav_state", recurrenceIdField: "dav_recurrence_id" };
 
@@ -39,6 +49,20 @@ export function defaultEventProfile(): MappingProfile {
       description: null, status: "event_status", rrule: "rrule", attendees: "attendees", organizer: "organizer", categories: "categories", last_modified: null,
     },
     onCreate: { type: "event" }, body: "block", attendeeLinks: true,
+  };
+}
+
+export function defaultTodoProfile(): MappingProfile {
+  return {
+    id: "default-todo", name: "Tasks (default)", kind: "todo", folder: "Tasks", filename: "{title}", ...IDENTITY,
+    fields: {
+      title: "title", due: "due", start: "scheduled", allday: "all_day", tzid: null,
+      description: null, status: "status", priority: "priority", percent: null,
+      completed: "completedDate", rrule: "recurrence", categories: "tags", last_modified: null,
+    },
+    onCreate: { type: "task" }, body: "block", attendeeLinks: false,
+    statusMap: { needsAction: "open", inProcess: "in-progress", completed: "done", cancelled: "done" },
+    priorityMap: { high: "high", normal: "normal", low: "low" },
   };
 }
 
@@ -72,7 +96,7 @@ export function validateProfile(p: unknown): { ok: true; profile: MappingProfile
   };
   const id = str("id"), name = str("name"), filename = str("filename"), folderRaw = str("folder", false);
   const kind = o["kind"];
-  if (kind !== "contact" && kind !== "event") errors.push("kind muss contact oder event sein");
+  if (kind !== "contact" && kind !== "event" && kind !== "todo") errors.push("kind muss contact, event oder todo sein");
   const ids = { uidField: str("uidField"), sourceField: str("sourceField"), etagField: str("etagField"), stateField: str("stateField"), recurrenceIdField: str("recurrenceIdField") };
   const idVals = Object.values(ids);
   if (new Set(idVals).size !== idVals.length) errors.push("Identitäts-Felder müssen verschieden sein");
@@ -101,6 +125,29 @@ export function validateProfile(p: unknown): { ok: true; profile: MappingProfile
   const rawAttendeeLinks = o["attendeeLinks"];
   if (rawAttendeeLinks !== undefined && typeof rawAttendeeLinks !== "boolean") errors.push("attendeeLinks muss ein boolean sein");
   const attendeeLinks = rawAttendeeLinks === undefined ? true : rawAttendeeLinks === true;
+  const strMap = <K extends string>(raw: unknown, keys: readonly K[], label: string): Record<K, string> | undefined => {
+    if (raw === undefined) return undefined;
+    if (!raw || typeof raw !== "object") { errors.push(`${label} ist kein Objekt`); return undefined; }
+    const src = raw as Record<string, unknown>;
+    const out = {} as Record<K, string>;
+    for (const k of keys) {
+      const v = src[k];
+      if (typeof v !== "string" || v.length === 0) { errors.push(`${label}.${k} fehlt oder ist leer`); return undefined; }
+      out[k] = v;
+    }
+    return out;
+  };
+  const statusMap = strMap(o["statusMap"], ["needsAction", "inProcess", "completed", "cancelled"] as const, "statusMap");
+  const priorityMap = strMap(o["priorityMap"], ["high", "normal", "low"] as const, "priorityMap");
+  const specRaw = o["taskNotesSpec"];
+  if (specRaw !== undefined && typeof specRaw !== "string") errors.push("taskNotesSpec muss ein String sein");
   if (errors.length) return { ok: false, errors };
-  return { ok: true, profile: { id, name, kind: kind as ProfileKind, folder: normFolder(folderRaw), filename, ...ids, fields, onCreate, body, attendeeLinks } };
+  return {
+    ok: true,
+    profile: {
+      id, name, kind: kind as ProfileKind, folder: normFolder(folderRaw), filename, ...ids, fields, onCreate, body, attendeeLinks,
+      ...(statusMap ? { statusMap } : {}), ...(priorityMap ? { priorityMap } : {}),
+      ...(typeof specRaw === "string" ? { taskNotesSpec: specRaw } : {}),
+    },
+  };
 }

@@ -92,6 +92,11 @@ export function findByUid(settings: PluginSettings, entries: CollectionStateEntr
       } catch {
         continue;
       }
+    } else if (profile.kind === "todo") {
+      // Aufgaben werden ueber die Plugin-API v1 NICHT ausgeliefert: `ApiObjectKind` ist
+      // "event" | "contact" | "any", und den veroeffentlichten Union-Typ zu erweitern waere ein
+      // Vertragsbruch. Siehe Spec 2026-09-02, § 11.
+      continue;
     } else {
       assertNever(profile.kind, "API-Lesen");
     }

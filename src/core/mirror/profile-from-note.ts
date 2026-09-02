@@ -8,7 +8,7 @@ import {
   type MappingProfile,
   type ProfileKind,
 } from "./profile";
-import { assertNever } from "./kind";
+import { assertNever, nichtUnterstuetzt } from "./kind";
 
 // Synonyme (klein geschrieben, deutsch/englisch) → Server-Feld. "title" gehört bewusst nur zur
 // fn-Gruppe (Notiz-Titel = Personenname) — der Job-Titel hat dafür eigene Schlüssel
@@ -82,16 +82,19 @@ const ON_CREATE_KEYS = ["type", "status", "up"];
 function synonymsFor(kind: ProfileKind): Record<string, string> {
   if (kind === "contact") return CONTACT_SYNONYMS;
   if (kind === "event") return EVENT_SYNONYMS;
+  if (kind === "todo") return nichtUnterstuetzt(kind, "Profil aus Notiz (Synonyme)");
   return assertNever(kind, "Profil aus Notiz (Synonyme)");
 }
 function serverFieldsFor(kind: ProfileKind): readonly string[] {
   if (kind === "contact") return CONTACT_SERVER_FIELDS;
   if (kind === "event") return EVENT_SERVER_FIELDS;
+  if (kind === "todo") return nichtUnterstuetzt(kind, "Profil aus Notiz (Serverfelder)");
   return assertNever(kind, "Profil aus Notiz (Serverfelder)");
 }
 function baseProfileFor(kind: ProfileKind): MappingProfile {
   if (kind === "contact") return defaultContactProfile();
   if (kind === "event") return defaultEventProfile();
+  if (kind === "todo") return nichtUnterstuetzt(kind, "Profil aus Notiz (Basis)");
   return assertNever(kind, "Profil aus Notiz (Basis)");
 }
 

@@ -220,6 +220,13 @@ export class CommandFlow {
     }
     const [hp, obj] = entry;
     const href = resolveHref(collection.href, hp);
+    // Laufzeit unerreichbar (targetFromFrontmatter sortiert Todo-Profile aus), aber der Compiler
+    // verlangt die Entscheidung. Kein Wurf: hier ist "kein Kommando-Ziel" die richtige,
+    // bereits vorhandene Antwort an den Nutzer.
+    if (profile.kind === "todo") {
+      new Notice(t("notice.notCommandTarget"));
+      return undefined;
+    }
     const target: CommandTarget = { kind: profile.kind, source: ft.source, href, uid: obj.uid };
     const ctx: CommandContext = buildCommandContext({
       app: this.app, settings, now: this.deps.now(), profile, collection, account, target,

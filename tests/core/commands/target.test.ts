@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { targetFromFrontmatter } from "../../../src/core/commands/target";
-import { defaultContactProfile, defaultEventProfile } from "../../../src/core/mirror/profile";
+import { defaultContactProfile, defaultEventProfile, defaultTodoProfile } from "../../../src/core/mirror/profile";
 import { normalizeSettings, type PluginSettings } from "../../../src/core/settings";
 
 function settingsWith(overrides: Partial<PluginSettings>): PluginSettings {
@@ -60,5 +60,12 @@ describe("targetFromFrontmatter", () => {
   it("liefert undefined fuer voellig fremdes Frontmatter", () => {
     const settings = settingsWith({ collections: [EVENT_COLLECTION, CONTACT_COLLECTION], profiles: [defaultEventProfile(), defaultContactProfile()] });
     expect(targetFromFrontmatter(settings, { title: "Ganz normale Notiz" })).toBeUndefined();
+  });
+
+  it("ein Todo-Profil erzeugt kein Kommando-Ziel (Kommandos kommen mit M6b)", () => {
+    const todoCol = { ...EVENT_COLLECTION, id: "c9", profileId: "default-todo" };
+    const settings = settingsWith({ collections: [todoCol], profiles: [defaultTodoProfile()] });
+    const fm = { dav_source: "a1/c9", dav_uid: "todo-1@test" };
+    expect(targetFromFrontmatter(settings, fm)).toBeUndefined();
   });
 });
