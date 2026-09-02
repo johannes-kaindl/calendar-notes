@@ -545,7 +545,7 @@ Import oben ergänzen: `import { assertNever } from "./kind";`
 
 Zeile 125 ersetzen:
 ```typescript
-  let plan: PushHandEditsResult;
+  let plan: CommandPlan | null;
   if (ctx.profile.kind === "event") plan = planEventHandEdits(ctx, frontmatter, keys, skipped);
   else if (ctx.profile.kind === "contact") plan = planContactHandEdits(ctx, frontmatter, keys, skipped);
   else assertNever(ctx.profile.kind, "Hand-Edits");
@@ -574,12 +574,27 @@ Import ergänzen: `import { assertNever } from "../mirror/kind";`
 
 - [ ] **Schritt 9: `command-modal.ts` erschöpfend machen**
 
-In `src/obsidian/command-modal.ts` bleibt der `if (ctx.profile.kind === "event") { … }`-Block
-unverändert. Direkt danach, vor dem Kontakt-Teil, einfügen:
+⚠️ **Hier gilt NICHT das `undo.ts`-Muster.** `initialValuesFor` hat im Event-Zweig **kein** frühes
+`return`: der Block befüllt `out` und fällt zum gemeinsamen `return out;` am Funktionsende durch.
+Eine nachgeschaltete `assertNever`-Zeile würde deshalb auch für `kind === "event"` laufen und
+werfen. Es gilt die `read.ts`-Form — der `else` wird zu `else if`, der dritte Zweig kommt dahinter:
+
 ```typescript
-  if (ctx.profile.kind !== "contact") assertNever(ctx.profile.kind, "Kommando-Vorbelegung");
+  if (ctx.profile.kind === "event") {
+    // Event-Block unverändert
+  } else if (ctx.profile.kind === "contact") {
+    // Kontakt-Block unverändert
+  } else {
+    assertNever(ctx.profile.kind, "Kommando-Vorbelegung");
+  }
+  return out;
 ```
 Import ergänzen: `import { assertNever } from "../core/mirror/kind";`
+
+> Belegt am 2026-09-02: die ursprüngliche Fassung dieses Schritts trug das `undo.ts`-Muster und
+> ließ 3 von 8 Tests in `tests/obsidian/command-modal.test.ts` fallen
+> (`Kommando-Vorbelegung: unbehandelte Profilsorte event`). Ob ein Zweig früh zurückkehrt, ist
+> keine Formalie — es entscheidet, ob die Wächterzeile erreichbar ist.
 
 - [ ] **Schritt 10: `profile-from-note.ts` erschöpfend machen**
 
@@ -837,12 +852,21 @@ export function noteBasename(profile: MappingProfile, data: ContactData | EventD
   else assertNever(ctx.profile.kind, "Hand-Edits");
 ```
 
-`src/core/commands/undo.ts` und `src/obsidian/command-modal.ts` — die Zeile aus Task 4 ersetzen:
+`src/core/commands/undo.ts` — die Zeile aus Task 4 ersetzen (dort kehrt der Event-Zweig früh zurück):
 ```typescript
   if (ctx.profile.kind === "todo") nichtUnterstuetzt(ctx.profile.kind, "Undo");
   else if (ctx.profile.kind !== "contact") assertNever(ctx.profile.kind, "Undo");
 ```
-(in `command-modal.ts` mit dem Hinweis `"Kommando-Vorbelegung"`).
+
+`src/obsidian/command-modal.ts` — hier liegt die `read.ts`-Form vor (kein frühes `return`), also
+den dritten Zweig ergänzen:
+```typescript
+  } else if (ctx.profile.kind === "todo") {
+    nichtUnterstuetzt(ctx.profile.kind, "Kommando-Vorbelegung");
+  } else {
+    assertNever(ctx.profile.kind, "Kommando-Vorbelegung");
+  }
+```
 
 `src/core/mirror/profile-from-note.ts` — alle drei Funktionen:
 ```typescript
