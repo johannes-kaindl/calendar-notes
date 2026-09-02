@@ -821,6 +821,33 @@ type NoteProfileKind = Exclude<ProfileKind, "todo">;
 `getItemText(kind: NoteProfileKind)`, `onChoose`/`onChooseItem` und `createProfileFromNote(kind: NoteProfileKind, …)`
 ziehen mit. `getItemText` bleibt damit unverändert aus Task 4 gültig.
 
+**Drei weitere Stellen koppeln `ProfileKind` an `CommandTarget["kind"]`** (`"event" | "contact"`,
+`src/core/commands/types.ts`) und wurden beim Schreiben des Plans übersehen — der Compiler meldet
+sie zuverlässig, weil die Zuweisung `{ kind: profile.kind, … }` in den engeren Typ fließt. Es ist
+dieselbe Kopplung wie in `target.ts`, nur an drei weiteren Orten:
+
+`src/obsidian/api.ts` in `resolveCreateTarget` und `resolveExistingTarget` — jeweils **vor** dem
+`const target: CommandTarget = …`:
+```typescript
+    // Aufgaben sind in M6a kein Kommando-Ziel (Spec § 11: keine Auslieferung ueber API v1).
+    // `ApiError` ist `{ error: string }` und damit offen — ein neuer Code bricht keinen Vertrag,
+    // waehrend ein vorhandener ("profile-not-found") eine Falschaussage waere, die ein Konsument
+    // nicht debuggen kann.
+    if (profile.kind === "todo") return { error: "unsupported-kind" };
+```
+
+`src/obsidian/command-flow.ts` in `resolveTarget` — ebenso vor der `target`-Zuweisung:
+```typescript
+    // Laufzeit unerreichbar (targetFromFrontmatter sortiert Todo-Profile aus), aber der Compiler
+    // verlangt die Entscheidung. Kein Wurf: hier ist "kein Kommando-Ziel" die richtige,
+    // bereits vorhandene Antwort an den Nutzer.
+    if (profile.kind === "todo") { new Notice(t("notice.notCommandTarget")); return undefined; }
+```
+
+Dazu **eine Zeile** in `docs/API.md` bei den Fehlercodes: `unsupported-kind` — die Sammlung führt
+eine Objektsorte, für die es keine Kommandos gibt (Aufgaben). Kein neuer i18n-Schlüssel nötig;
+`notice.notCommandTarget` existiert bereits.
+
 **Die übrigen fünf Stellen brauchen jede einen `todo`-Zweig — auch die, die zur Laufzeit
 unerreichbar sind.** `assertNever(x: never)` verlangt, dass der Typ dort `never` **ist**;
 „kann nicht vorkommen" genügt dem Compiler nicht. Ohne diese Zweige endet Task 5 nicht mit
@@ -911,10 +938,10 @@ it("ein Todo-Profil erzeugt kein Kommando-Ziel (Kommandos kommen mit M6b)", () =
 - [ ] **Schritt 8: Gate und Commit**
 
 Run: `npm run gate`
-Erwartung: alles grün, **555 Tests** (548 + 6 aus Schritt 1 + 1 aus Schritt 7).
+Erwartung: alles grün, **556 Tests** (549 + 6 aus Schritt 1 + 1 aus Schritt 7).
 
 ```bash
-git add src/core/mirror/profile.ts src/core/settings.ts src/core/commands/target.ts src/core/api/read.ts src/main.ts tests/core/mirror/profile.test.ts tests/core/commands/target.test.ts
+git add src/core/mirror/profile.ts src/core/settings.ts src/core/commands/target.ts src/core/api/read.ts src/obsidian/api.ts src/obsidian/command-flow.ts src/core/mirror/apply.ts src/core/mirror/filename.ts src/core/commands/push-hand-edits.ts src/core/commands/undo.ts src/obsidian/command-modal.ts src/core/mirror/profile-from-note.ts src/main.ts docs/API.md tests/core/mirror/profile.test.ts tests/core/commands/target.test.ts
 git commit -m "feat(profile): ProfileKind um todo erweitern und Default-Aufgabenprofil anlegen"
 ```
 
