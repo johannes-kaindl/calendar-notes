@@ -1109,18 +1109,32 @@ Erwartung: PASS — der Test prüft, dass EN und DE dieselben Schlüssel tragen.
 - [ ] **Schritt 7: Belegen, dass der Sync die falsche Paarung überspringt**
 
 An `tests/core/sync/service.test.ts` anhängen — nach dem Muster der dortigen Fakes:
+**Der Test muss eine VEVENT-Sammlung mit einem Aufgaben-Profil paaren — nicht umgekehrt.** Eine
+VTODO-Sammlung mit Termin-Profil wäre auch unter der **alten** `holdsEvents(col)`-Logik
+übersprungen worden; ein solcher Test unterscheidet die beiden Implementierungen nicht und ist
+damit wertlos, egal ob er grün oder rot ist. Nur die umgekehrte Paarung kann ausschließlich am
+neuen Guard scheitern:
+
 ```typescript
-it("ueberspringt eine VTODO-Sammlung, der ein Termin-Profil zugewiesen ist", async () => {
-  const col = { ...EVENT_COLLECTION, components: ["VTODO"] };
-  const { service, results } = makeService({ collections: [col] });
+it("ueberspringt eine VEVENT-Sammlung, der ein Aufgaben-Profil zugewiesen ist", async () => {
+  // Unter der alten holdsEvents(col)-Pruefung waere diese Sammlung NIE uebersprungen worden —
+  // der Test misst also die neue Paarungs-Pruefung und nicht bloss ihre Anwesenheit.
+  const col = { ...EVENT_COLLECTION, profileId: "default-todo" };
+  const { service, results, transport } = makeService({ collections: [col], profiles: [defaultTodoProfile()] });
   await service.syncAll();
   expect(results()[0]).toMatchObject({ skipped: "unsupported-components" });
+  expect(transport.calls).toEqual([]);
 });
 ```
 
-> `makeService` und `EVENT_COLLECTION` heißen in der Datei möglicherweise anders — **nimm die dort
-> vorhandenen Helfer**, statt neue zu bauen. Der Test soll zeigen, dass die Paarung geprüft wird,
-> nicht ein zweites Test-Gerüst etablieren.
+> `makeService`, `EVENT_COLLECTION` und der Transport-Spion heißen in der Datei möglicherweise
+> anders — **nimm die dort vorhandenen Helfer**, statt neue zu bauen. Prüfe außerdem, dass der Test
+> wirklich am neuen Guard greift und nicht an einem vorgelagerten (`disabled`, `no-profile`,
+> `no-secret`).
+>
+> ⓘ Belegt am 2026-09-02: die erste Fassung dieses Schritts verlangte die VTODO-Sammlung mit
+> Termin-Profil. Der Implementer wich begründet ab, und die Nachprüfung im Review gab ihm recht —
+> ein Test, der vor und nach der Änderung dasselbe Ergebnis liefert, misst die Änderung nicht.
 
 - [ ] **Schritt 8: Gate und Commit**
 
