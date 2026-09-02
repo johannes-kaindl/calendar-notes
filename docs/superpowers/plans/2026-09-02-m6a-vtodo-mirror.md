@@ -848,6 +848,18 @@ Dazu **eine Zeile** in `docs/API.md` bei den Fehlercodes: `unsupported-kind` —
 eine Objektsorte, für die es keine Kommandos gibt (Aufgaben). Kein neuer i18n-Schlüssel nötig;
 `notice.notCommandTarget` existiert bereits.
 
+⚠️ **Der `api.ts`-Zweig braucht einen Test, der `command-flow.ts`-Zweig nicht.** Der Unterschied
+ist Erreichbarkeit, nicht Symmetrie: `resolveCreateTarget`/`resolveExistingTarget` sind über die
+öffentliche `plan()`-API direkt erreichbar — ein Konsument kann sie für eine Sammlung mit
+Todo-Profil aufrufen, und dann ist `unsupported-kind` echtes, ausgeliefertes Verhalten. Der
+`command-flow.ts`-Zweig liegt hinter `targetFromFrontmatter`, das Todo-Profile bereits aussortiert.
+
+An `tests/obsidian/api.test.ts` anhängen, nach dem Muster der dortigen Fälle: eine Sammlung mit
+`profileId: "default-todo"` aufsetzen, `plan()` dagegen aufrufen und `{ error: "unsupported-kind" }`
+erwarten — je einmal für den Erstanlage-Weg (Ziel ohne `uid`) und den Bestandsweg (Ziel mit `uid`),
+weil es zwei getrennte Funktionen sind. **Die vorhandenen Helfer der Datei benutzen**, kein zweites
+Testgerüst aufbauen.
+
 **Die übrigen fünf Stellen brauchen jede einen `todo`-Zweig — auch die, die zur Laufzeit
 unerreichbar sind.** `assertNever(x: never)` verlangt, dass der Typ dort `never` **ist**;
 „kann nicht vorkommen" genügt dem Compiler nicht. Ohne diese Zweige endet Task 5 nicht mit
@@ -938,7 +950,7 @@ it("ein Todo-Profil erzeugt kein Kommando-Ziel (Kommandos kommen mit M6b)", () =
 - [ ] **Schritt 8: Gate und Commit**
 
 Run: `npm run gate`
-Erwartung: alles grün, **556 Tests** (549 + 6 aus Schritt 1 + 1 aus Schritt 7).
+Erwartung: alles grün, **558 Tests** (549 + 6 aus Schritt 1 + 1 aus Schritt 7 + 2 API-Tests).
 
 ```bash
 git add src/core/mirror/profile.ts src/core/settings.ts src/core/commands/target.ts src/core/api/read.ts src/obsidian/api.ts src/obsidian/command-flow.ts src/core/mirror/apply.ts src/core/mirror/filename.ts src/core/commands/push-hand-edits.ts src/core/commands/undo.ts src/obsidian/command-modal.ts src/core/mirror/profile-from-note.ts src/main.ts docs/API.md tests/core/mirror/profile.test.ts tests/core/commands/target.test.ts
@@ -1113,7 +1125,7 @@ it("ueberspringt eine VTODO-Sammlung, der ein Termin-Profil zugewiesen ist", asy
 - [ ] **Schritt 8: Gate und Commit**
 
 Run: `npm run gate`
-Erwartung: grün, **563 Tests** (556 + 6 + 1).
+Erwartung: grün, **565 Tests** (558 + 6 + 1).
 
 ```bash
 git add src/core/settings.ts src/core/sync/service.ts src/obsidian/settings-tab.ts src/i18n/strings.ts tests/core/settings.test.ts tests/core/sync/service.test.ts
@@ -1422,7 +1434,7 @@ it("archiviert eine lange erledigte Aufgabe statt sie anzulegen", () => {
 - [ ] **Schritt 9: Gate und Commit**
 
 Run: `npm run gate`
-Erwartung: grün, **578 Tests** (563 + 11 + 2 + 2).
+Erwartung: grün, **580 Tests** (565 + 11 + 2 + 2).
 
 ```bash
 git add src/core/mirror/todo-values.ts tests/core/mirror/todo-values.test.ts src/core/mirror/apply.ts src/core/mirror/filename.ts tests/core/mirror/filename.test.ts tests/core/mirror/apply.test.ts
@@ -1595,7 +1607,7 @@ Erwartung: PASS, 12 Tests.
 - [ ] **Schritt 5: Gate und Commit**
 
 Run: `npm run gate`
-Erwartung: grün, **590 Tests** (578 + 12).
+Erwartung: grün, **592 Tests** (580 + 12).
 
 ```bash
 git add src/core/mirror/tasknotes-map.ts tests/core/mirror/tasknotes-map.test.ts
@@ -1822,7 +1834,7 @@ Erwartung: PASS.
 - [ ] **Schritt 7: Gate und Commit**
 
 Run: `npm run gate`
-Erwartung: grün, **601 Tests** (590 + 11).
+Erwartung: grün, **603 Tests** (592 + 11).
 
 ```bash
 git add src/obsidian/tasknotes.ts tests/obsidian/tasknotes.test.ts src/obsidian/settings-tab.ts src/i18n/strings.ts docs/dav/befunde/
