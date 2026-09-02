@@ -83,6 +83,31 @@ die Vault-Spezifika hingehören (Rollout-Handover im Cockpit). Grenze: der Front
 versteht skalare Top-Level-Keys — für `type` und das Source-Feld genügt das, ein Ersatz für
 `sync-preview` im Plugin ist es nicht.
 
+## Aufgaben (VTODO): TaskNotes verwaltet, calendar-notes transportiert
+
+Die Spec führte `VTODO/Aufgaben (→ TaskNotes)` als Nicht-Ziel. Die Klammer nannte den
+**Zuständigen**, wurde aber als Verbot gelesen — *TaskNotes verwaltet Aufgaben* wurde zu
+*calendar-notes fasst Aufgaben nicht an*. Aufgehoben am 2026-09-02 (Anlass und Zuschnitt:
+`docs/superpowers/specs/2026-09-02-vtodo-aufgaben-design.md`). Aufgaben zwischen zwei Klienten
+desselben Servers zu bewegen ist Transport, nicht Verwaltung — genau die Aufgabe dieses Plugins.
+
+**Die Grenze verläuft an der Schreibhoheit, nicht am Datentyp.** Gelesen wird ausschließlich
+`api.model` und `api.catalog` der TaskNotes-Plugin-API — **niemals `api.tasks.*`**. Sobald
+calendar-notes eine Aufgabe anlegte oder änderte, verwaltete es sie, und die Zuständigkeits-
+grenze der Dach-`AGENTS.md` wäre verschoben statt bedient. Dieselbe Achse wie bei vault-rag:
+die Quelle liefert Material und entscheidet nichts.
+
+**Das Notiz-Format wird abgelesen, nicht erfunden** — einmalig über einen Knopf, das Ergebnis
+friert als gewöhnliches `MappingProfile` ein (samt gelesener `specVersion`; die API ist ein
+Release Candidate). Danach läuft der Sync ohne TaskNotes. Kein Laufzeitgriff aus `src/core/**`,
+kein Fremdplugin im Sync-Pfad, und ein API-Bruch fällt beim nächsten Ableiten auf statt still.
+
+⚠️ **Die Wertevokabulare sind die Härte, nicht die Feldnamen.** TaskNotes-Status sind frei
+konfigurierbar; die Abbildung läuft über `isCompleted` + `order`, **nie über Namensgleichheit** —
+die ist Zufall und bricht beim ersten Nutzer, der umbenennt. Und `taskIdentification` entscheidet
+über Sichtbarkeit: wird sie nicht erfüllt, ist die gespiegelte Notiz für TaskNotes unsichtbar,
+ohne Fehler und ohne Symptom außer fehlenden Aufgaben.
+
 ## Was M1 liefert
 - DAV-Core Modul (`src/core/dav/`) mit Discovery, Collection-Sync, Multiget, Transport-Injection
 - ical.js-Parser und Mutationen für VEVENT (`src/core/ical/`)

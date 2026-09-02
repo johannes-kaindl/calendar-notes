@@ -118,7 +118,13 @@ Pallas und 80_Arbeit werden erst nach grünem Smoke angefasst, zuerst im Trocken
 
 **Release:** Skill `plugin-release-setup`, `npm run lint` = Store-Scanner, Ziel `Passed` mit 0 Warnings. `isDesktopOnly: false`, `minAppVersion: 1.13.x`, `authorUrl: https://github.com/johannes-kaindl`. Registry-Einträge nach Umsetzung: `secretStorage`-Muster (erstes Exemplar), DAV-Client, Mirror-Feldklassen, Kommando-Schema-als-Tool.
 
-**Meilensteine:** M1 DAV-Core + ical/vcard + Radicale-Integration (ohne Obsidian) · M2 Spiegel (Kontakte, Termine), Settings, Secret, Trockenlauf · M3 Adoption + Staging-Vault + GUI-Smoke · M4 Kommandos 2a + API v1 · M5 Release.
+**Meilensteine:** M1 DAV-Core + ical/vcard + Radicale-Integration (ohne Obsidian) · M2 Spiegel (Kontakte, Termine), Settings, Secret, Trockenlauf · M3 Adoption + Staging-Vault + GUI-Smoke · M4 Kommandos 2a + API v1 · M5 Release · **M6a** VTODO Server→Vault · **M6b** VTODO Vault→Server (eigene Spec, s. § 7).
 
 ## 7. Nicht-Ziele (bewusst)
-IMAP/Mail (→ mailstone) · WebDAV-Dateien · VTODO/Aufgaben (→ TaskNotes) · bidirektionaler Merge · eigene Verschlüsselung von Zugangsdaten · Kalender-UI in dieser Spec · Instanz-Notizen für Wiederholungen · automatisches Umbenennen/Verschieben von Notizen.
+IMAP/Mail (→ mailstone) · WebDAV-Dateien · bidirektionaler Merge · eigene Verschlüsselung von Zugangsdaten · Kalender-UI in dieser Spec · Instanz-Notizen für Wiederholungen · automatisches Umbenennen/Verschieben von Notizen.
+
+⚠️ **`VTODO/Aufgaben (→ TaskNotes)` stand hier bis zum 2026-09-02 und ist aufgehoben.** Die
+Klammer nannte den Zuständigen, wurde aber als Verbot gelesen: *TaskNotes verwaltet Aufgaben*
+wurde zu *calendar-notes fasst Aufgaben nicht an*. Die erste Hälfte gilt weiter — das
+Zurückschreiben läuft wie bei Terminen über explizite Kommandos, und `api.tasks.*` bleibt
+unangetastet. Anlass und Zuschnitt: `2026-09-02-vtodo-aufgaben-design.md`.
