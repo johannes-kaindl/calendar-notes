@@ -440,7 +440,7 @@ git commit -m "feat(ical): VTODO parsen — parseTodos und isOpen"
 
 **Interfaces:**
 - Consumes: nichts
-- Produces: `export function assertNever(x: never, hinweis: string): never`
+- Produces: `export function assertNever(x: never, hinweis: string): never` · `export function nichtUnterstuetzt(kind: string, hinweis: string): never`
 
 > **Der Kern dieser Task, und der Grund für ihre Reihenfolge.** `ProfileKind` wird an sieben
 > Stellen binär ausgewertet — `kind === "event" ? … : …`, wobei der else-Zweig „contact" *meint*
@@ -460,11 +460,17 @@ git commit -m "feat(ical): VTODO parsen — parseTodos und isOpen"
 `tests/core/mirror/kind.test.ts`:
 ```typescript
 import { describe, it, expect } from "vitest";
-import { assertNever } from "../../../src/core/mirror/kind";
+import { assertNever, nichtUnterstuetzt } from "../../../src/core/mirror/kind";
 
 describe("assertNever", () => {
   it("wirft mit Hinweis und Wert, wenn zur Laufzeit doch etwas ankommt", () => {
     expect(() => assertNever("todo" as never, "Notiz-Plan")).toThrow(/Notiz-Plan.*todo/);
+  });
+});
+
+describe("nichtUnterstuetzt", () => {
+  it("wirft mit Hinweis und Sorte", () => {
+    expect(() => nichtUnterstuetzt("todo", "Dateiname")).toThrow(/Dateiname.*todo/);
   });
 });
 ```
@@ -489,12 +495,25 @@ Erwartung: FAIL — `Failed to resolve import`.
 export function assertNever(x: never, hinweis: string): never {
   throw new Error(`${hinweis}: unbehandelte Profilsorte ${String(x)}`);
 }
+
+/**
+ * Fuer Stellen, die eine Profilsorte KENNEN, aber (noch) nicht bedienen. Nimmt bewusst
+ * `ProfileKind` statt `never`: `assertNever` verlangt, dass der Typ an der Aufrufstelle
+ * erschoepft IST — sobald der Union-Typ waechst, ist er das dort nicht mehr, und der Aufruf
+ * waere selbst ein Typfehler.
+ *
+ * Ein Wurf ist hier richtig: die Alternative waere, still in den Nachbarzweig zu laufen und
+ * eine Notiz nach dem falschen Schema zu schreiben.
+ */
+export function nichtUnterstuetzt(kind: string, hinweis: string): never {
+  throw new Error(`${hinweis}: Profilsorte ${kind} wird hier noch nicht unterstuetzt`);
+}
 ```
 
 - [ ] **Schritt 4: Test laufen lassen**
 
 Run: `npx vitest run tests/core/mirror/kind.test.ts`
-Erwartung: PASS, 1 Test.
+Erwartung: PASS, 2 Tests.
 
 - [ ] **Schritt 5: `apply.ts` erschöpfend machen**
 
@@ -599,7 +618,7 @@ Import ergänzen: `import { assertNever } from "./core/mirror/kind";`
 - [ ] **Schritt 12: Belegen, dass sich nichts geändert hat**
 
 Run: `npm run gate`
-Erwartung: alles grün, **548 Tests** (547 aus Task 3 + 1 neuer). Kein Test musste angepasst werden — das ist der Beleg, dass diese Task kein Verhalten geändert hat. Musste doch einer angepasst werden, ist etwas schiefgegangen: zurückrollen und die Stelle einzeln ansehen.
+Erwartung: alles grün, **549 Tests** (547 aus Task 3 + 2 neue). Kein Test musste angepasst werden — das ist der Beleg, dass diese Task kein Verhalten geändert hat. Musste doch einer angepasst werden, ist etwas schiefgegangen: zurückrollen und die Stelle einzeln ansehen.
 
 - [ ] **Schritt 13: Commit**
 
@@ -775,17 +794,66 @@ Erwartung: **FEHLER — und das ist das Ergebnis dieses Schritts.** Die gemeldet
     }
 ```
 
-`src/main.ts` — `getItems()` bleibt zweiwertig:
+`src/main.ts` — den Modal-Typ eingrenzen, statt einen Anzeigetext für eine nie angebotene Sorte
+zu erfinden. `ProfileKindSuggestModal` und `createProfileFromNote` auf `NoteProfileKind` umstellen:
 ```typescript
-  getItems(): ProfileKind[] {
-    // "Profil aus Notiz" gibt es fuer Aufgaben bewusst nicht: dort ist der Weg der
-    // Ableitungs-Knopf aus TaskNotes (Spec § 5), der die Wertevokabulare mitbringt.
-    return ["contact", "event"];
-  }
+/** "Profil aus Notiz" gibt es fuer Aufgaben bewusst nicht: dort ist der Weg der
+ *  Ableitungs-Knopf aus TaskNotes (Spec § 5), der die Wertevokabulare mitbringt. Der engere
+ *  Typ haelt `getItemText` erschoepfend, ohne einen Text fuer eine unerreichbare Sorte. */
+type NoteProfileKind = Exclude<ProfileKind, "todo">;
+```
+`FuzzySuggestModal<ProfileKind>` → `FuzzySuggestModal<NoteProfileKind>`, `getItems(): NoteProfileKind[]`,
+`getItemText(kind: NoteProfileKind)`, `onChoose`/`onChooseItem` und `createProfileFromNote(kind: NoteProfileKind, …)`
+ziehen mit. `getItemText` bleibt damit unverändert aus Task 4 gültig.
+
+**Die übrigen fünf Stellen brauchen jede einen `todo`-Zweig — auch die, die zur Laufzeit
+unerreichbar sind.** `assertNever(x: never)` verlangt, dass der Typ dort `never` **ist**;
+„kann nicht vorkommen" genügt dem Compiler nicht. Ohne diese Zweige endet Task 5 nicht mit
+grünem Gate.
+
+`src/core/mirror/apply.ts` — Verhalten kommt in Task 7:
+```typescript
+      } else if (kind === "todo") {
+        nichtUnterstuetzt(kind, "Notiz-Plan");
+      } else {
+        assertNever(kind, "Notiz-Plan");
+      }
 ```
 
-Alle übrigen `assertNever`-Stellen bleiben **unverändert** — sie sind für Todo-Profile
-unerreichbar (kein Kommando-Ziel), und ein lauter Fehler ist dort das gewünschte Verhalten.
+`src/core/mirror/filename.ts` — Verhalten kommt ebenfalls in Task 7. `noteBasename` erweitern und
+`filenameSubs` vorläufig abfangen:
+```typescript
+export function filenameSubs(kind: ProfileKind, data: ContactData | EventData | TodoData): Record<string, string> {
+  if (kind === "contact") { /* unverändert */ }
+  if (kind === "todo") return nichtUnterstuetzt(kind, "Dateiname");
+  /* Event-Teil unverändert */
+}
+export function noteBasename(profile: MappingProfile, data: ContactData | EventData | TodoData): string {
+```
+
+`src/core/commands/push-hand-edits.ts` — bleibt so bis M6b:
+```typescript
+  else if (ctx.profile.kind === "todo") nichtUnterstuetzt(ctx.profile.kind, "Hand-Edits");
+  else assertNever(ctx.profile.kind, "Hand-Edits");
+```
+
+`src/core/commands/undo.ts` und `src/obsidian/command-modal.ts` — die Zeile aus Task 4 ersetzen:
+```typescript
+  if (ctx.profile.kind === "todo") nichtUnterstuetzt(ctx.profile.kind, "Undo");
+  else if (ctx.profile.kind !== "contact") assertNever(ctx.profile.kind, "Undo");
+```
+(in `command-modal.ts` mit dem Hinweis `"Kommando-Vorbelegung"`).
+
+`src/core/mirror/profile-from-note.ts` — alle drei Funktionen:
+```typescript
+  if (kind === "todo") return nichtUnterstuetzt(kind, "Profil aus Notiz");
+  return assertNever(kind, "Profil aus Notiz (…)");
+```
+
+> Diese drei Kommando-Stellen sind zur Laufzeit **unerreichbar**, weil `targetFromFrontmatter`
+> Todo-Profile aussortiert (oben in diesem Schritt). Der Wurf ist trotzdem das richtige
+> Verhalten: greift die Aussortierung eines Tages nicht mehr, ist ein lauter Fehler besser als
+> eine Aufgabe, die durch `planContactHandEdits` läuft.
 
 - [ ] **Schritt 6: `defaultTodoProfile` in die Settings aufnehmen**
 
@@ -994,7 +1062,7 @@ it("ueberspringt eine VTODO-Sammlung, der ein Termin-Profil zugewiesen ist", asy
 - [ ] **Schritt 8: Gate und Commit**
 
 Run: `npm run gate`
-Erwartung: grün, **562 Tests** (555 + 6 + 1).
+Erwartung: grün, **563 Tests** (556 + 6 + 1).
 
 ```bash
 git add src/core/settings.ts src/core/sync/service.ts src/obsidian/settings-tab.ts src/i18n/strings.ts tests/core/settings.test.ts tests/core/sync/service.test.ts
@@ -1188,7 +1256,8 @@ der Event annimmt. Er liest `e.start` und schickt es durch `/^(\d{4}-\d{2}-\d{2}
 meldet die Stelle in Task 5, weil `profile.kind` in den engeren Typ fließt; behandelt werden muss
 sie hier.
 
-`src/core/mirror/filename.ts` ersetzen:
+`src/core/mirror/filename.ts` — den `nichtUnterstuetzt`-Zweig aus Task 5 durch das echte
+Verhalten ersetzen:
 ```typescript
 export function filenameSubs(kind: ProfileKind, data: ContactData | EventData | TodoData): Record<string, string> {
   if (kind === "contact") {
@@ -1237,7 +1306,7 @@ it("eine Aufgabe ohne SUMMARY faellt auf die UID zurueck", () => {
 
 - [ ] **Schritt 6: Den Todo-Zweig in `apply.ts` einhängen**
 
-Den Block aus Task 4 Schritt 5 um den dritten Zweig ergänzen:
+Den `nichtUnterstuetzt`-Zweig aus Task 5 durch das echte Verhalten ersetzen:
 ```typescript
       } else if (kind === "todo") {
         for (const td of parseTodos(obj.data)) {
@@ -1302,7 +1371,7 @@ it("archiviert eine lange erledigte Aufgabe statt sie anzulegen", () => {
 - [ ] **Schritt 9: Gate und Commit**
 
 Run: `npm run gate`
-Erwartung: grün, **577 Tests** (562 + 11 + 2 + 2).
+Erwartung: grün, **578 Tests** (563 + 11 + 2 + 2).
 
 ```bash
 git add src/core/mirror/todo-values.ts tests/core/mirror/todo-values.test.ts src/core/mirror/apply.ts src/core/mirror/filename.ts tests/core/mirror/filename.test.ts tests/core/mirror/apply.test.ts
@@ -1475,7 +1544,7 @@ Erwartung: PASS, 12 Tests.
 - [ ] **Schritt 5: Gate und Commit**
 
 Run: `npm run gate`
-Erwartung: grün, **589 Tests** (577 + 12).
+Erwartung: grün, **590 Tests** (578 + 12).
 
 ```bash
 git add src/core/mirror/tasknotes-map.ts tests/core/mirror/tasknotes-map.test.ts
@@ -1702,7 +1771,7 @@ Erwartung: PASS.
 - [ ] **Schritt 7: Gate und Commit**
 
 Run: `npm run gate`
-Erwartung: grün, **600 Tests** (589 + 11).
+Erwartung: grün, **601 Tests** (590 + 11).
 
 ```bash
 git add src/obsidian/tasknotes.ts tests/obsidian/tasknotes.test.ts src/obsidian/settings-tab.ts src/i18n/strings.ts docs/dav/befunde/
