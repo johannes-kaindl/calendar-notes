@@ -7,6 +7,7 @@ import { parseContact } from "../core/vcard/contact";
 import { fieldLabel } from "./field-labels";
 import { tr, trFieldDescription } from "./command-i18n";
 import { t } from "../i18n/strings";
+import { assertNever } from "../core/mirror/kind";
 
 /**
  * Vorbelegung eines Kommando-Formulars aus dem aktuellen Objektstand (`ctx.raw`) — nur fuer
@@ -31,7 +32,7 @@ export function initialValuesFor(descriptor: CommandDescriptor, ctx: CommandCont
     if ("end" in props) out["end"] = ev.end ?? "";
     if ("allDay" in props) out["allDay"] = ev.allDay;
     if ("tzid" in props) out["tzid"] = ev.tzid ?? "";
-  } else {
+  } else if (ctx.profile.kind === "contact") {
     const c = parseContact(ctx.raw);
     if ("fn" in props) out["fn"] = c.fn;
     if ("given" in props) out["given"] = c.n?.given ?? "";
@@ -40,6 +41,8 @@ export function initialValuesFor(descriptor: CommandDescriptor, ctx: CommandCont
     if ("title" in props) out["title"] = c.title ?? "";
     if ("note" in props) out["note"] = c.note ?? "";
     if ("bday" in props) out["bday"] = c.bday ?? "";
+  } else {
+    assertNever(ctx.profile.kind, "Kommando-Vorbelegung");
   }
   return out;
 }
