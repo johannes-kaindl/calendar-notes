@@ -11,6 +11,7 @@ import type { MappingProfile } from "./profile";
 import type { Window } from "./window";
 import { upsertObject, removeObject, withSnapshot, type CollectionState, type RunInfo } from "../state/collection-state";
 import { sha256HexUtf8 } from "../../vendor/code-kit/sha256";
+import { assertNever } from "./kind";
 
 export interface NoteLookup {
   byUid(uid: string, source: string, recurrenceId?: string): ExistingNote | undefined;
@@ -77,10 +78,12 @@ export function applyDelta(i: ApplyInput): ApplyResult {
       if (kind === "contact") {
         const c = parseContact(obj.data);
         items.push({ data: c, uid: c.uid, values: contactValues(c), block: renderContactBlock(c) });
-      } else {
+      } else if (kind === "event") {
         for (const e of parseEvents(obj.data)) {
           items.push({ data: e, uid: e.uid, ...(e.recurrenceId ? { recurrenceId: e.recurrenceId } : {}), values: eventValues(e, { resolveAttendee: i.resolveAttendee, attendeeLinks: i.profile.attendeeLinks }), block: renderEventBlock(e) });
         }
+      } else {
+        assertNever(kind, "Notiz-Plan");
       }
       const inWindow = kind === "event" && i.timeWindow ? eventOccursWithin(obj.data, i.timeWindow.start, i.timeWindow.end) : true;
       for (const it of items) {

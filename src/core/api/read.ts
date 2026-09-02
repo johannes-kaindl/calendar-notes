@@ -3,6 +3,7 @@ import { effectiveProfile, sourceOf, type CollectionConfig, type PluginSettings 
 import type { CollectionState } from "../state/collection-state";
 import { parseContact } from "../vcard/contact";
 import type { ApiContact, ApiEvent, ContactsQuery, EventsQuery } from "./types";
+import { assertNever } from "../mirror/kind";
 
 /** Ein geladener Collection-State + die zugehoerige Konfiguration — der Aufrufer
  *  (`src/obsidian/api.ts`) laedt die States (braucht `StateStore`, also nicht pure),
@@ -84,13 +85,15 @@ export function findByUid(settings: PluginSettings, entries: CollectionStateEntr
       } catch {
         continue;
       }
-    } else {
+    } else if (profile.kind === "contact") {
       try {
         const data = parseContact(obj.raw);
         return { uid: obj.uid, source, collectionId: collection.id, ...(path ? { path } : {}), data };
       } catch {
         continue;
       }
+    } else {
+      assertNever(profile.kind, "API-Lesen");
     }
   }
   return null;

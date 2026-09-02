@@ -8,6 +8,7 @@ import {
   type MappingProfile,
   type ProfileKind,
 } from "./profile";
+import { assertNever } from "./kind";
 
 // Synonyme (klein geschrieben, deutsch/englisch) → Server-Feld. "title" gehört bewusst nur zur
 // fn-Gruppe (Notiz-Titel = Personenname) — der Job-Titel hat dafür eigene Schlüssel
@@ -79,10 +80,19 @@ const UID_KEYS = ["vcard_uid", "ical_uid", "uid"];
 const ON_CREATE_KEYS = ["type", "status", "up"];
 
 function synonymsFor(kind: ProfileKind): Record<string, string> {
-  return kind === "contact" ? CONTACT_SYNONYMS : EVENT_SYNONYMS;
+  if (kind === "contact") return CONTACT_SYNONYMS;
+  if (kind === "event") return EVENT_SYNONYMS;
+  return assertNever(kind, "Profil aus Notiz (Synonyme)");
 }
 function serverFieldsFor(kind: ProfileKind): readonly string[] {
-  return kind === "contact" ? CONTACT_SERVER_FIELDS : EVENT_SERVER_FIELDS;
+  if (kind === "contact") return CONTACT_SERVER_FIELDS;
+  if (kind === "event") return EVENT_SERVER_FIELDS;
+  return assertNever(kind, "Profil aus Notiz (Serverfelder)");
+}
+function baseProfileFor(kind: ProfileKind): MappingProfile {
+  if (kind === "contact") return defaultContactProfile();
+  if (kind === "event") return defaultEventProfile();
+  return assertNever(kind, "Profil aus Notiz (Basis)");
 }
 
 /**
@@ -95,7 +105,7 @@ export function suggestProfileFromNote(
   frontmatter: Record<string, unknown>,
   opts: { folder: string; name: string; rand: () => number },
 ): { profile: MappingProfile; mapped: Record<string, string>; unmapped: string[] } {
-  const base = kind === "contact" ? defaultContactProfile() : defaultEventProfile();
+  const base = baseProfileFor(kind);
   const synonyms = synonymsFor(kind);
   const fields: Record<string, string | null> = {};
   for (const f of serverFieldsFor(kind)) fields[f] = null;

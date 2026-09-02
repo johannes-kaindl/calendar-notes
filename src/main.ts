@@ -7,6 +7,7 @@ import { discoverScheduling } from "./core/dav/scheduling";
 import { withBasicAuth } from "./core/dav/transport";
 import type { MappingProfile, ProfileKind } from "./core/mirror/profile";
 import { suggestProfileFromNote } from "./core/mirror/profile-from-note";
+import { assertNever } from "./core/mirror/kind";
 import { normalizeSettings, repairSecretLinks, sourceOf, type Account, type CollectionConfig, type PluginSettings } from "./core/settings";
 import type { CalendarNotesApi } from "./core/api/types";
 import { ensureDefaultCommands } from "./core/commands/registry";
@@ -65,7 +66,9 @@ class ProfileKindSuggestModal extends FuzzySuggestModal<ProfileKind> {
   }
 
   getItemText(kind: ProfileKind): string {
-    return kind === "contact" ? t("adopt.kind.contact") : t("adopt.kind.event");
+    if (kind === "contact") return t("adopt.kind.contact");
+    if (kind === "event") return t("adopt.kind.event");
+    return assertNever(kind, "Profilsorten-Auswahl");
   }
 
   onChooseItem(kind: ProfileKind): void {
