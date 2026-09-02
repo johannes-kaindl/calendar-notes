@@ -85,12 +85,22 @@ wird die **Zeitkodierung**, nicht die **Semantik**.
 Regel: sagt der Server nichts, wird nichts ausgeschlossen — Radicale nimmt beides an und liefert
 die Eigenschaft nicht zwingend, mailbox.org trennt und benennt es.
 
-**Hier ändert sich Bestehendes, benannt statt nebenbei:** heute filtert `holdsEvents()` eine
-Sammlung ganz aus der Liste. Künftig schränkt das Paar die Auswahl der **zuweisbaren Profile**
-ein. Eine mailbox.org-Aufgabensammlung ist dann sichtbar und nimmt nur Todo-Profile an, statt zu
-verschwinden. Der Grund, aus dem `holdsEvents()` gebaut wurde, bleibt bedient: eine wortlos
-übersprungene Sammlung ist schlimmer als eine, die gar nicht erst einschaltbar aussieht — künftig
-ist sie einschaltbar und zeigt, wofür.
+**Hier ändert sich Bestehendes, benannt statt nebenbei.** Am Code gemessen (2026-09-02) tut
+`holdsEvents()` heute zweierlei, an zwei Orten: es färbt die Erklärung am „spiegeln"-Schalter
+(`settings-tab.ts:150` → `settings.collections.enabledNoEvents`) und lässt den Sync die Sammlung
+mit `"unsupported-components"` überspringen (`sync/service.ts:117`). Die Sammlung verschwindet
+**nicht** aus der Liste — sie ist sichtbar und trägt eine Warnung.
+
+Beide Orte fragen künftig nicht mehr „trägt das Termine?", sondern „passt das zum **Profil**,
+das der Sammlung zugewiesen ist?" — eine Funktion `collectionSupports(col, profile.kind)` löst
+`holdsEvents()` an beiden Stellen ab. Eine mailbox.org-Aufgabensammlung mit Todo-Profil ist dann
+normal spiegelbar; dieselbe Sammlung mit Termin-Profil warnt weiter. Der Grund, aus dem
+`holdsEvents()` gebaut wurde, bleibt damit bedient und wird schärfer: die Warnung stand bisher an
+der Sammlung, künftig an der **Paarung** — und nur die kann falsch sein.
+
+⚠️ Eine frühere Fassung dieses Absatzes schrieb, `holdsEvents()` filtere die Sammlung ganz aus
+der Liste. Das war aus der Vorarbeit übernommen und ungemessen; korrigiert am 2026-09-02 beim
+Schreiben des Plans.
 
 ## 5. Profil-Ableitung aus TaskNotes
 
@@ -179,5 +189,9 @@ erste Plan-Aufgabe mit Abbruchkriterium hinein, nicht als Voraussetzung hierher.
 ## 11. Nicht-Ziele dieses Meilensteins
 
 `api.tasks.*` in jeder Form · Aufgaben im Vault anlegen oder ändern (das ist TaskNotes) ·
+**Aufgaben über die eigene Plugin-API v1 ausliefern** — `ApiObjectKind` ist `"event" | "contact" |
+"any"`, und den Union-Typ zu erweitern wäre ein Bruch des veröffentlichten Vertrags; `api/read.ts`
+überspringt Todo-Profile ausdrücklich, bis eine API v2 ansteht (nachgetragen 2026-09-02, in der
+ersten Fassung übersehen) ·
 Instanz-Notizen für wiederkehrende VTODOs — `RRULE` wird wie bei VEVENT als Feld gespiegelt, das
 bestehende Nicht-Ziel gilt unverändert weiter · `VJOURNAL` · Unteraufgaben über `RELATED-TO`.
