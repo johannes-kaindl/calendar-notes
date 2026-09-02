@@ -139,3 +139,44 @@ describe("repairSecretLinks", () => {
     expect(out.accounts[0]!.secretId).toBe("mailbox");
   });
 });
+
+import { collectionSupports, type CollectionConfig } from "../../src/core/settings";
+
+describe("collectionSupports", () => {
+  const cal = (components?: string[]): CollectionConfig => ({
+    id: "c1", accountId: "a1", href: "https://dav.example/cal/", kind: "calendar",
+    displayName: "Kalender", enabled: true, profileId: "default-event", readOnly: false,
+    ...(components ? { components } : {}),
+  });
+
+  it("sagt der Server nichts, wird nichts ausgeschlossen", () => {
+    expect(collectionSupports(cal(), "event")).toBe(true);
+    expect(collectionSupports(cal(), "todo")).toBe(true);
+  });
+
+  it("eine VEVENT-Sammlung traegt Termine, aber keine Aufgaben", () => {
+    expect(collectionSupports(cal(["VEVENT"]), "event")).toBe(true);
+    expect(collectionSupports(cal(["VEVENT"]), "todo")).toBe(false);
+  });
+
+  it("eine VTODO-Sammlung traegt Aufgaben, aber keine Termine", () => {
+    expect(collectionSupports(cal(["VTODO"]), "todo")).toBe(true);
+    expect(collectionSupports(cal(["VTODO"]), "event")).toBe(false);
+  });
+
+  it("eine Sammlung, die beides meldet, traegt beides", () => {
+    expect(collectionSupports(cal(["VEVENT", "VTODO"]), "event")).toBe(true);
+    expect(collectionSupports(cal(["VEVENT", "VTODO"]), "todo")).toBe(true);
+  });
+
+  it("ein Adressbuch traegt Kontakte und sonst nichts", () => {
+    const ab = { ...cal(), kind: "addressbook" as const, profileId: "default-contact" };
+    expect(collectionSupports(ab, "contact")).toBe(true);
+    expect(collectionSupports(ab, "event")).toBe(false);
+    expect(collectionSupports(ab, "todo")).toBe(false);
+  });
+
+  it("ein Kalender traegt keine Kontakte", () => {
+    expect(collectionSupports(cal(), "contact")).toBe(false);
+  });
+});

@@ -6,7 +6,7 @@ import { createEmitter, type SyncEvents } from "../../../src/core/sync/events";
 import type { SyncDeps, Notifier, PlanExecutor } from "../../../src/core/sync/types";
 import type { NoteLookup } from "../../../src/core/mirror/apply";
 import type { NotePlan } from "../../../src/core/mirror/plan";
-import { defaultContactProfile, defaultEventProfile } from "../../../src/core/mirror/profile";
+import { defaultContactProfile, defaultEventProfile, defaultTodoProfile } from "../../../src/core/mirror/profile";
 import { windowFor, toDavTimeRange } from "../../../src/core/mirror/window";
 import { DEFAULT_SYNC, type Account, type CollectionConfig, type PluginSettings } from "../../../src/core/settings";
 import type { DavRequest, DavResponse, Transport } from "../../../src/core/dav/types";
@@ -355,6 +355,23 @@ describe("SyncService", () => {
     const r = await service.runCollection("cal1");
     expect(r.skippedReason).toBeUndefined();
     expect(t.calls.length).toBeGreaterThan(0);
+  });
+
+  // Die Warnung haengt jetzt an der PAARUNG, nicht mehr an der Sammlung allein: eine
+  // VEVENT-Collection waere unter der alten holdsEvents()-Pruefung nie uebersprungen worden
+  // (sie "haelt Termine"). Ist ihr aber ein Aufgaben-Profil zugewiesen, passt die Paarung
+  // nicht, und der Guard muss trotzdem greifen — nach der Profil-Aufloesung, nicht davor.
+  it("ueberspringt eine VEVENT-Sammlung, der ein Aufgaben-Profil zugewiesen ist", async () => {
+    const todoProfile = defaultTodoProfile();
+    const col = calendarCollection("cal-todo", { components: ["VEVENT"], profileId: todoProfile.id });
+    const settings = { ...baseSettings([col]), profiles: [PROFILE, EVENT_PROFILE, todoProfile] };
+    const t = addressbookTransport(col);
+    const { deps, notify } = makeDeps(settings, { acc1: t });
+    const service = new SyncService(deps);
+    const r = await service.runCollection("cal-todo");
+    expect(r.skippedReason).toBe("unsupported-components");
+    expect(t.calls).toEqual([]);
+    expect(notify.warns).toEqual([]);
   });
 
   // Sagt der Server nichts, wird nichts angenommen: Radicale und andere liefern die
