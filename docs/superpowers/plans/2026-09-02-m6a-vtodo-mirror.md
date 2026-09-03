@@ -440,7 +440,7 @@ git commit -m "feat(ical): VTODO parsen — parseTodos und isOpen"
 
 **Interfaces:**
 - Consumes: nichts
-- Produces: `export function assertNever(x: never, hinweis: string): never`
+- Produces: `export function assertNever(x: never, hinweis: string): never` · `export function nichtUnterstuetzt(kind: string, hinweis: string): never`
 
 > **Der Kern dieser Task, und der Grund für ihre Reihenfolge.** `ProfileKind` wird an sieben
 > Stellen binär ausgewertet — `kind === "event" ? … : …`, wobei der else-Zweig „contact" *meint*
@@ -460,11 +460,17 @@ git commit -m "feat(ical): VTODO parsen — parseTodos und isOpen"
 `tests/core/mirror/kind.test.ts`:
 ```typescript
 import { describe, it, expect } from "vitest";
-import { assertNever } from "../../../src/core/mirror/kind";
+import { assertNever, nichtUnterstuetzt } from "../../../src/core/mirror/kind";
 
 describe("assertNever", () => {
   it("wirft mit Hinweis und Wert, wenn zur Laufzeit doch etwas ankommt", () => {
     expect(() => assertNever("todo" as never, "Notiz-Plan")).toThrow(/Notiz-Plan.*todo/);
+  });
+});
+
+describe("nichtUnterstuetzt", () => {
+  it("wirft mit Hinweis und Sorte", () => {
+    expect(() => nichtUnterstuetzt("todo", "Dateiname")).toThrow(/Dateiname.*todo/);
   });
 });
 ```
@@ -489,12 +495,25 @@ Erwartung: FAIL — `Failed to resolve import`.
 export function assertNever(x: never, hinweis: string): never {
   throw new Error(`${hinweis}: unbehandelte Profilsorte ${String(x)}`);
 }
+
+/**
+ * Fuer Stellen, die eine Profilsorte KENNEN, aber (noch) nicht bedienen. Nimmt bewusst
+ * `ProfileKind` statt `never`: `assertNever` verlangt, dass der Typ an der Aufrufstelle
+ * erschoepft IST — sobald der Union-Typ waechst, ist er das dort nicht mehr, und der Aufruf
+ * waere selbst ein Typfehler.
+ *
+ * Ein Wurf ist hier richtig: die Alternative waere, still in den Nachbarzweig zu laufen und
+ * eine Notiz nach dem falschen Schema zu schreiben.
+ */
+export function nichtUnterstuetzt(kind: string, hinweis: string): never {
+  throw new Error(`${hinweis}: Profilsorte ${kind} wird hier noch nicht unterstuetzt`);
+}
 ```
 
 - [ ] **Schritt 4: Test laufen lassen**
 
 Run: `npx vitest run tests/core/mirror/kind.test.ts`
-Erwartung: PASS, 1 Test.
+Erwartung: PASS, 2 Tests.
 
 - [ ] **Schritt 5: `apply.ts` erschöpfend machen**
 
@@ -526,7 +545,7 @@ Import oben ergänzen: `import { assertNever } from "./kind";`
 
 Zeile 125 ersetzen:
 ```typescript
-  let plan: PushHandEditsResult;
+  let plan: CommandPlan | null;
   if (ctx.profile.kind === "event") plan = planEventHandEdits(ctx, frontmatter, keys, skipped);
   else if (ctx.profile.kind === "contact") plan = planContactHandEdits(ctx, frontmatter, keys, skipped);
   else assertNever(ctx.profile.kind, "Hand-Edits");
@@ -555,12 +574,27 @@ Import ergänzen: `import { assertNever } from "../mirror/kind";`
 
 - [ ] **Schritt 9: `command-modal.ts` erschöpfend machen**
 
-In `src/obsidian/command-modal.ts` bleibt der `if (ctx.profile.kind === "event") { … }`-Block
-unverändert. Direkt danach, vor dem Kontakt-Teil, einfügen:
+⚠️ **Hier gilt NICHT das `undo.ts`-Muster.** `initialValuesFor` hat im Event-Zweig **kein** frühes
+`return`: der Block befüllt `out` und fällt zum gemeinsamen `return out;` am Funktionsende durch.
+Eine nachgeschaltete `assertNever`-Zeile würde deshalb auch für `kind === "event"` laufen und
+werfen. Es gilt die `read.ts`-Form — der `else` wird zu `else if`, der dritte Zweig kommt dahinter:
+
 ```typescript
-  if (ctx.profile.kind !== "contact") assertNever(ctx.profile.kind, "Kommando-Vorbelegung");
+  if (ctx.profile.kind === "event") {
+    // Event-Block unverändert
+  } else if (ctx.profile.kind === "contact") {
+    // Kontakt-Block unverändert
+  } else {
+    assertNever(ctx.profile.kind, "Kommando-Vorbelegung");
+  }
+  return out;
 ```
 Import ergänzen: `import { assertNever } from "../core/mirror/kind";`
+
+> Belegt am 2026-09-02: die ursprüngliche Fassung dieses Schritts trug das `undo.ts`-Muster und
+> ließ 3 von 8 Tests in `tests/obsidian/command-modal.test.ts` fallen
+> (`Kommando-Vorbelegung: unbehandelte Profilsorte event`). Ob ein Zweig früh zurückkehrt, ist
+> keine Formalie — es entscheidet, ob die Wächterzeile erreichbar ist.
 
 - [ ] **Schritt 10: `profile-from-note.ts` erschöpfend machen**
 
@@ -599,7 +633,7 @@ Import ergänzen: `import { assertNever } from "./core/mirror/kind";`
 - [ ] **Schritt 12: Belegen, dass sich nichts geändert hat**
 
 Run: `npm run gate`
-Erwartung: alles grün, **548 Tests** (547 aus Task 3 + 1 neuer). Kein Test musste angepasst werden — das ist der Beleg, dass diese Task kein Verhalten geändert hat. Musste doch einer angepasst werden, ist etwas schiefgegangen: zurückrollen und die Stelle einzeln ansehen.
+Erwartung: alles grün, **549 Tests** (547 aus Task 3 + 2 neue). Kein Test musste angepasst werden — das ist der Beleg, dass diese Task kein Verhalten geändert hat. Musste doch einer angepasst werden, ist etwas schiefgegangen: zurückrollen und die Stelle einzeln ansehen.
 
 - [ ] **Schritt 13: Commit**
 
@@ -775,17 +809,114 @@ Erwartung: **FEHLER — und das ist das Ergebnis dieses Schritts.** Die gemeldet
     }
 ```
 
-`src/main.ts` — `getItems()` bleibt zweiwertig:
+`src/main.ts` — den Modal-Typ eingrenzen, statt einen Anzeigetext für eine nie angebotene Sorte
+zu erfinden. `ProfileKindSuggestModal` und `createProfileFromNote` auf `NoteProfileKind` umstellen:
 ```typescript
-  getItems(): ProfileKind[] {
-    // "Profil aus Notiz" gibt es fuer Aufgaben bewusst nicht: dort ist der Weg der
-    // Ableitungs-Knopf aus TaskNotes (Spec § 5), der die Wertevokabulare mitbringt.
-    return ["contact", "event"];
+/** "Profil aus Notiz" gibt es fuer Aufgaben bewusst nicht: dort ist der Weg der
+ *  Ableitungs-Knopf aus TaskNotes (Spec § 5), der die Wertevokabulare mitbringt. Der engere
+ *  Typ haelt `getItemText` erschoepfend, ohne einen Text fuer eine unerreichbare Sorte. */
+type NoteProfileKind = Exclude<ProfileKind, "todo">;
+```
+`FuzzySuggestModal<ProfileKind>` → `FuzzySuggestModal<NoteProfileKind>`, `getItems(): NoteProfileKind[]`,
+`getItemText(kind: NoteProfileKind)`, `onChoose`/`onChooseItem` und `createProfileFromNote(kind: NoteProfileKind, …)`
+ziehen mit. `getItemText` bleibt damit unverändert aus Task 4 gültig.
+
+**Drei weitere Stellen koppeln `ProfileKind` an `CommandTarget["kind"]`** (`"event" | "contact"`,
+`src/core/commands/types.ts`) und wurden beim Schreiben des Plans übersehen — der Compiler meldet
+sie zuverlässig, weil die Zuweisung `{ kind: profile.kind, … }` in den engeren Typ fließt. Es ist
+dieselbe Kopplung wie in `target.ts`, nur an drei weiteren Orten:
+
+`src/obsidian/api.ts` in `resolveCreateTarget` und `resolveExistingTarget` — jeweils **vor** dem
+`const target: CommandTarget = …`:
+```typescript
+    // Aufgaben sind in M6a kein Kommando-Ziel (Spec § 11: keine Auslieferung ueber API v1).
+    // `ApiError` ist `{ error: string }` und damit offen — ein neuer Code bricht keinen Vertrag,
+    // waehrend ein vorhandener ("profile-not-found") eine Falschaussage waere, die ein Konsument
+    // nicht debuggen kann.
+    if (profile.kind === "todo") return { error: "unsupported-kind" };
+```
+
+`src/obsidian/command-flow.ts` in `resolveTarget` — ebenso vor der `target`-Zuweisung:
+```typescript
+    // Laufzeit unerreichbar (targetFromFrontmatter sortiert Todo-Profile aus), aber der Compiler
+    // verlangt die Entscheidung. Kein Wurf: hier ist "kein Kommando-Ziel" die richtige,
+    // bereits vorhandene Antwort an den Nutzer.
+    if (profile.kind === "todo") { new Notice(t("notice.notCommandTarget")); return undefined; }
+```
+
+Dazu **eine Zeile** in `docs/API.md` bei den Fehlercodes: `unsupported-kind` — die Sammlung führt
+eine Objektsorte, für die es keine Kommandos gibt (Aufgaben). Kein neuer i18n-Schlüssel nötig;
+`notice.notCommandTarget` existiert bereits.
+
+⚠️ **Der `api.ts`-Zweig braucht einen Test, der `command-flow.ts`-Zweig nicht.** Der Unterschied
+ist Erreichbarkeit, nicht Symmetrie: `resolveCreateTarget`/`resolveExistingTarget` sind über die
+öffentliche `plan()`-API direkt erreichbar — ein Konsument kann sie für eine Sammlung mit
+Todo-Profil aufrufen, und dann ist `unsupported-kind` echtes, ausgeliefertes Verhalten. Der
+`command-flow.ts`-Zweig liegt hinter `targetFromFrontmatter`, das Todo-Profile bereits aussortiert.
+
+An `tests/obsidian/api.test.ts` anhängen, nach dem Muster der dortigen Fälle: eine Sammlung mit
+`profileId: "default-todo"` aufsetzen, `plan()` dagegen aufrufen und `{ error: "unsupported-kind" }`
+erwarten — je einmal für den Erstanlage-Weg (Ziel ohne `uid`) und den Bestandsweg (Ziel mit `uid`),
+weil es zwei getrennte Funktionen sind. **Die vorhandenen Helfer der Datei benutzen**, kein zweites
+Testgerüst aufbauen.
+
+**Die übrigen fünf Stellen brauchen jede einen `todo`-Zweig — auch die, die zur Laufzeit
+unerreichbar sind.** `assertNever(x: never)` verlangt, dass der Typ dort `never` **ist**;
+„kann nicht vorkommen" genügt dem Compiler nicht. Ohne diese Zweige endet Task 5 nicht mit
+grünem Gate.
+
+`src/core/mirror/apply.ts` — Verhalten kommt in Task 7:
+```typescript
+      } else if (kind === "todo") {
+        nichtUnterstuetzt(kind, "Notiz-Plan");
+      } else {
+        assertNever(kind, "Notiz-Plan");
+      }
+```
+
+`src/core/mirror/filename.ts` — Verhalten kommt ebenfalls in Task 7. `noteBasename` erweitern und
+`filenameSubs` vorläufig abfangen:
+```typescript
+export function filenameSubs(kind: ProfileKind, data: ContactData | EventData | TodoData): Record<string, string> {
+  if (kind === "contact") { /* unverändert */ }
+  if (kind === "todo") return nichtUnterstuetzt(kind, "Dateiname");
+  /* Event-Teil unverändert */
+}
+export function noteBasename(profile: MappingProfile, data: ContactData | EventData | TodoData): string {
+```
+
+`src/core/commands/push-hand-edits.ts` — bleibt so bis M6b:
+```typescript
+  else if (ctx.profile.kind === "todo") nichtUnterstuetzt(ctx.profile.kind, "Hand-Edits");
+  else assertNever(ctx.profile.kind, "Hand-Edits");
+```
+
+`src/core/commands/undo.ts` — die Zeile aus Task 4 ersetzen (dort kehrt der Event-Zweig früh zurück):
+```typescript
+  if (ctx.profile.kind === "todo") nichtUnterstuetzt(ctx.profile.kind, "Undo");
+  else if (ctx.profile.kind !== "contact") assertNever(ctx.profile.kind, "Undo");
+```
+
+`src/obsidian/command-modal.ts` — hier liegt die `read.ts`-Form vor (kein frühes `return`), also
+den dritten Zweig ergänzen:
+```typescript
+  } else if (ctx.profile.kind === "todo") {
+    nichtUnterstuetzt(ctx.profile.kind, "Kommando-Vorbelegung");
+  } else {
+    assertNever(ctx.profile.kind, "Kommando-Vorbelegung");
   }
 ```
 
-Alle übrigen `assertNever`-Stellen bleiben **unverändert** — sie sind für Todo-Profile
-unerreichbar (kein Kommando-Ziel), und ein lauter Fehler ist dort das gewünschte Verhalten.
+`src/core/mirror/profile-from-note.ts` — alle drei Funktionen:
+```typescript
+  if (kind === "todo") return nichtUnterstuetzt(kind, "Profil aus Notiz");
+  return assertNever(kind, "Profil aus Notiz (…)");
+```
+
+> Diese drei Kommando-Stellen sind zur Laufzeit **unerreichbar**, weil `targetFromFrontmatter`
+> Todo-Profile aussortiert (oben in diesem Schritt). Der Wurf ist trotzdem das richtige
+> Verhalten: greift die Aussortierung eines Tages nicht mehr, ist ein lauter Fehler besser als
+> eine Aufgabe, die durch `planContactHandEdits` läuft.
 
 - [ ] **Schritt 6: `defaultTodoProfile` in die Settings aufnehmen**
 
@@ -819,10 +950,10 @@ it("ein Todo-Profil erzeugt kein Kommando-Ziel (Kommandos kommen mit M6b)", () =
 - [ ] **Schritt 8: Gate und Commit**
 
 Run: `npm run gate`
-Erwartung: alles grün, **555 Tests** (548 + 6 aus Schritt 1 + 1 aus Schritt 7).
+Erwartung: alles grün, **558 Tests** (549 + 6 aus Schritt 1 + 1 aus Schritt 7 + 2 API-Tests).
 
 ```bash
-git add src/core/mirror/profile.ts src/core/settings.ts src/core/commands/target.ts src/core/api/read.ts src/main.ts tests/core/mirror/profile.test.ts tests/core/commands/target.test.ts
+git add src/core/mirror/profile.ts src/core/settings.ts src/core/commands/target.ts src/core/api/read.ts src/obsidian/api.ts src/obsidian/command-flow.ts src/core/mirror/apply.ts src/core/mirror/filename.ts src/core/commands/push-hand-edits.ts src/core/commands/undo.ts src/obsidian/command-modal.ts src/core/mirror/profile-from-note.ts src/main.ts docs/API.md tests/core/mirror/profile.test.ts tests/core/commands/target.test.ts
 git commit -m "feat(profile): ProfileKind um todo erweitern und Default-Aufgabenprofil anlegen"
 ```
 
@@ -978,23 +1109,37 @@ Erwartung: PASS — der Test prüft, dass EN und DE dieselben Schlüssel tragen.
 - [ ] **Schritt 7: Belegen, dass der Sync die falsche Paarung überspringt**
 
 An `tests/core/sync/service.test.ts` anhängen — nach dem Muster der dortigen Fakes:
+**Der Test muss eine VEVENT-Sammlung mit einem Aufgaben-Profil paaren — nicht umgekehrt.** Eine
+VTODO-Sammlung mit Termin-Profil wäre auch unter der **alten** `holdsEvents(col)`-Logik
+übersprungen worden; ein solcher Test unterscheidet die beiden Implementierungen nicht und ist
+damit wertlos, egal ob er grün oder rot ist. Nur die umgekehrte Paarung kann ausschließlich am
+neuen Guard scheitern:
+
 ```typescript
-it("ueberspringt eine VTODO-Sammlung, der ein Termin-Profil zugewiesen ist", async () => {
-  const col = { ...EVENT_COLLECTION, components: ["VTODO"] };
-  const { service, results } = makeService({ collections: [col] });
+it("ueberspringt eine VEVENT-Sammlung, der ein Aufgaben-Profil zugewiesen ist", async () => {
+  // Unter der alten holdsEvents(col)-Pruefung waere diese Sammlung NIE uebersprungen worden —
+  // der Test misst also die neue Paarungs-Pruefung und nicht bloss ihre Anwesenheit.
+  const col = { ...EVENT_COLLECTION, profileId: "default-todo" };
+  const { service, results, transport } = makeService({ collections: [col], profiles: [defaultTodoProfile()] });
   await service.syncAll();
   expect(results()[0]).toMatchObject({ skipped: "unsupported-components" });
+  expect(transport.calls).toEqual([]);
 });
 ```
 
-> `makeService` und `EVENT_COLLECTION` heißen in der Datei möglicherweise anders — **nimm die dort
-> vorhandenen Helfer**, statt neue zu bauen. Der Test soll zeigen, dass die Paarung geprüft wird,
-> nicht ein zweites Test-Gerüst etablieren.
+> `makeService`, `EVENT_COLLECTION` und der Transport-Spion heißen in der Datei möglicherweise
+> anders — **nimm die dort vorhandenen Helfer**, statt neue zu bauen. Prüfe außerdem, dass der Test
+> wirklich am neuen Guard greift und nicht an einem vorgelagerten (`disabled`, `no-profile`,
+> `no-secret`).
+>
+> ⓘ Belegt am 2026-09-02: die erste Fassung dieses Schritts verlangte die VTODO-Sammlung mit
+> Termin-Profil. Der Implementer wich begründet ab, und die Nachprüfung im Review gab ihm recht —
+> ein Test, der vor und nach der Änderung dasselbe Ergebnis liefert, misst die Änderung nicht.
 
 - [ ] **Schritt 8: Gate und Commit**
 
 Run: `npm run gate`
-Erwartung: grün, **562 Tests** (555 + 6 + 1).
+Erwartung: grün, **565 Tests** (558 + 6 + 1).
 
 ```bash
 git add src/core/settings.ts src/core/sync/service.ts src/obsidian/settings-tab.ts src/i18n/strings.ts tests/core/settings.test.ts tests/core/sync/service.test.ts
@@ -1178,7 +1323,7 @@ export function todoInWindow(t: TodoData, w: { start: Date; end: Date }): boolea
 - [ ] **Schritt 4: Tests laufen lassen**
 
 Run: `npx vitest run tests/core/mirror/todo-values.test.ts`
-Erwartung: PASS, 11 Tests.
+Erwartung: PASS, 10 Tests.
 
 - [ ] **Schritt 5: `filename.ts` für Aufgaben öffnen — ein zweiter zweiwertiger Typ**
 
@@ -1188,7 +1333,8 @@ der Event annimmt. Er liest `e.start` und schickt es durch `/^(\d{4}-\d{2}-\d{2}
 meldet die Stelle in Task 5, weil `profile.kind` in den engeren Typ fließt; behandelt werden muss
 sie hier.
 
-`src/core/mirror/filename.ts` ersetzen:
+`src/core/mirror/filename.ts` — den `nichtUnterstuetzt`-Zweig aus Task 5 durch das echte
+Verhalten ersetzen:
 ```typescript
 export function filenameSubs(kind: ProfileKind, data: ContactData | EventData | TodoData): Record<string, string> {
   if (kind === "contact") {
@@ -1237,7 +1383,7 @@ it("eine Aufgabe ohne SUMMARY faellt auf die UID zurueck", () => {
 
 - [ ] **Schritt 6: Den Todo-Zweig in `apply.ts` einhängen**
 
-Den Block aus Task 4 Schritt 5 um den dritten Zweig ergänzen:
+Den `nichtUnterstuetzt`-Zweig aus Task 5 durch das echte Verhalten ersetzen:
 ```typescript
       } else if (kind === "todo") {
         for (const td of parseTodos(obj.data)) {
@@ -1283,26 +1429,28 @@ An `tests/core/mirror/apply.test.ts` anhängen — nach dem Muster der dortigen 
 ```typescript
 it("legt fuer eine offene Aufgabe eine Notiz an", () => {
   const p = defaultTodoProfile();
-  const out = applyDelta({ ...baseInput(p), delta: { changed: [{ href: "/cal/t1.ics", data: read("ical/todo-simple.ics"), etag: "\"e1\"" }], deleted: [], outOfWindow: [] } });
+  const out = applyDelta({ ...baseInput(p), delta: { changed: [{ href: "https://dav.example/cal/t1.ics", data: read("ical/todo-simple.ics"), etag: "\"e1\"" }], deleted: [], outOfWindow: [] } });
   expect(out.plans.filter((x) => x.op === "create")).toHaveLength(1);
 });
 
 it("archiviert eine lange erledigte Aufgabe statt sie anzulegen", () => {
   const p = defaultTodoProfile();
   const alt = read("ical/todo-done.ics").replace("COMPLETED:20260814T183000Z", "COMPLETED:20200101T000000Z");
-  const out = applyDelta({ ...baseInput(p), timeWindow: { start: new Date("2026-06-01T00:00:00Z"), end: new Date("2027-06-01T00:00:00Z") }, delta: { changed: [{ href: "/cal/t2.ics", data: alt, etag: "\"e2\"" }], deleted: [], outOfWindow: [] } });
+  const out = applyDelta({ ...baseInput(p), timeWindow: { start: new Date("2026-06-01T00:00:00Z"), end: new Date("2027-06-01T00:00:00Z") }, delta: { changed: [{ href: "https://dav.example/cal/t2.ics", data: alt, etag: "\"e2\"" }], deleted: [], outOfWindow: [] } });
   expect(out.plans.some((x) => x.op === "create")).toBe(false);
 });
 ```
 
-> `baseInput` und `read` heißen in der Datei möglicherweise anders — **die dort vorhandenen
-> Helfer benutzen**. Der zweite Test hat keine bestehende Notiz, erwartet also *kein* `archive`,
+> ⚠️ **`baseInput`/`read` gibt es dort nicht** (gemessen 2026-09-03) — `tests/core/mirror/apply.test.ts`
+> arbeitet mit `fx`, `lookupOf`, `delta` und `emptyState`. **Die dort vorhandenen Helfer benutzen.**
+> Ebenso: `href` muss eine **absolute** URL sein (`https://dav.example/cal/…`), weil `hrefPath()`
+> sonst mit `Invalid URL` scheitert — alle Nachbar-Tests machen es so. Der zweite Test hat keine bestehende Notiz, erwartet also *kein* `archive`,
 > sondern schlicht *kein* `create`: es gibt nichts zu archivieren. Genau das ist die Zusicherung.
 
 - [ ] **Schritt 9: Gate und Commit**
 
 Run: `npm run gate`
-Erwartung: grün, **577 Tests** (562 + 11 + 2 + 2).
+Erwartung: grün, **579 Tests** (565 + 10 + 2 + 2).
 
 ```bash
 git add src/core/mirror/todo-values.ts tests/core/mirror/todo-values.test.ts src/core/mirror/apply.ts src/core/mirror/filename.ts tests/core/mirror/filename.test.ts tests/core/mirror/apply.test.ts
@@ -1475,7 +1623,7 @@ Erwartung: PASS, 12 Tests.
 - [ ] **Schritt 5: Gate und Commit**
 
 Run: `npm run gate`
-Erwartung: grün, **589 Tests** (577 + 12).
+Erwartung: grün, **591 Tests** (579 + 12).
 
 ```bash
 git add src/core/mirror/tasknotes-map.ts tests/core/mirror/tasknotes-map.test.ts
@@ -1498,34 +1646,75 @@ git commit -m "feat(mirror): Vorschlagsregel fuer Status- und Prioritaetsabbildu
     specVersion: string;
     statuses: TnStatus[];
     priorities: TnPriority[];
-    identification: { method: "tag"; tag: string } | { method: "property"; propertyName: string; value: string };
+    // Ohne `defaults` ist die Vorschlagsregel aus Schritt 1b nicht aufrufbar — sie verankert
+    // `needsAction`/`normal` genau daran. Beim Einfuegen von Schritt 1b hier vergessen,
+    // vom Implementer am 2026-09-03 gemeldet und ergaenzt.
+    defaults: TnDefaults;
+    identification: { method: "tag"; tag: string } | { method: "property"; propertyName: string; propertyValue: string };
     fieldKeys: Record<string, string>; // Serverfeld-Kandidat → frontmatterKey, nur beschreibbare Felder
   }
   export function readTaskNotes(app: unknown): TaskNotesReading | undefined;
   export function profileFromTaskNotes(reading: TaskNotesReading, base: MappingProfile, name: string, id: string): { profile: MappingProfile; warnings: MapWarning[] };
   ```
 
-- [ ] **Schritt 1: Die echte Form der API messen — bevor Code dagegen geschrieben wird**
+- [x] **Schritt 1: Die echte Form der API messen — ERLEDIGT am 2026-09-03**
 
-TaskNotes 4.12.5 muss im Ziel-Vault installiert und aktiv sein. In der Developer-Konsole des
-laufenden Obsidian:
-```javascript
-const api = app.plugins.plugins.tasknotes.api;
-console.log(JSON.stringify({
-  info: api.model.info(),
-  caps: ["catalog.read"].map((c) => [c, api.hasCapability(c)]),
-  config: api.model.config(),
-  fields: api.catalog.fields(),
-}, null, 2));
+Gemessen gegen TaskNotes 4.12.5 im laufenden Obsidian (CDP, lesend, ein `Runtime.evaluate`).
+**Vollständiger Befund: `docs/tasknotes-api.md`.** Drei Annahmen dieses Plans sind dabei gefallen:
+
+1. **`TnPriority` trägt `weight`, nicht `order`.** Der Typ in `tasknotes-map.ts` ist falsch.
+2. **Es gibt einen `none`-Eintrag** bei Status *und* Priorität — der *nicht gesetzt*-Wert, kein
+   Arbeitszustand. Die Vorschlagsregel „kleinste `order` unter den nicht abgeschlossenen" liefert
+   damit `none` statt `open`; bei den Prioritäten liefert „kleinster `weight`" `none` statt `low`.
+   **Plausibel falsch, und ohne Messung unentdeckt.**
+3. **`taskIdentification` nennt das Wertfeld `propertyValue`**, nicht `value`.
+
+`none` lässt sich **nicht** an seinen eigenen Feldern erkennen (`isCompleted: false`,
+`excludeFromCycle: false` wie die echten offenen Status), und ein Namensvergleich auf `"none"`
+wäre genau das, was die Abbildung vermeiden muss. Die Lösung liefert `config().defaults`:
+`{ status: "open", priority: "normal", taskTag: "task" }` — TaskNotes sagt selbst, welchen Status
+eine neue Aufgabe bekommt.
+
+- [ ] **Schritt 1b: Die Vorschlagsregel an die gemessene Form anpassen**
+
+`src/core/mirror/tasknotes-map.ts` und `tests/core/mirror/tasknotes-map.test.ts` ändern:
+
+```typescript
+export interface TnPriority { value: string; weight: number }   // war: order
+export interface TnDefaults { status: string; priority: string }
+export type MapWarning =
+  | "cancelled-collides-with-completed"
+  | "single-open-status"
+  | "default-status-unknown"
+  | "default-priority-unknown";
 ```
-**Notiere wörtlich:** unter welchem Schlüssel der Statuswert steht (`value`? `id`?), wie
-`isCompleted` und `order` heißen, wie `taskIdentification` aufgebaut ist, und welche Einträge
-`catalog.fields()` für Fälligkeit, Status, Priorität, Tags und Abschlussdatum führt. Das Ergebnis
-gehört als Codeblock in `docs/dav/befunde/` — **nicht** in eine Task-Beschreibung, wo es beim
-nächsten API-Bruch niemand wiederfindet.
 
-> ⚠️ Ohne diesen Schritt ist Schritt 3 geraten. Die Vorarbeit hat `isCompleted` und `order`
-> gemessen, aber **nicht** den Schlüssel des Statuswerts selbst.
+Die toten Union-Members `"no-completed-status"` und `"no-open-status"` entfallen — beide Fälle
+geben `undefined` zurück und pushen nie eine Warnung (Befund aus dem Task-8-Review).
+
+**Neue Regel, beide Funktionen nehmen `defaults` als zweiten Parameter:**
+
+`suggestStatusMap(statuses, defaults)`
+- `needsAction` = der Eintrag mit `value === defaults.status`. Fehlt er oder ist er
+  `isCompleted: true`, Rückfall auf den nicht abgeschlossenen mit kleinster `order` **und**
+  Warnung `"default-status-unknown"`.
+- `inProcess` = nicht abgeschlossener Eintrag mit der kleinsten `order` **oberhalb** der von
+  `needsAction`. Gibt es keinen, fällt er auf `needsAction` mit Warnung `"single-open-status"`.
+- `completed` = abgeschlossener mit kleinster `order`; `cancelled` = abgeschlossener mit größter.
+  Sind beide gleich, Warnung `"cancelled-collides-with-completed"`.
+- Ohne offene oder ohne abgeschlossene Gruppe: `undefined`.
+
+`suggestPriorityMap(priorities, defaults)`
+- `normal` = der Eintrag mit `value === defaults.priority`; fehlt er, der mittlere nach `weight`
+  **und** Warnung `"default-priority-unknown"`.
+- `low` = der Eintrag mit dem **größten** `weight` unterhalb von `normal` — also der dem Default
+  nächste darunter, nicht der extremste. Genau das überspringt `none`.
+- `high` = der Eintrag mit dem **kleinsten** `weight` oberhalb von `normal`.
+- Fehlt eine Seite, fällt sie auf `normal`. Leere Liste: `undefined`.
+
+**Die Tests müssen die gemessene Standardkonfiguration abbilden** — also mit `none` in beiden
+Listen — und zusichern, dass `needsAction` auf `"open"` fällt und `low` auf `"low"`. Ein Test
+ohne `none` würde den Fehler nicht fangen, den diese Änderung behebt.
 
 - [ ] **Schritt 2: Den fehlschlagenden Test schreiben**
 
@@ -1702,7 +1891,7 @@ Erwartung: PASS.
 - [ ] **Schritt 7: Gate und Commit**
 
 Run: `npm run gate`
-Erwartung: grün, **600 Tests** (589 + 11).
+Erwartung: grün, **602 Tests** (591 + 11).
 
 ```bash
 git add src/obsidian/tasknotes.ts tests/obsidian/tasknotes.test.ts src/obsidian/settings-tab.ts src/i18n/strings.ts docs/dav/befunde/
@@ -1788,6 +1977,15 @@ git commit -m "test(integration): Radicale-Fixture mit Aufgaben-Sammlung"
 > würde die Messung zerschießen. **Kein `quit`** — vorher `curl -s http://127.0.0.1:9222/json/list`
 > lesen und sehen, wessen Vaults offen sind.
 
+> **Entschieden am 2026-09-03 (Johannes): geprüft wird gegen das Frontmatter, nicht gegen
+> TaskNotes.** Der Staging-Vault führt nur `calendar-notes`; TaskNotes ins getrackte Fixture
+> aufzunehmen wäre die vollständigere, aber teurere Variante (Größe, Lizenz, Versionspflege
+> eines Fremdplugins im Repo). Der Smoke sichert daher zu, dass die Notiz die
+> Sichtbarkeitsmarkierung und den **abgebildeten** Statuswert trägt — ob TaskNotes daraus eine
+> Aufgabe macht, ist TaskNotes' Zusage und liegt hinter der Grenze, die die Spec zieht:
+> *wir transportieren, TaskNotes verwaltet.* Die fünf Prüfpunkte unten stehen bereits in dieser
+> Form; die Entscheidung nimmt ihnen nur die offene Flanke.
+
 - [ ] **Schritt 1: Prüfpunkte schreiben**
 
 Neuer Abschnitt (z. B. `--section todo`) mit fünf Prüfpunkten, nach der Form der vorhandenen Abschnitte in `scripts/gui-smoke.ts`:
@@ -1860,7 +2058,7 @@ Zwei Zeilen, beide unter „Plugin-zu-Plugin (Zuständigkeits-Schnittstellen)":
 - *Eine fremde Plugin-API einmalig ablesen und das Ergebnis einfrieren, statt sich zur Laufzeit an sie zu binden* → `calendar-notes/src/obsidian/tasknotes.ts` + `src/core/mirror/tasknotes-map.ts`
 - *Einen Union-Typ erweitern, ohne stille Lücken zu hinterlassen* → `calendar-notes/src/core/mirror/kind.ts` (`assertNever`) — **Kit-Kandidat prüfen**, sobald ein zweites Repo dasselbe braucht
 
-- [ ] **Schritt 4: Volles Gate, beide Remotes**
+- [ ] **Schritt 4: Volles Gate, ein Remote**
 
 Run: `npm run gate && npm run test:integration`
 Erwartung: alles grün.
@@ -1869,12 +2067,39 @@ Erwartung: alles grün.
 git add AGENTS.md CHANGELOG.md
 git commit -m "docs(agents): M6a dokumentieren — Aufgaben-Spiegel Server nach Vault"
 git push origin main
-git push github main
 ```
 
-> ⚠️ **Beide Pushes sind nötig.** `calendar-notes` steht auf der Dach-Liste der Repos **ohne
-> wirksamen Forgejo→GitHub-Mirror** (gemessen 2026-08-30). `git push origin` allein lässt GitHub
-> zurückfallen. Danach prüfen: `git ls-remote github main` muss auf denselben Commit zeigen.
+> ⚠️ **Hier stand bis zum 2026-09-03 `git push github main` als zweiter, ausdrücklich nötiger
+> Push.** Der Schritt entfällt: seit dem GitHub-Ausstieg (Dach-`AGENTS.md`, § Store-Einreichung)
+> läuft die Verteilung über `git.jkaindl.de` und den `anysource-sideloader`-Katalog. Der Push
+> wäre **nicht kaputt, sondern wirkungslos** — und diesen Unterschied misst man besser, als
+> man ihn annimmt.
+
+**Gemessen am 2026-09-03, damit die Streichung nicht auf einer Erinnerung beruht:**
+
+| Prüfung | Ergebnis | was es heißt |
+|---|---|---|
+| `git ls-remote github main` (SSH) | `8af769f`, exit 0 | Push ginge technisch durch |
+| `curl https://github.com/johannes-kaindl/calendar-notes` anonym | **404** | für jeden Außenstehenden weg |
+| Repo in `community-plugins.json` | 0 von 25 eigenen IDs (Dach-Messung 2026-09-01) | Listing ist bereits entfernt |
+
+Die naheliegende Formulierung „GitHub ist tot, der Push scheitert" ist also **falsch**: er
+scheitert nicht, er landet in einem Repo, das niemand mehr lesen kann. Wer ihn trotzdem fährt,
+erzeugt keinen Fehler — und genau deshalb fällt es nicht auf.
+
+> ⓘ **Nebenbefund für das Dach, gehört nicht in diese Task:** `tools/mirror_drift_check.py`
+> prüft über **HTTPS ohne Anmeldung** und meldet für dieses Repo darum „Mirror nicht prüfbar:
+> git ls-remote fehlgeschlagen". Über SSH ist er sehr wohl prüfbar. Der Check misst hier also
+> die Anonymität, nicht den Mirror.
+
+**Was NICHT zu dieser Task gehört, aber am selben Strang hängt** — beides ist im Cockpit als
+eigene Aufgabe geführt und wird beim **nächsten Release** fällig, nicht bei der Doku:
+`authorUrl` zeigt noch auf `https://github.com/johannes-kaindl` (Ziel: `https://jkaindl.de`),
+und `npm run release` fährt hier noch **ohne** `--no-github`, während das `github`-Remote
+weiter konfiguriert ist. Vorbild ist `anysource-sideloader` (Flag im `package.json`
+verdrahtet, Remote entfernt). ⚠️ **In dieser Reihenfolge:** ohne das Flag ist ein fehlendes
+`github`-Remote ein **harter Abbruch** von `release.mjs` — wer nur das Remote löscht,
+zerstört die Releases.
 
 ---
 

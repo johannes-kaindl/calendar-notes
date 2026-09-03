@@ -6,7 +6,7 @@ import { InviteRouter, type MailTransport } from "../../src/obsidian/invite";
 import { createMailTransportRegistry } from "../../src/obsidian/plugin-host";
 import { registerCommands, resetCommands } from "../../src/core/commands/registry";
 import type { CommandDescriptor, CommandTarget } from "../../src/core/commands/types";
-import { defaultContactProfile, defaultEventProfile } from "../../src/core/mirror/profile";
+import { defaultContactProfile, defaultEventProfile, defaultTodoProfile } from "../../src/core/mirror/profile";
 import { DEFAULT_SYNC, type Account, type CollectionConfig, type PluginSettings } from "../../src/core/settings";
 import { createEmitter, type SyncEmitter } from "../../src/core/sync/events";
 import { createBusyGuard, type BusyGuard } from "../../src/core/sync/busy";
@@ -29,6 +29,14 @@ const CONTACT_COL: CollectionConfig = {
 };
 const EVENT_SOURCE = "acc1/cal1";
 const CONTACT_SOURCE = "acc1/ab1";
+
+const TODO_PROFILE = defaultTodoProfile();
+const TODO_COL: CollectionConfig = {
+  id: "todo1", accountId: "acc1", href: "https://dav.example/todo1/", kind: "calendar",
+  displayName: "Aufgaben", enabled: true, profileId: TODO_PROFILE.id, readOnly: false,
+};
+const TODO_SOURCE = "acc1/todo1";
+const TODO_UID = "todo-uid-1";
 
 const EVENT_UID = "evt-uid-1";
 const ICS = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//calendar-notes//test//DE\r\nBEGIN:VEVENT\r\nUID:${EVENT_UID}\r\nDTSTART:20260901T100000Z\r\nDTEND:20260901T110000Z\r\nSUMMARY:Test Event\r\nEND:VEVENT\r\nEND:VCALENDAR`;
@@ -64,6 +72,17 @@ function contactState(): CollectionState {
     ...s,
     objects: {
       "card1.vcf": { uid: CONTACT_UID, etag: '"e2"', raw: VCARD, notes: { "": { path: "Kontakte/Alex Aguado.md", written: {}, hash: "h2" } }, history: [] },
+    },
+  };
+}
+
+function todoState(): CollectionState {
+  const s = emptyState(TODO_SOURCE);
+  const raw = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:${TODO_UID}\r\nSUMMARY:Test Aufgabe\r\nEND:VTODO\r\nEND:VCALENDAR`;
+  return {
+    ...s,
+    objects: {
+      "todo1.ics": { uid: TODO_UID, etag: '"e3"', raw, notes: { "": { path: "Tasks/Test Aufgabe.md", written: {}, hash: "h3" } }, history: [] },
     },
   };
 }
@@ -374,6 +393,34 @@ describe("createPluginApi — plan()", () => {
     const f = makeFakes({ settings });
     const result = await api(f).plan("test.event.create", { title: "x" }, { new: true, collectionId: "cal1" });
     expect(result).toEqual({ error: "collection-disabled" });
+  });
+
+  // Fix-Runde 1 (Review): Aufgaben-Sammlungen sind ueber die oeffentliche plan()-API
+  // erreichbar (anders als der `command-flow.ts`-Zweig, den `targetFromFrontmatter` schon
+  // aussortiert) — resolveCreateTarget() und resolveExistingTarget() muessen das je selbst
+  // ablehnen, s. src/obsidian/api.ts.
+  it("liefert { error: 'unsupported-kind' } fuer ein neues Ziel in einer Aufgaben-Sammlung", async () => {
+    registerCommands([eventCreateDescriptor()]);
+    const settings = baseSettings({ collections: [EVENT_COL, CONTACT_COL, TODO_COL], profiles: [EVENT_PROFILE, CONTACT_PROFILE, TODO_PROFILE] });
+    const f = makeFakes({ settings });
+    // Guard-Gegenprobe: TODO_COL ist enabled und existiert — sonst griffe collection-disabled
+    // bzw. collection-not-found VOR dem Todo-Zweig, und der Test würde nichts über ihn zusichern.
+    expect(settings.collections.find((c) => c.id === "todo1")?.enabled).toBe(true);
+    const result = await api(f).plan("test.event.create", { title: "x" }, { new: true, collectionId: "todo1" });
+    expect(result).toEqual({ error: "unsupported-kind" });
+  });
+
+  it("liefert { error: 'unsupported-kind' } fuer ein bestehendes Ziel in einer Aufgaben-Sammlung", async () => {
+    registerCommands([eventRenameDescriptor()]);
+    const settings = baseSettings({ collections: [EVENT_COL, CONTACT_COL, TODO_COL], profiles: [EVENT_PROFILE, CONTACT_PROFILE, TODO_PROFILE] });
+    const f = makeFakes({ settings });
+    f.states.set(TODO_SOURCE, todoState());
+    // Guard-Gegenprobe: source passt zur Sammlung (sourceOf(TODO_COL) === TODO_SOURCE) und es
+    // liegt ein passendes Objekt im State — sonst griffe collection-not-found bzw.
+    // target-not-found VOR dem Todo-Zweig, und der Test würde nichts über ihn zusichern.
+    expect(settings.collections.some((c) => c.accountId === "acc1" && c.id === "todo1")).toBe(true);
+    const result = await api(f).plan("event.rename", { title: "x" }, { uid: TODO_UID, source: TODO_SOURCE });
+    expect(result).toEqual({ error: "unsupported-kind" });
   });
 
   it("faengt einen werfenden Kommando-plan() ab", async () => {

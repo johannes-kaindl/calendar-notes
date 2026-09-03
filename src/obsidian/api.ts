@@ -88,6 +88,11 @@ export function createPluginApi(host: PluginApiHost): CalendarNotesApi {
     const profile = effectiveProfile(settings, collection);
     const account = settings.accounts.find((a) => a.id === collection.accountId);
     if (!profile || !account) return { error: "profile-not-found" };
+    // Aufgaben sind in M6a kein Kommando-Ziel (Spec § 11: keine Auslieferung ueber API v1).
+    // `ApiError` ist `{ error: string }` und damit offen — ein neuer Code bricht keinen Vertrag,
+    // waehrend ein vorhandener ("profile-not-found") eine Falschaussage waere, die ein Konsument
+    // nicht debuggen kann.
+    if (profile.kind === "todo") return { error: "unsupported-kind" };
     const target: CommandTarget = { kind: profile.kind, source: sourceOf(collection), new: true };
     const ctx = buildCommandContext({ app, settings, now: deps.now(), profile, collection, account, target });
     return { ctx };
@@ -101,6 +106,11 @@ export function createPluginApi(host: PluginApiHost): CalendarNotesApi {
     const profile = effectiveProfile(settings, collection);
     const account = settings.accounts.find((a) => a.id === collection.accountId);
     if (!profile || !account) return { error: "profile-not-found" };
+    // Aufgaben sind in M6a kein Kommando-Ziel (Spec § 11: keine Auslieferung ueber API v1).
+    // `ApiError` ist `{ error: string }` und damit offen — ein neuer Code bricht keinen Vertrag,
+    // waehrend ein vorhandener ("profile-not-found") eine Falschaussage waere, die ein Konsument
+    // nicht debuggen kann.
+    if (profile.kind === "todo") return { error: "unsupported-kind" };
     const state = await deps.stateStore.load(source);
     const entry = Object.entries(state.objects).find(([, o]) => o.uid === uid);
     if (!entry) return { error: "target-not-found" };

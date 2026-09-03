@@ -27,6 +27,7 @@
  *   npm run smoke:gui -- --setup                  # baut den Staging-Vault aus dem Fixture neu
  *   npm run smoke:gui -- --section generic         # Standard-Profile (Contacts/Events)
  *   npm run smoke:gui -- --section pallas          # Profile aus Pallas-Notizen + Adoption
+ *   npm run smoke:gui -- --section todo            # Aufgaben-Spiegel (VTODO, M6a)
  *   npm run smoke:gui -- --section generic --focus # zusaetzlich P8 (Settings-UI, Screenshot)
  *
  * Jeder Lauf legt ein eigenes Konto + zwei Sammlungen an, benutzt Radicale auf Port 5298
@@ -277,11 +278,14 @@ async function seedAccount(cdp: Cdp, radicale: RunningServer): Promise<void> {
   `);
 }
 
+type Section = "generic" | "pallas" | "todo";
+
 interface DiscoverInfo {
   collections: number;
   warnings: number;
   calendarId: string;
   addressbookId: string;
+  todoId: string;
 }
 
 async function discoverAndMerge(cdp: Cdp): Promise<DiscoverInfo> {
@@ -291,13 +295,21 @@ async function discoverAndMerge(cdp: Cdp): Promise<DiscoverInfo> {
     const account = plugin.settings.accounts.find((a) => a.id === ${JSON.stringify(ACCOUNT_ID)});
     const result = await plugin.discoverAccount(account);
     plugin.settingTab.mergeDiscoveredCollections(account, result);
-    const cal = plugin.settings.collections.find((c) => c.accountId === account.id && c.kind === "calendar");
-    const ab = plugin.settings.collections.find((c) => c.accountId === account.id && c.kind === "addressbook");
+    // NAMENTLICH waehlen, nicht ueber die Reihenfolge: seit dem VTODO-Fixture liegen ZWEI
+    // Sammlungen mit kind === "calendar" im Home-Set (Termine und Aufgaben), und Radicale
+    // sortiert nicht. Ein .find() auf kind allein zog hier mal die eine, mal die andere.
+    // Derselbe Fehler stand im Integrationstest und wurde dort mit 299594e behoben; dieser
+    // Zwilling blieb stehen, weil die Task-10-Review nur tests/ ansah.
+    const mine = plugin.settings.collections.filter((c) => c.accountId === account.id);
+    const cal = mine.find((c) => c.kind === "calendar" && c.displayName === "Kalender");
+    const ab = mine.find((c) => c.kind === "addressbook");
+    const todo = mine.find((c) => c.kind === "calendar" && c.displayName === "Aufgaben");
     return {
       collections: result.collections.length,
       warnings: result.warnings.length,
       calendarId: cal ? cal.id : "",
       addressbookId: ab ? ab.id : "",
+      todoId: todo ? todo.id : "",
     };
   `,
   );
@@ -573,9 +585,13 @@ async function checkP2aAuth(cdp: Cdp, radicale: RunningServer): Promise<void> {
 }
 
 // ── P2: Konto + Discovery ────────────────────────────────────────────────
-async function checkP2(info: DiscoverInfo, variant: "generic" | "pallas"): Promise<void> {
-  const ok = info.collections === 2 && info.warnings === 0 && info.calendarId !== "" && info.addressbookId !== "";
-  record("P2", `Konto+Discovery (${variant})`, ok, `${info.collections} Sammlungen, ${info.warnings} Warnungen`);
+async function checkP2(info: DiscoverInfo, variant: Section): Promise<void> {
+  // DREI Sammlungen seit dem VTODO-Fixture: Kalender, Kontakte, Aufgaben. Die Zahl steht hier
+  // ausgeschrieben und nicht als >= 2, damit eine im Fixture verlorene Sammlung auffaellt.
+  const ok = info.collections === 3 && info.warnings === 0
+    && info.calendarId !== "" && info.addressbookId !== "" && info.todoId !== "";
+  record("P2", `Konto+Discovery (${variant})`, ok,
+    `${info.collections} Sammlungen, ${info.warnings} Warnungen, Aufgaben-Sammlung ${info.todoId ? "erkannt" : "FEHLT"}`);
 }
 
 // ── P3: Adoption (nur --section pallas) ─────────────────────────────────
@@ -925,8 +941,13 @@ async function checkP7(cdp: Cdp): Promise<void> {
     return { enabledBefore, enabledAfter, collections: result.collections.length };
   `,
   );
-  const ok = result.collections === 2 && result.enabledBefore === result.enabledAfter && result.enabledAfter === 2;
-  record("P7", "Zweiter Discovery-Lauf haelt aktivierte Sammlungen (Merge-Regel)", ok, `aktiviert vorher=${result.enabledBefore} nachher=${result.enabledAfter}`);
+  // DREI Sammlungen seit dem VTODO-Fixture (Kalender, Kontakte, Aufgaben), davon ZWEI
+  // aktiviert: `generic` laesst die Aufgaben-Sammlung bewusst aus. Die eigentliche Aussage
+  // des Pruefpunkts ist enabledBefore === enabledAfter — die Sammlungszahl steht daneben,
+  // damit ein veraendertes Fixture hier auffaellt und nicht in der Merge-Regel gesucht wird.
+  const ok = result.collections === 3 && result.enabledBefore === result.enabledAfter && result.enabledAfter === 2;
+  record("P7", "Zweiter Discovery-Lauf haelt aktivierte Sammlungen (Merge-Regel)", ok,
+    `aktiviert vorher=${result.enabledBefore} nachher=${result.enabledAfter}, Sammlungen=${result.collections}`);
 }
 
 // ── P10-P13: Kommandos ueber die Plugin-API (--section generic, Task 8) ─────────────────
@@ -1128,6 +1149,132 @@ async function checkP13(cdp: Cdp): Promise<void> {
 }
 
 // ── P8: Settings-UI (nur --focus) ───────────────────────────────────────
+// ── P20-P24: Aufgaben-Spiegel (--section todo, M6a Task 11) ────────────────────────────
+//
+// Gegenstand ist die Statusabbildung, nicht "es entsteht eine Datei". Ein Pruefpunkt auf
+// blosse Existenz waere auch dann gruen, wenn `statusValue` gar nicht liefe — die Gegenprobe
+// in docs/SMOKE.md baut genau diesen Defekt ein und muss P23 rot faerben.
+//
+// Geprueft wird gegen das FRONTMATTER, nicht gegen TaskNotes (Ruling 13): der Staging-Vault
+// fuehrt kein TaskNotes, und die Spec zieht die Grenze bei "wir transportieren, TaskNotes
+// verwaltet". Ob TaskNotes aus der Notiz eine Aufgabe macht, ist TaskNotes' Zusage.
+
+const TODO_UID_OPEN = "radicale-todo-1@test";
+
+async function enableOnlyTodo(cdp: Cdp, todoId: string): Promise<void> {
+  await cdp.evaluate(`
+    const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+    const todoId = ${JSON.stringify(todoId)};
+    plugin.settings = { ...plugin.settings, collections: plugin.settings.collections.map((c) => ({ ...c, enabled: c.id === todoId })) };
+    await plugin.saveSettings();
+    return true;
+  `);
+}
+
+async function checkP20(cdp: Cdp, info: DiscoverInfo): Promise<void> {
+  const st = await cdp.evaluate<{ found: boolean; enabled: boolean; components: string[]; kind: string }>(
+    `
+    const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+    const c = plugin.settings.collections.find((x) => x.id === ${JSON.stringify(info.todoId)});
+    if (!c) return { found: false, enabled: false, components: [], kind: "" };
+    return { found: true, enabled: !!c.enabled, components: c.components ?? [], kind: c.kind };
+  `,
+  );
+  const ok = st.found && st.enabled && st.kind === "calendar" && st.components.some((x) => x.toUpperCase() === "VTODO");
+  record("P20", "Aufgaben-Sammlung erkannt und aktivierbar", ok,
+    st.found ? `kind=${st.kind}, components=[${st.components.join(", ")}], enabled=${st.enabled}` : "Sammlung nicht in den Einstellungen");
+}
+
+async function checkP21(cdp: Cdp, info: DiscoverInfo): Promise<void> {
+  const got = await cdp.evaluate<{ profileId: string; calProfileId: string }>(
+    `
+    const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+    const t = plugin.settings.collections.find((x) => x.id === ${JSON.stringify(info.todoId)});
+    const c = plugin.settings.collections.find((x) => x.id === ${JSON.stringify(info.calendarId)});
+    return { profileId: t ? t.profileId : "", calProfileId: c ? c.profileId : "" };
+  `,
+  );
+  // Die zweite Haelfte ist die Gegenprobe innerhalb des Pruefpunkts: bekaeme JEDE
+  // Kalender-Sammlung "default-todo", saehe der erste Vergleich genauso gruen aus.
+  const ok = got.profileId === "default-todo" && got.calProfileId === "default-event";
+  record("P21", "Aufgaben-Profil automatisch zugewiesen", ok,
+    `Aufgaben=${got.profileId || "—"}, Termine=${got.calProfileId || "—"}`);
+}
+
+interface TodoNote {
+  path: string; uid: string; status: unknown; type: unknown; tags: unknown; total: number;
+  // Das Sync-Ergebnis gehoert in den Pruefpunkt, nicht in eine Nebenmessung: ein rotes P22
+  // soll selbst sagen, ob der Sync gar nicht lief, ob er warf, oder ob er lief und nichts
+  // anlegte. Ohne das misst man danach den aufgeraeumten Zustand und sieht nichts.
+  syncOk: boolean; created: number; syncDetail: string;
+}
+
+async function syncTodosAndRead(cdp: Cdp): Promise<TodoNote> {
+  const sync = await cdp.evaluate<TodoNote>(
+    `
+    const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+    const r = await plugin.service.runAll();
+    const created = r.collections.reduce((n, c) => n + c.counts.created, 0);
+    const syncOk = r.collections.every((c) => c.ok);
+    const syncDetail = r.collections
+      .map((c) => c.collectionId + ": ok=" + c.ok + " created=" + c.counts.created
+        + " skipped=" + (c.counts.skipped ?? "?") + (c.error ? " error=" + c.error : ""))
+      .join(" | ") || "runAll lieferte KEINE Sammlung";
+    const files = app.vault.getMarkdownFiles().filter((f) => f.path.startsWith("Tasks/") && f.basename !== "_index");
+    return { path: "", uid: "", status: null, type: null, tags: null, total: files.length, syncOk, created, syncDetail };
+  `,
+  );
+
+  // MUTATION UND WARTEPHASE TRENNEN: der Sync oben schreibt die Dateien, aber
+  // `metadataCache` indiziert sie erst danach — ein `getFileCache` im selben Ausdruck
+  // liefert deshalb ein leeres Frontmatter, und der Pruefpunkt sieht rot aus, obwohl die
+  // Notiz korrekt entstanden ist (gemessen 2026-09-03: Tasks/=2, created=2, dav_uid nicht
+  // auffindbar). Das Warten laeuft auf der Node-Seite, nicht im Renderer.
+  const found = await pollUntil<TodoNote>(
+    cdp,
+    `
+    const files = app.vault.getMarkdownFiles().filter((f) => f.path.startsWith("Tasks/") && f.basename !== "_index");
+    for (const f of files) {
+      const fm = app.metadataCache.getFileCache(f)?.frontmatter ?? {};
+      if (fm["dav_uid"] === ${JSON.stringify(TODO_UID_OPEN)}) {
+        return { path: f.path, uid: fm["dav_uid"], status: fm["status"] ?? null, type: fm["type"] ?? null, tags: fm["tags"] ?? null, total: files.length, syncOk: true, created: 0, syncDetail: "" };
+      }
+    }
+    return null;
+  `,
+    20_000,
+    400,
+  );
+
+  // Die Sync-Diagnose stammt aus dem ersten Ausdruck und bleibt erhalten, auch wenn das
+  // Warten scheitert — sonst verliert ein rotes P22 genau die Information, die es erklaert.
+  return found
+    ? { ...found, syncOk: sync.syncOk, created: sync.created, syncDetail: sync.syncDetail }
+    : sync;
+}
+
+async function checkP22to24(cdp: Cdp, note: TodoNote): Promise<void> {
+  // P22 haengt die Zusicherung an dav_uid, nicht an die Anzahl der Notizen: ob die ERLEDIGTE
+  // Fixture-Aufgabe mitgespiegelt wird, entscheidet `todoInWindow` am heutigen Datum
+  // (COMPLETED liegt im August 2026) — eine Zahl waere hier ein Prueferfolg mit Ablaufdatum.
+  record("P22", "Sync legt Notiz fuer die offene Aufgabe an", note.path !== "" && note.uid === TODO_UID_OPEN,
+    note.path
+      ? `${note.path} (dav_uid=${note.uid}), ${note.total} Notiz(en) in Tasks/`
+      : `keine Notiz mit dav_uid=${TODO_UID_OPEN}; Tasks/=${note.total}, Sync: ok=${note.syncOk} created=${note.created} — ${note.syncDetail}`);
+
+  // DER Pruefpunkt dieses Abschnitts. Der Server sagt NEEDS-ACTION, das Profil bildet auf
+  // "open" ab. Steht hier der Rohwert, ist die Abbildung ausgefallen.
+  record("P23", "Frontmatter traegt den ABGEBILDETEN Status", note.status === "open",
+    `status=${JSON.stringify(note.status)} (Server: NEEDS-ACTION, erwartet: "open")`);
+
+  // Die Sichtbarkeitsmarkierung ist `type`, nicht `tags`: das Profil setzt sie ueber
+  // onCreate ({ type: "task" }), waehrend `tags` auf das Server-Feld CATEGORIES gemappt ist
+  // und bei dieser Aufgabe "Finanzen, Privat" traegt.
+  const tagsInfo = Array.isArray(note.tags) ? `[${(note.tags as string[]).join(", ")}]` : JSON.stringify(note.tags);
+  record("P24", "Notiz traegt die Sichtbarkeitsmarkierung", note.type === "task",
+    `type=${JSON.stringify(note.type)}, tags=${tagsInfo}`);
+}
+
 async function checkP8(port: number, vault: string): Promise<void> {
   const workspace = await attachTo("workspace", port, vault);
   if (!workspace) {
@@ -1193,7 +1340,7 @@ async function checkP8(port: number, vault: string): Promise<void> {
 async function main(): Promise<void> {
   const port = Number(arg("port", "9222"));
   const vault = arg("vault", "calendar-notes");
-  const section = arg("section", "generic") as "generic" | "pallas";
+  const section = arg("section", "generic") as Section;
   const keep = flag("keep");
   const focus = flag("focus");
   const setup = flag("setup");
@@ -1222,6 +1369,33 @@ async function main(): Promise<void> {
   try {
     const pluginPresent = await cdp.evaluate<boolean>( `return !!app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];`);
     if (!pluginPresent) throw new Error(`Plugin "${PLUGIN_ID}" ist im Fenster "${vault}" nicht geladen — deployt & aktiviert?`);
+
+    // Das Plugin NEU LADEN, bevor irgendetwas gemessen wird. Ein offenes Fenster haelt den
+    // Bundle, der beim Oeffnen im Speicher landete — ein frisch deployter `main.js` wird
+    // nicht von selbst uebernommen. Ohne diesen Schritt misst der Lauf den ALTEN Stand, und
+    // zwar unauffaellig: die Pruefpunkte bleiben gruen, sie sagen nur nichts ueber den Build,
+    // den man gerade gebaut hat. Am teuersten faellt das bei der GEGENPROBE auf — ein
+    // absichtlich eingebauter Defekt liegt dann gar nicht im laufenden Plugin, die Gegenprobe
+    // bleibt gruen und sieht aus wie eine, die nichts findet.
+    // (Anstoss von markdown-presentation-87 am 2026-09-03. Diese Stelle fuehrte deren
+    // Lagebeschreibung zunaechst als falsch — das war eine Fehllesung: sie schrieb, ihr
+    // Treiber tue das "hier" bereits, und "hier" meinte IHR Repo, wo es stimmt. Ich las es
+    // als Aussage ueber diesen Treiber. Beide Saetze waren wahr; ein Deiktikon zeigt beim
+    // Absender auf sein Repo und beim Empfaenger auf dessen. Vier Woerter mehr — das Repo
+    // benennen statt zu zeigen — haetten es verhindert.)
+    // Randnotiz: `requireEigenerBuild` aus tools/obsidian-cdp/vault.ts belegt per sha1 die
+    // HERKUNFT des Builds, nicht dass der Prozess ihn geladen hat — es ersetzt den Reload
+    // also nicht. Dieser Treiber nutzt es bislang ohnehin nicht.
+    const reloaded = await cdp.evaluate<string>(`
+      const id = ${JSON.stringify(PLUGIN_ID)};
+      const before = app.plugins.plugins[id];
+      await app.plugins.disablePlugin(id);
+      await app.plugins.enablePlugin(id);
+      const after = app.plugins.plugins[id];
+      if (!after) return "FEHLER: Plugin nach dem Neuladen nicht aktiv";
+      return (after === before ? "unveraendert (verdaechtig)" : "frisch geladen") + ", Version " + after.manifest.version;
+    `);
+    console.log(`Plugin neu geladen: ${reloaded}`);
 
     const settingsSnapshot = await cdp.evaluate<string>( `return JSON.stringify(app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}].settings);`);
     const vaultSnapshot = await snapshotVault(cdp);
@@ -1266,10 +1440,23 @@ async function main(): Promise<void> {
       const profileIds = await createPallasProfiles(cdp);
       await wirePallasCollections(cdp, profileIds);
       await checkP3(cdp, discovery);
+    } else if (section === "todo") {
+      // P21 misst die Zuweisung aus der Discovery — VOR jeder eigenen Aenderung, sonst
+      // prueft er den selbst gesetzten Zustand.
+      await checkP21(cdp, discovery);
+      await enableOnlyTodo(cdp, discovery.todoId);
+      await checkP20(cdp, discovery);
+      const note = await syncTodosAndRead(cdp);
+      await checkP22to24(cdp, note);
     } else {
+      // Die Aufgaben-Sammlung bleibt in `generic` AUS. Sie hat ihren eigenen Abschnitt, und
+      // die Zahlen hier (5 creates, Events/=3, Contacts/=2) sind Aussagen ueber Termine und
+      // Kontakte — wer die Aufgaben mitlaufen laesst, macht aus jeder davon eine Summe, die
+      // nichts mehr benennt.
       await cdp.evaluate(`
         const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
-        plugin.settings = { ...plugin.settings, collections: plugin.settings.collections.map((c) => ({ ...c, enabled: true })) };
+        const todoId = ${JSON.stringify(discovery.todoId)};
+        plugin.settings = { ...plugin.settings, collections: plugin.settings.collections.map((c) => ({ ...c, enabled: c.id !== todoId })) };
         await plugin.saveSettings();
         return true;
       `);

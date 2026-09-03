@@ -3,7 +3,7 @@ import { refreshCollection } from "../dav/refresh";
 import { syncCollection, type SyncDelta } from "../dav/sync";
 import { applyDelta } from "../mirror/apply";
 import { windowFor, toDavTimeRange, type Window } from "../mirror/window";
-import { effectiveProfile, holdsEvents, sourceOf, type CollectionConfig, type PluginSettings } from "../settings";
+import { effectiveProfile, collectionSupports, sourceOf, type CollectionConfig, type PluginSettings } from "../settings";
 import { withRun, type CollectionState, type RunInfo } from "../state/collection-state";
 import type { CollectionRunResult, RunResult, SyncDeps } from "./types";
 
@@ -114,11 +114,11 @@ export class SyncService {
 
   private async processCollection(col: CollectionConfig, dryRun: boolean): Promise<CollectionRunResult> {
     if (!col.enabled) return skipped(col.id, dryRun, "disabled");
-    if (!holdsEvents(col)) return skipped(col.id, dryRun, "unsupported-components");
     const settings = this.deps.settings();
     const account = settings.accounts.find((a) => a.id === col.accountId);
     const profile = effectiveProfile(settings, col);
     if (!account || !profile) return skipped(col.id, dryRun, "no-profile");
+    if (!collectionSupports(col, profile.kind)) return skipped(col.id, dryRun, "unsupported-components");
     const secret = this.deps.secrets.get(account.secretId);
     if (secret === null || secret === "") return skipped(col.id, dryRun, "no-secret");
 
@@ -132,9 +132,24 @@ export class SyncService {
       let timeWindow: Window | undefined;
       let delta: SyncDelta;
       if (col.kind === "calendar") {
+        // Das Fenster wird IMMER gesetzt — `applyDelta` braucht es fuer beide Sorten. Ob es
+        // zusaetzlich an den SERVER geht, entscheidet dagegen `profile.kind`, nicht `col.kind`:
+        // VEVENT und VTODO liegen beide in Sammlungen mit `kind === "calendar"` (mailbox.org
+        // fuehrt sie getrennt, s. collectionSupports), und `calendarQueryBody` filtert fest auf
+        // VEVENT. Eine Aufgaben-Sammlung ueber diesen Weg zu listen liefert deshalb immer null
+        // Treffer — ohne Fehler, ohne Warnung.
         timeWindow = windowFor(now, settings.sync.pastDays, settings.sync.futureDays);
-        const timeRange = toDavTimeRange(timeWindow);
-        delta = await syncCollection(transport, { ...fresh, syncToken: undefined }, state.snapshot, { timeRange, batchSize: settings.sync.batchSize });
+        if (profile.kind === "todo") {
+          // Kein serverseitiges `time-range` fuer Aufgaben, und zwar auch dann nicht, wenn der
+          // Query-Body eines Tages VTODO kann: die Fensterregel ist hier eine andere — offene
+          // Aufgaben liegen IMMER im Fenster, auch ohne jedes Datum (Spec § 7). Ein
+          // serverseitiger Filter wuerde genau die wegschneiden. Gefiltert wird clientseitig
+          // in `todoInWindow`; die Listung laeuft ueber PROPFIND Depth 1.
+          delta = await syncCollection(transport, { ...fresh, syncToken: undefined }, state.snapshot, { batchSize: settings.sync.batchSize });
+        } else {
+          const timeRange = toDavTimeRange(timeWindow);
+          delta = await syncCollection(transport, { ...fresh, syncToken: undefined }, state.snapshot, { timeRange, batchSize: settings.sync.batchSize });
+        }
       } else {
         delta = await syncCollection(transport, fresh, state.snapshot, { batchSize: settings.sync.batchSize });
       }

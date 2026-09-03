@@ -1,0 +1,8 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//DE
+BEGIN:VTODO
+UID:todo-min@test
+SUMMARY:Irgendwann mal aufräumen
+END:VTODO
+END:VCALENDAR

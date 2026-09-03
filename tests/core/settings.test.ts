@@ -2,9 +2,9 @@ import { describe, it, expect } from "vitest";
 import { defaultSettings, normalizeSettings, repairSecretLinks, secretIdFor, newId, sourceOf, effectiveProfile, DEFAULT_SYNC } from "../../src/core/settings";
 import type { SecretStore } from "../../src/core/sync/types";
 describe("settings", () => {
-  it("defaults carry both default profiles", () => {
+  it("defaults carry all default profiles", () => {
     const s = defaultSettings();
-    expect(s.profiles.map((p) => p.id)).toEqual(["default-contact", "default-event"]);
+    expect(s.profiles.map((p) => p.id)).toEqual(["default-contact", "default-event", "default-todo"]);
     expect(s.sync).toEqual(DEFAULT_SYNC);
   });
   it("normalize: merges, drops invalid profile, re-adds missing defaults, drops orphan collection, clamps", () => {
@@ -12,7 +12,7 @@ describe("settings", () => {
       collections: [{ id: "c1", accountId: "a1", href: "https://d/k/", kind: "calendar", displayName: "K", enabled: true, profileId: "default-event", readOnly: false }, { id: "c2", accountId: "ghost", href: "x", kind: "calendar", displayName: "G", enabled: true, profileId: "default-event", readOnly: false }],
       profiles: [{ id: "broken" }], sync: { intervalMinutes: -5, requestTimeoutMs: 10 } });
     expect(s.collections.map((c) => c.id)).toEqual(["c1"]);
-    expect(s.profiles.map((p) => p.id).sort()).toEqual(["default-contact", "default-event"]);
+    expect(s.profiles.map((p) => p.id).sort()).toEqual(["default-contact", "default-event", "default-todo"]);
     expect(s.sync.intervalMinutes).toBe(0); expect(s.sync.requestTimeoutMs).toBe(1000); expect(s.sync.pastDays).toBe(90);
   });
   it("normalize: keeps well-formed account.scheduling, drops malformed", () => {
@@ -28,7 +28,7 @@ describe("settings", () => {
   it("normalize(undefined) == defaults; keeps a valid custom profile", () => {
     expect(normalizeSettings(undefined)).toEqual(defaultSettings());
     const custom = { ...defaultSettings().profiles[0]!, id: "pallas", name: "Pallas" };
-    expect(normalizeSettings({ profiles: [custom] }).profiles.map((p) => p.id)).toEqual(["pallas", "default-contact", "default-event"]);
+    expect(normalizeSettings({ profiles: [custom] }).profiles.map((p) => p.id)).toEqual(["pallas", "default-contact", "default-event", "default-todo"]);
   });
   it("collections: components überlebt die Normalisierung, Müll wird verworfen", () => {
     const base = { id: "c1", accountId: "a1", href: "https://d/k/", kind: "calendar", displayName: "K", enabled: true, profileId: "default-event", readOnly: false };
@@ -137,5 +137,46 @@ describe("repairSecretLinks", () => {
     const out = repairSecretLinks(settings, secrets);
 
     expect(out.accounts[0]!.secretId).toBe("mailbox");
+  });
+});
+
+import { collectionSupports, type CollectionConfig } from "../../src/core/settings";
+
+describe("collectionSupports", () => {
+  const cal = (components?: string[]): CollectionConfig => ({
+    id: "c1", accountId: "a1", href: "https://dav.example/cal/", kind: "calendar",
+    displayName: "Kalender", enabled: true, profileId: "default-event", readOnly: false,
+    ...(components ? { components } : {}),
+  });
+
+  it("sagt der Server nichts, wird nichts ausgeschlossen", () => {
+    expect(collectionSupports(cal(), "event")).toBe(true);
+    expect(collectionSupports(cal(), "todo")).toBe(true);
+  });
+
+  it("eine VEVENT-Sammlung traegt Termine, aber keine Aufgaben", () => {
+    expect(collectionSupports(cal(["VEVENT"]), "event")).toBe(true);
+    expect(collectionSupports(cal(["VEVENT"]), "todo")).toBe(false);
+  });
+
+  it("eine VTODO-Sammlung traegt Aufgaben, aber keine Termine", () => {
+    expect(collectionSupports(cal(["VTODO"]), "todo")).toBe(true);
+    expect(collectionSupports(cal(["VTODO"]), "event")).toBe(false);
+  });
+
+  it("eine Sammlung, die beides meldet, traegt beides", () => {
+    expect(collectionSupports(cal(["VEVENT", "VTODO"]), "event")).toBe(true);
+    expect(collectionSupports(cal(["VEVENT", "VTODO"]), "todo")).toBe(true);
+  });
+
+  it("ein Adressbuch traegt Kontakte und sonst nichts", () => {
+    const ab = { ...cal(), kind: "addressbook" as const, profileId: "default-contact" };
+    expect(collectionSupports(ab, "contact")).toBe(true);
+    expect(collectionSupports(ab, "event")).toBe(false);
+    expect(collectionSupports(ab, "todo")).toBe(false);
+  });
+
+  it("ein Kalender traegt keine Kontakte", () => {
+    expect(collectionSupports(cal(), "contact")).toBe(false);
   });
 });

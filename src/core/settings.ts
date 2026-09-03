@@ -1,5 +1,5 @@
 import { mergeSettings } from "../vendor/code-kit/settings";
-import { defaultContactProfile, defaultEventProfile, validateProfile, type MappingProfile } from "./mirror/profile";
+import { defaultContactProfile, defaultEventProfile, defaultTodoProfile, validateProfile, type MappingProfile, type ProfileKind } from "./mirror/profile";
 import type { SchedulingInfo } from "./dav/scheduling";
 import type { SecretStore } from "./sync/types";
 
@@ -33,22 +33,25 @@ export interface CollectionConfig {
 }
 
 /**
- * Kann diese Sammlung Termine tragen? Nur `supported-calendar-component-set` beantwortet
- * das — die Ressourcentyp-Angabe (`<c:calendar/>`) tut es NICHT: mailbox.org fuehrt VEVENT
- * und VTODO in getrennten Collections, die beide `calendar` sind, und die Aufgaben-Sammlung
- * nimmt keine Termine an (Befund `docs/dav/befunde/mailbox-org.md`, 2026-08-29).
+ * Passt diese Sammlung zu einem Profil dieser Sorte? Nur `supported-calendar-component-set`
+ * beantwortet das fuer Kalender — die Ressourcentyp-Angabe (`<c:calendar/>`) tut es NICHT:
+ * mailbox.org fuehrt VEVENT und VTODO in getrennten Collections, die beide `calendar` sind
+ * (Befund `docs/dav/befunde/mailbox-org.md`, Punkt 3).
  *
  * Sagt der Server nichts (Feld fehlt — Radicale etwa liefert es nicht zwingend), wird nichts
- * angenommen und die Sammlung laeuft normal. Adressbuecher kennen die Eigenschaft nicht.
+ * angenommen und die Paarung gilt als moeglich.
  *
- * Liegt hier und nicht im Sync, weil die Einstellungen dieselbe Frage beantworten muessen:
- * ein Nutzer, dem die Zeile nichts sagt, aktiviert sie und wartet auf einen Lauf, der
- * wortlos uebersprungen wird.
+ * Gefragt wird nach der PAARUNG, nicht nach der Sammlung allein: eine Aufgaben-Sammlung ist
+ * nicht "unbrauchbar", sie passt nur nicht zu einem Termin-Profil. Liegt hier und nicht im Sync,
+ * weil die Einstellungen dieselbe Frage beantworten muessen — ein Nutzer, dem die Zeile nichts
+ * sagt, aktiviert sie und wartet auf einen Lauf, der wortlos uebersprungen wird.
  */
-export function holdsEvents(col: CollectionConfig): boolean {
-  if (col.kind !== "calendar") return true;
+export function collectionSupports(col: CollectionConfig, kind: ProfileKind): boolean {
+  if (kind === "contact") return col.kind === "addressbook";
+  if (col.kind !== "calendar") return false;
   if (!col.components?.length) return true;
-  return col.components.some((c) => c.toUpperCase() === "VEVENT");
+  const want = kind === "event" ? "VEVENT" : "VTODO";
+  return col.components.some((c) => c.toUpperCase() === want);
 }
 
 export interface SyncSettings {
@@ -85,7 +88,7 @@ export function defaultSettings(): PluginSettings {
     version: 1,
     accounts: [],
     collections: [],
-    profiles: [defaultContactProfile(), defaultEventProfile()],
+    profiles: [defaultContactProfile(), defaultEventProfile(), defaultTodoProfile()],
     sync: { ...DEFAULT_SYNC },
     language: "auto",
   };
@@ -117,7 +120,7 @@ function normalizeProfiles(raw: unknown): MappingProfile[] {
       if (v.ok) out.push(v.profile);
     }
   }
-  for (const def of [defaultContactProfile(), defaultEventProfile()]) {
+  for (const def of [defaultContactProfile(), defaultEventProfile(), defaultTodoProfile()]) {
     if (!out.some((p) => p.id === def.id)) out.push(def);
   }
   return out;

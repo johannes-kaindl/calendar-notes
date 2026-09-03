@@ -7,6 +7,7 @@ import { discoverScheduling } from "./core/dav/scheduling";
 import { withBasicAuth } from "./core/dav/transport";
 import type { MappingProfile, ProfileKind } from "./core/mirror/profile";
 import { suggestProfileFromNote } from "./core/mirror/profile-from-note";
+import { assertNever } from "./core/mirror/kind";
 import { normalizeSettings, repairSecretLinks, sourceOf, type Account, type CollectionConfig, type PluginSettings } from "./core/settings";
 import type { CalendarNotesApi } from "./core/api/types";
 import { ensureDefaultCommands } from "./core/commands/registry";
@@ -51,24 +52,31 @@ class CollectionSuggestModal extends FuzzySuggestModal<CollectionConfig> {
 }
 
 /** Waehlt die Art einer Notiz (Kontakt/Termin) fuer `profile-from-note`. */
-class ProfileKindSuggestModal extends FuzzySuggestModal<ProfileKind> {
+/** "Profil aus Notiz" gibt es fuer Aufgaben bewusst nicht: dort ist der Weg der
+ *  Ableitungs-Knopf aus TaskNotes (Spec § 5), der die Wertevokabulare mitbringt. Der engere
+ *  Typ haelt `getItemText` erschoepfend, ohne einen Text fuer eine unerreichbare Sorte. */
+type NoteProfileKind = Exclude<ProfileKind, "todo">;
+
+class ProfileKindSuggestModal extends FuzzySuggestModal<NoteProfileKind> {
   constructor(
     app: App,
-    private readonly onChoose: (kind: ProfileKind) => void,
+    private readonly onChoose: (kind: NoteProfileKind) => void,
   ) {
     super(app);
     this.setPlaceholder(t("cmd.profileFromNote.placeholder"));
   }
 
-  getItems(): ProfileKind[] {
+  getItems(): NoteProfileKind[] {
     return ["contact", "event"];
   }
 
-  getItemText(kind: ProfileKind): string {
-    return kind === "contact" ? t("adopt.kind.contact") : t("adopt.kind.event");
+  getItemText(kind: NoteProfileKind): string {
+    if (kind === "contact") return t("adopt.kind.contact");
+    if (kind === "event") return t("adopt.kind.event");
+    return assertNever(kind, "Profilsorten-Auswahl");
   }
 
-  onChooseItem(kind: ProfileKind): void {
+  onChooseItem(kind: NoteProfileKind): void {
     this.onChoose(kind);
   }
 }
@@ -354,7 +362,7 @@ export default class CalendarNotesPlugin extends Plugin {
     new ProfileKindSuggestModal(this.app, (kind) => this.fireAndForget(this.createProfileFromNote(kind, file), "Profil aus Notiz")).open();
   }
 
-  private async createProfileFromNote(kind: ProfileKind, file: TFile): Promise<void> {
+  private async createProfileFromNote(kind: NoteProfileKind, file: TFile): Promise<void> {
     const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
     const folder = file.parent && file.parent.path !== "/" ? file.parent.path : "";
     const name = t("adopt.profileFromNote.name", file.basename);

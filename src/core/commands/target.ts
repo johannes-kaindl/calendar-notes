@@ -32,6 +32,10 @@ export function targetFromFrontmatter(settings: PluginSettings, frontmatter: Rec
     if (typeof uid !== "string" || uid === "") continue;
     const recurrenceRaw = frontmatter[profile.recurrenceIdField];
     const recurrenceId = typeof recurrenceRaw === "string" && recurrenceRaw !== "" ? recurrenceRaw : undefined;
+    // Aufgaben-Kommandos kommen mit M6b. Bis dahin erzeugt ein Todo-Profil kein Kommando-Ziel —
+    // sonst liefe eine Aufgabe in `planContactHandEdits`, weil Kommandos ihren eigenen,
+    // zweiwertigen `kind` fuehren (commands/types.ts).
+    if (profile.kind === "todo") continue;
     return { kind: profile.kind, source, uid, collectionId: col.id, ...(recurrenceId ? { recurrenceId } : {}) };
   }
   return undefined;
