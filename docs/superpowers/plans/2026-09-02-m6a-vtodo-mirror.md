@@ -1977,6 +1977,15 @@ git commit -m "test(integration): Radicale-Fixture mit Aufgaben-Sammlung"
 > würde die Messung zerschießen. **Kein `quit`** — vorher `curl -s http://127.0.0.1:9222/json/list`
 > lesen und sehen, wessen Vaults offen sind.
 
+> **Entschieden am 2026-09-03 (Johannes): geprüft wird gegen das Frontmatter, nicht gegen
+> TaskNotes.** Der Staging-Vault führt nur `calendar-notes`; TaskNotes ins getrackte Fixture
+> aufzunehmen wäre die vollständigere, aber teurere Variante (Größe, Lizenz, Versionspflege
+> eines Fremdplugins im Repo). Der Smoke sichert daher zu, dass die Notiz die
+> Sichtbarkeitsmarkierung und den **abgebildeten** Statuswert trägt — ob TaskNotes daraus eine
+> Aufgabe macht, ist TaskNotes' Zusage und liegt hinter der Grenze, die die Spec zieht:
+> *wir transportieren, TaskNotes verwaltet.* Die fünf Prüfpunkte unten stehen bereits in dieser
+> Form; die Entscheidung nimmt ihnen nur die offene Flanke.
+
 - [ ] **Schritt 1: Prüfpunkte schreiben**
 
 Neuer Abschnitt (z. B. `--section todo`) mit fünf Prüfpunkten, nach der Form der vorhandenen Abschnitte in `scripts/gui-smoke.ts`:
@@ -2049,7 +2058,7 @@ Zwei Zeilen, beide unter „Plugin-zu-Plugin (Zuständigkeits-Schnittstellen)":
 - *Eine fremde Plugin-API einmalig ablesen und das Ergebnis einfrieren, statt sich zur Laufzeit an sie zu binden* → `calendar-notes/src/obsidian/tasknotes.ts` + `src/core/mirror/tasknotes-map.ts`
 - *Einen Union-Typ erweitern, ohne stille Lücken zu hinterlassen* → `calendar-notes/src/core/mirror/kind.ts` (`assertNever`) — **Kit-Kandidat prüfen**, sobald ein zweites Repo dasselbe braucht
 
-- [ ] **Schritt 4: Volles Gate, beide Remotes**
+- [ ] **Schritt 4: Volles Gate, ein Remote**
 
 Run: `npm run gate && npm run test:integration`
 Erwartung: alles grün.
@@ -2058,12 +2067,39 @@ Erwartung: alles grün.
 git add AGENTS.md CHANGELOG.md
 git commit -m "docs(agents): M6a dokumentieren — Aufgaben-Spiegel Server nach Vault"
 git push origin main
-git push github main
 ```
 
-> ⚠️ **Beide Pushes sind nötig.** `calendar-notes` steht auf der Dach-Liste der Repos **ohne
-> wirksamen Forgejo→GitHub-Mirror** (gemessen 2026-08-30). `git push origin` allein lässt GitHub
-> zurückfallen. Danach prüfen: `git ls-remote github main` muss auf denselben Commit zeigen.
+> ⚠️ **Hier stand bis zum 2026-09-03 `git push github main` als zweiter, ausdrücklich nötiger
+> Push.** Der Schritt entfällt: seit dem GitHub-Ausstieg (Dach-`AGENTS.md`, § Store-Einreichung)
+> läuft die Verteilung über `git.jkaindl.de` und den `anysource-sideloader`-Katalog. Der Push
+> wäre **nicht kaputt, sondern wirkungslos** — und diesen Unterschied misst man besser, als
+> man ihn annimmt.
+
+**Gemessen am 2026-09-03, damit die Streichung nicht auf einer Erinnerung beruht:**
+
+| Prüfung | Ergebnis | was es heißt |
+|---|---|---|
+| `git ls-remote github main` (SSH) | `8af769f`, exit 0 | Push ginge technisch durch |
+| `curl https://github.com/johannes-kaindl/calendar-notes` anonym | **404** | für jeden Außenstehenden weg |
+| Repo in `community-plugins.json` | 0 von 25 eigenen IDs (Dach-Messung 2026-09-01) | Listing ist bereits entfernt |
+
+Die naheliegende Formulierung „GitHub ist tot, der Push scheitert" ist also **falsch**: er
+scheitert nicht, er landet in einem Repo, das niemand mehr lesen kann. Wer ihn trotzdem fährt,
+erzeugt keinen Fehler — und genau deshalb fällt es nicht auf.
+
+> ⓘ **Nebenbefund für das Dach, gehört nicht in diese Task:** `tools/mirror_drift_check.py`
+> prüft über **HTTPS ohne Anmeldung** und meldet für dieses Repo darum „Mirror nicht prüfbar:
+> git ls-remote fehlgeschlagen". Über SSH ist er sehr wohl prüfbar. Der Check misst hier also
+> die Anonymität, nicht den Mirror.
+
+**Was NICHT zu dieser Task gehört, aber am selben Strang hängt** — beides ist im Cockpit als
+eigene Aufgabe geführt und wird beim **nächsten Release** fällig, nicht bei der Doku:
+`authorUrl` zeigt noch auf `https://github.com/johannes-kaindl` (Ziel: `https://jkaindl.de`),
+und `npm run release` fährt hier noch **ohne** `--no-github`, während das `github`-Remote
+weiter konfiguriert ist. Vorbild ist `anysource-sideloader` (Flag im `package.json`
+verdrahtet, Remote entfernt). ⚠️ **In dieser Reihenfolge:** ohne das Flag ist ein fehlendes
+`github`-Remote ein **harter Abbruch** von `release.mjs` — wer nur das Remote löscht,
+zerstört die Releases.
 
 ---
 
