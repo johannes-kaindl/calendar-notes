@@ -423,3 +423,88 @@ Rund fünfzehn Requests in etwa einer Minute, darunter mehrere `PROPFIND` mit `D
 `429`, keine Verzögerung, kein `Retry-After`. Das ist eine Aussage über diese Größenordnung —
 **nicht** über einen Erstabgleich mit tausenden Ressourcen. Wer das wissen muss, misst es beim
 ersten vollen Sync.
+
+---
+## Thunderbird und die VTODO-Sammlung (2026-09-03, Plan-Task 1 von M6a)
+
+**Frage:** Legt Thunderbird seine Aufgaben in dieselbe Sammlung, die mailbox.org als
+`VTODO`-fähig meldet? Davon hängt ab, ob `collectionSupports()` die Erkennung tragen kann.
+
+**Antwort: ja — und zwar strukturell erzwungen, nicht zufällig.** Belegt aus zwei
+voneinander unabhängigen Quellen, die dieselbe Sammlung nennen.
+
+### Quelle 1 — der Server (gemessen per PROPFIND, read-only)
+
+`PROPFIND /caldav/ Depth 1` mit `supported-calendar-component-set`,
+`current-user-privilege-set` und `getctag`:
+
+| Sammlung | Komponenten | CTag | schreibbar |
+|---|---|---|---|
+| Kalender | `VEVENT` | ja | ja (`write-content`, `bind`, `unbind`) |
+| Geburtstage | `VEVENT` | ja | **nein** — nur `read` + `write-properties` |
+| **Aufgaben** | **`VTODO`** | **ja** | **ja** (`write-content`, `bind`, `unbind`) |
+| Schedule Outbox | — | nein | — |
+| Schedule Inbox | `VAVAILABILITY` | nein | — |
+
+Damit sind drei Punkte aus § „Collections" oben unabhängig bestätigt: `VEVENT` und `VTODO`
+liegen getrennt; nicht jeder Kalender ist beschreibbar (*Geburtstage* ist die aus den
+Kontakten abgeleitete Ansicht); Schedule-In-/Outbox tragen kein CTag und sind beim Auflisten
+herauszufiltern. **Es gibt genau eine Sammlung mit `VTODO`.**
+
+### Quelle 2 — Thunderbird (gelesen aus dem Profil, nichts verändert)
+
+Im aktiven Profil (`default-release`; der `Install`-Block in `profiles.ini` gewinnt gegen den
+Legacy-`Default=1` des zweiten Profils) sind drei CalDAV-Kalender registriert. Der als
+*Aufgaben* benannte trägt als `uri` **genau die Sammlung aus Quelle 1**, dazu
+`readOnly = false`, `cache.enabled = true` und `calendar-main-default = true`.
+
+Entscheidend sind die Servereigenschaften, die Thunderbird sich selbst gemerkt hat
+(`calendar-data/cache.sqlite`, Tabelle `cal_metadata`):
+
+```
+mSupportedItemTypes  = ['VTODO']      ← Thunderbirds eigene Auswertung derselben Property
+mHasWebdavSyncSupport = True
+mHasAutoScheduling    = True
+mPrincipalUrl         = /principals/users/<zahl>
+```
+
+**Das ist der eigentliche Beleg.** Thunderbird liest dasselbe
+`supported-calendar-component-set` und leitet daraus dieselbe Aussage ab wie wir. Die
+Erkennung, auf die `collectionSupports()` baut, ist damit nicht unsere Auslegung einer
+Property, sondern die, nach der sich ein etablierter Client bereits richtet. Und weil es
+**nur eine** `VTODO`-fähige Registrierung gibt, kann eine in Thunderbird angelegte Aufgabe
+strukturell nirgendwo sonst landen.
+
+**Das Abbruchkriterium der Task greift nicht** — es existiert keine Konstellation, in der die
+Aufgabe in einer Sammlung ohne `VTODO` landet.
+
+### ⚠️ Was hier NICHT belegt ist
+
+**Es existiert keine einzige echte Aufgabe.** Gemessen sind alle Sammlungen des Kontos leer
+(`REPORT calendar-query` und `PROPFIND Depth 1` je 0 Ressourcen; einzige Ausnahme: das
+*Globale Adressbuch* mit einer — die zugleich die Positivkontrolle ist, dass der Zähler
+zählt). Passend dazu stehen Thunderbirds `cal_todos` und `cal_events` leer,
+`mWebdavSyncToken = 0`, `mCtag = None`.
+
+Die Aussage oben ist also eine **Aussage über Konfiguration und Server-Fähigkeiten**, keine
+über einen beobachteten Schreibvorgang — der Unterschied ist genau der aus der Lesson vom
+2026-09-01 (`kuro-gamification`): *die Konfiguration eines Fremdsystems ist keine Aussage
+darüber, was der Nutzer tatsächlich hat.* Für den Zweck der Task genügt sie, weil die Frage
+der **Erkennung** galt und die an beiden Enden identisch beantwortet wird.
+
+**Der billige Rest, falls jemand die Verhaltensaussage will:** in Thunderbird eine Aufgabe
+anlegen, synchronisieren lassen, danach `REPORT calendar-query` auf die Aufgaben-Sammlung —
+die Ressource muss erscheinen, mit einer `PRODID`, die Thunderbird ausweist. Dreißig Sekunden
+Handarbeit, danach ist auch das gemessen.
+
+### Wie das gemessen wurde
+
+Read-only über das vorhandene Erhebungswerkzeug der mailbox-org-Werkstatt
+(`skripte/dav.py`, ausschließlich `PROPFIND`/`REPORT`/`OPTIONS`, kein `PUT`), als Bibliothek
+importiert statt verändert. Das Applikationspasswort kam aus dem Schlüsselbund-Eintrag
+`mailbox-org-dav` und steht nur im `Authorization`-Header. Thunderbirds `cache.sqlite` wurde
+vor dem Lesen in ein temporäres Verzeichnis kopiert; das Profil ist unangetastet, Thunderbird
+lief während der Messung nicht.
+
+Collection-Pfade sind hier bewusst nicht ausgeschrieben — sie folgen der Maskierungs-Konvention
+weiter oben (`/caldav/<base64-artig>/` bzw. `/caldav/<zahl>/`).
