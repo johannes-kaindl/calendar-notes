@@ -7,6 +7,7 @@ import { putObject, deleteObject, getObject } from "../../src/core/dav/client";
 import { parseEvents } from "../../src/core/ical/event";
 import { applyMutation, newEventIcs } from "../../src/core/ical/mutate";
 import { parseContact } from "../../src/core/vcard/contact";
+import { parseTodos } from "../../src/core/ical/todo";
 import type { Transport, DavCollection } from "../../src/core/dav/types";
 
 let server: RunningServer; let t: Transport;
@@ -64,5 +65,16 @@ describe("radicale end-to-end", () => {
     expect(r4.ok).toBe(true);
     const d4 = await syncCollection(t, { ...kal, syncToken: snap!.syncToken ?? kal.syncToken }, snap);
     expect(d4.deleted).toEqual([]);             // angelegt+gelöscht zwischen zwei Syncs → nie im Snapshot, also auch nicht "deleted"
+  });
+
+  it("entdeckt die Aufgaben-Sammlung und liest beide VTODOs", async () => {
+    const d = await discover(t, server.baseUrl);
+    const auf = d.collections.find((c) => c.displayName.toLowerCase().includes("aufgaben"));
+    expect(auf).toBeDefined();
+    expect(auf!.components?.map((x) => x.toUpperCase())).toContain("VTODO");
+    const ds = await syncCollection(t, auf!, undefined);
+    expect(ds.changed).toHaveLength(2);
+    const uids = ds.changed.map((o) => parseTodos(o.data)[0]!.uid).sort();
+    expect(uids).toEqual(["radicale-todo-1@test", "radicale-todo-2@test"]);
   });
 });
