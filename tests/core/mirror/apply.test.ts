@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { applyDelta, type NoteLookup } from "../../../src/core/mirror/apply";
 import { emptyState, upsertObject } from "../../../src/core/state/collection-state";
-import { defaultContactProfile, defaultEventProfile } from "../../../src/core/mirror/profile";
+import { defaultContactProfile, defaultEventProfile, defaultTodoProfile } from "../../../src/core/mirror/profile";
 import type { ExistingNote } from "../../../src/core/mirror/plan";
 import type { SyncDelta } from "../../../src/core/dav/sync";
 const fx = (d: string, n: string) => readFileSync(new URL(`../../fixtures/${d}/${n}`, import.meta.url), "utf8");
@@ -189,5 +189,33 @@ describe("applyDelta — events", () => {
       expect(pl.op).toBe("skip");
       if (pl.op === "update") expect(pl.handEdited).toEqual([]);
     }
+  });
+});
+describe("applyDelta — todos", () => {
+  it("legt fuer eine offene Aufgabe eine Notiz an", () => {
+    const p = defaultTodoProfile();
+    const out = applyDelta({
+      profile: p,
+      source: "acc/tasks",
+      now: NOW,
+      state: emptyState("acc/tasks"),
+      lookup: lookupOf([]),
+      delta: delta({ changed: [{ href: "https://s/cal/t1.ics", data: fx("ical", "todo-simple.ics"), etag: '"e1"' }] }),
+    });
+    expect(out.plans.filter((x) => x.op === "create")).toHaveLength(1);
+  });
+  it("archiviert eine lange erledigte Aufgabe statt sie anzulegen", () => {
+    const p = defaultTodoProfile();
+    const alt = fx("ical", "todo-done.ics").replace("COMPLETED:20260814T183000Z", "COMPLETED:20200101T000000Z");
+    const out = applyDelta({
+      profile: p,
+      source: "acc/tasks",
+      now: NOW,
+      state: emptyState("acc/tasks"),
+      lookup: lookupOf([]),
+      timeWindow: { start: new Date("2026-06-01T00:00:00Z"), end: new Date("2027-06-01T00:00:00Z") },
+      delta: delta({ changed: [{ href: "https://s/cal/t2.ics", data: alt, etag: '"e2"' }] }),
+    });
+    expect(out.plans.some((x) => x.op === "create")).toBe(false);
   });
 });

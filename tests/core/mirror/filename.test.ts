@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { filenameSubs, noteBasename, notePath } from "../../../src/core/mirror/filename";
-import { defaultContactProfile, defaultEventProfile } from "../../../src/core/mirror/profile";
+import { defaultContactProfile, defaultEventProfile, defaultTodoProfile } from "../../../src/core/mirror/profile";
 import { parseContact } from "../../../src/core/vcard/contact";
 import { parseEvents } from "../../../src/core/ical/event";
+import { parseTodos } from "../../../src/core/ical/todo";
 const fx = (d: string, n: string) => readFileSync(new URL(`../../fixtures/${d}/${n}`, import.meta.url), "utf8");
 
 describe("filename", () => {
@@ -23,6 +24,14 @@ describe("filename", () => {
   it("falls back to uid when template renders empty; last resort", () => {
     const c = parseContact("BEGIN:VCARD\nVERSION:3.0\nUID:u-1\nFN:\nEND:VCARD");
     expect(noteBasename(defaultContactProfile(), c)).toBe("u-1");
+  });
+  it("eine Aufgabe ohne DTSTART und ohne DUE bekommt einen Namen statt eines Wurfs", () => {
+    const [t] = parseTodos(fx("ical", "todo-minimal.ics"));
+    expect(noteBasename(defaultTodoProfile(), t!)).toBe("Irgendwann mal aufräumen");
+  });
+  it("eine Aufgabe ohne SUMMARY faellt auf die UID zurueck", () => {
+    const t = { uid: "todo-ohne@test", summary: "", allDay: false, categories: [], sequence: 0 };
+    expect(noteBasename(defaultTodoProfile(), t)).toBe("todo-ohne@test");
   });
   it("notePath", () => {
     const p = { ...defaultContactProfile(), folder: "A/B" };
