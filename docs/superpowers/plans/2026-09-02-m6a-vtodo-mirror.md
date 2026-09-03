@@ -1323,7 +1323,7 @@ export function todoInWindow(t: TodoData, w: { start: Date; end: Date }): boolea
 - [ ] **Schritt 4: Tests laufen lassen**
 
 Run: `npx vitest run tests/core/mirror/todo-values.test.ts`
-Erwartung: PASS, 11 Tests.
+Erwartung: PASS, 10 Tests.
 
 - [ ] **Schritt 5: `filename.ts` für Aufgaben öffnen — ein zweiter zweiwertiger Typ**
 
@@ -1429,26 +1429,28 @@ An `tests/core/mirror/apply.test.ts` anhängen — nach dem Muster der dortigen 
 ```typescript
 it("legt fuer eine offene Aufgabe eine Notiz an", () => {
   const p = defaultTodoProfile();
-  const out = applyDelta({ ...baseInput(p), delta: { changed: [{ href: "/cal/t1.ics", data: read("ical/todo-simple.ics"), etag: "\"e1\"" }], deleted: [], outOfWindow: [] } });
+  const out = applyDelta({ ...baseInput(p), delta: { changed: [{ href: "https://dav.example/cal/t1.ics", data: read("ical/todo-simple.ics"), etag: "\"e1\"" }], deleted: [], outOfWindow: [] } });
   expect(out.plans.filter((x) => x.op === "create")).toHaveLength(1);
 });
 
 it("archiviert eine lange erledigte Aufgabe statt sie anzulegen", () => {
   const p = defaultTodoProfile();
   const alt = read("ical/todo-done.ics").replace("COMPLETED:20260814T183000Z", "COMPLETED:20200101T000000Z");
-  const out = applyDelta({ ...baseInput(p), timeWindow: { start: new Date("2026-06-01T00:00:00Z"), end: new Date("2027-06-01T00:00:00Z") }, delta: { changed: [{ href: "/cal/t2.ics", data: alt, etag: "\"e2\"" }], deleted: [], outOfWindow: [] } });
+  const out = applyDelta({ ...baseInput(p), timeWindow: { start: new Date("2026-06-01T00:00:00Z"), end: new Date("2027-06-01T00:00:00Z") }, delta: { changed: [{ href: "https://dav.example/cal/t2.ics", data: alt, etag: "\"e2\"" }], deleted: [], outOfWindow: [] } });
   expect(out.plans.some((x) => x.op === "create")).toBe(false);
 });
 ```
 
-> `baseInput` und `read` heißen in der Datei möglicherweise anders — **die dort vorhandenen
-> Helfer benutzen**. Der zweite Test hat keine bestehende Notiz, erwartet also *kein* `archive`,
+> ⚠️ **`baseInput`/`read` gibt es dort nicht** (gemessen 2026-09-03) — `tests/core/mirror/apply.test.ts`
+> arbeitet mit `fx`, `lookupOf`, `delta` und `emptyState`. **Die dort vorhandenen Helfer benutzen.**
+> Ebenso: `href` muss eine **absolute** URL sein (`https://dav.example/cal/…`), weil `hrefPath()`
+> sonst mit `Invalid URL` scheitert — alle Nachbar-Tests machen es so. Der zweite Test hat keine bestehende Notiz, erwartet also *kein* `archive`,
 > sondern schlicht *kein* `create`: es gibt nichts zu archivieren. Genau das ist die Zusicherung.
 
 - [ ] **Schritt 9: Gate und Commit**
 
 Run: `npm run gate`
-Erwartung: grün, **580 Tests** (565 + 11 + 2 + 2).
+Erwartung: grün, **579 Tests** (565 + 10 + 2 + 2).
 
 ```bash
 git add src/core/mirror/todo-values.ts tests/core/mirror/todo-values.test.ts src/core/mirror/apply.ts src/core/mirror/filename.ts tests/core/mirror/filename.test.ts tests/core/mirror/apply.test.ts
@@ -1621,7 +1623,7 @@ Erwartung: PASS, 12 Tests.
 - [ ] **Schritt 5: Gate und Commit**
 
 Run: `npm run gate`
-Erwartung: grün, **592 Tests** (580 + 12).
+Erwartung: grün, **591 Tests** (579 + 12).
 
 ```bash
 git add src/core/mirror/tasknotes-map.ts tests/core/mirror/tasknotes-map.test.ts
@@ -1848,7 +1850,7 @@ Erwartung: PASS.
 - [ ] **Schritt 7: Gate und Commit**
 
 Run: `npm run gate`
-Erwartung: grün, **603 Tests** (592 + 11).
+Erwartung: grün, **602 Tests** (591 + 11).
 
 ```bash
 git add src/obsidian/tasknotes.ts tests/obsidian/tasknotes.test.ts src/obsidian/settings-tab.ts src/i18n/strings.ts docs/dav/befunde/
