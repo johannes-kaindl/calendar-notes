@@ -11,6 +11,7 @@ import {
   Setting,
   SecretComponent,
   type App,
+  type ExtraButtonComponent,
   type Plugin,
   type SettingDefinitionGroup,
   type SettingDefinitionItem,
@@ -18,7 +19,7 @@ import {
   type SettingGroupItem,
 } from "obsidian";
 import type { DiscoveryResult } from "../core/dav/discovery";
-import { defaultEventProfile, validateProfile, type MappingProfile } from "../core/mirror/profile";
+import { defaultEventProfile, defaultTodoProfile, validateProfile, type MappingProfile } from "../core/mirror/profile";
 import { collectionSupports, effectiveProfile, newId, secretIdFor, sourceOf, type Account, type CollectionConfig, type PluginSettings } from "../core/settings";
 import type { RunInfo } from "../core/state/collection-state";
 import { t } from "../i18n/strings";
@@ -26,6 +27,7 @@ import { FolderSuggest } from "../vendor/kit-obsidian/folder-suggest";
 import { settingBodyHost } from "../vendor/kit-obsidian/settings_walker";
 import { JsonModal } from "./json-modal";
 import type { SecretStore } from "./secrets";
+import { profileFromTaskNotes, readTaskNotes } from "./tasknotes";
 
 /** Was der Tab vom Plugin braucht — als Interface, damit Tests eine Attrappe geben können. */
 export interface SettingsHost {
@@ -311,6 +313,9 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
       desc: p.kind === "contact" ? t("settings.profiles.kindContact") : t("settings.profiles.kindEvent"),
       render: (setting: Setting) => this.renderProfileRow(setting, p),
     }));
+    // Der Knopf wird nur gerendert, wenn readTaskNotes(...) tatsaechlich etwas liefert — ein
+    // toter Knopf, der beim Druecken nur eine Fehlermeldung zeigt, ist schlechter als keiner.
+    const tasknotesAvailable = readTaskNotes(this.app) !== undefined;
     return {
       type: "list",
       items,
@@ -320,8 +325,32 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
       extraButtons: [
         (btn) => btn.setIcon("clipboard-paste").setTooltip(t("settings.profiles.import")).onClick(() => this.openImportModal()),
         (btn) => btn.setIcon("wand").setTooltip(t("settings.profiles.fromNoteButton")).onClick(() => this.host.profileFromActiveNote()),
+        ...(tasknotesAvailable
+          ? [(btn: ExtraButtonComponent) => btn.setIcon("list-checks").setTooltip(t("settings.profiles.fromTaskNotes")).onClick(() => this.addProfileFromTaskNotes())]
+          : []),
       ],
     };
+  }
+
+  private addProfileFromTaskNotes(): void {
+    const reading = readTaskNotes(this.app);
+    if (!reading) {
+      new Notice(t("notice.tasknotesUnavailable"));
+      return;
+    }
+    const frueher = this.host.settings.profiles.find((x) => x.kind === "todo" && x.taskNotesSpec !== undefined);
+    if (frueher?.taskNotesSpec !== undefined && frueher.taskNotesSpec !== reading.specVersion) {
+      // Die API ist ein Release Candidate. Der Bruch faellt genau HIER auf — im Sync nie, weil
+      // das Profil eingefroren laeuft (Spec § 5). Deshalb sagen, statt still zu ueberschreiben.
+      new Notice(t("notice.tasknotesSpecChanged", frueher.taskNotesSpec, reading.specVersion), 10000);
+    }
+    const id = newId("profile", () => this.host.rand());
+    const { profile, warnings } = profileFromTaskNotes(reading, defaultTodoProfile(), t("settings.profiles.fromTaskNotes.name"), id);
+    this.host.settings = { ...this.host.settings, profiles: [...this.host.settings.profiles, profile] };
+    void this.host.saveSettings();
+    this.update();
+    if (warnings.includes("cancelled-collides-with-completed")) new Notice(t("notice.tasknotesCancelledCollides"), 10000);
+    else new Notice(t("notice.tasknotesProfileCreated", profile.name));
   }
 
   private renderProfileRow(setting: Setting, p: MappingProfile): void {
