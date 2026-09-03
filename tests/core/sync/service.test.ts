@@ -112,6 +112,34 @@ function calendarTransport(col: CollectionConfig, entries: { href: string; etag:
   return t;
 }
 
+/** Transport fuer eine VTODO-Collection: PROPFIND Depth 0 (refresh), PROPFIND Depth 1
+ *  (Listing) und REPORT calendar-multiget. Ein `calendar-query` WIRFT — der Body dafuer ist
+ *  auf VEVENT hartkodiert, eine Aufgaben-Sammlung wuerde damit dauerhaft leer bleiben. Und
+ *  ein serverseitiges `time-range` waere hier auch dann falsch, wenn es VTODO filtern
+ *  koennte: die Fensterregel fuer Aufgaben ist eine andere (offene liegen IMMER im Fenster)
+ *  und steht clientseitig in `todoInWindow`. */
+function todoTransport(col: CollectionConfig, entries: { href: string; etag: string; data: string }[]): Transport & { calls: DavRequest[] } {
+  const calls: DavRequest[] = [];
+  const t = (async (req: DavRequest): Promise<DavResponse> => {
+    calls.push(req);
+    if (req.method === "PROPFIND" && req.headers?.["Depth"] === "0") {
+      return { status: 207, headers: {}, text: refreshCalMS(col.href, '"todo-c1"', "https://dav.example/sync/1") };
+    }
+    if (req.method === "REPORT" && req.body?.includes("calendar-query")) {
+      throw new Error("Aufgaben-Sammlung darf NIE calendar-query senden — der Body filtert auf VEVENT");
+    }
+    if (req.method === "REPORT" && req.body?.includes("calendar-multiget")) {
+      return { status: 207, headers: {}, text: calMultigetMS(entries) };
+    }
+    if (req.method === "PROPFIND" && req.headers?.["Depth"] === "1") {
+      return { status: 207, headers: {}, text: calQueryListingMS(entries.map((e) => ({ href: e.href, etag: e.etag }))) };
+    }
+    return { status: 404, headers: {}, text: "" };
+  }) as Transport & { calls: DavRequest[] };
+  t.calls = calls;
+  return t;
+}
+
 function noopLookup(): NoteLookup {
   return { byUid: () => undefined, byPath: () => undefined, exists: () => false, hasBacklinks: () => false };
 }
@@ -355,6 +383,38 @@ describe("SyncService", () => {
     const r = await service.runCollection("cal1");
     expect(r.skippedReason).toBeUndefined();
     expect(t.calls.length).toBeGreaterThan(0);
+  });
+
+  // Der Regressionstest zum Befund vom 2026-09-03: die Verzweigung in `service.ts` fragte
+  // `col.kind` ab (calendar/addressbook), waehrend die Sorte an `profile.kind` haengt
+  // (event/contact/todo). Eine VTODO-Sammlung ist `col.kind === "calendar"` und bekam
+  // deshalb den Termin-Pfad — mitsamt `calendar-query`, dessen Body auf VEVENT hartkodiert
+  // ist. Ergebnis: null Treffer, ohne Fehler, ohne Warnung. `assertNever` konnte das nicht
+  // sehen, weil es die ProfileKind-Achse absichert und hier die CollectionKind-Achse
+  // verzweigt wird.
+  it("holt eine Aufgaben-Sammlung ohne calendar-query und legt die Aufgabe an", async () => {
+    const todoProfile = defaultTodoProfile();
+    const col = calendarCollection("todo-ok", { components: ["VTODO"], profileId: todoProfile.id });
+    const settings = { ...baseSettings([col]), profiles: [PROFILE, EVENT_PROFILE, todoProfile] };
+    const ics = [
+      "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Test//DE", "BEGIN:VTODO",
+      "UID:t-open@test", "DTSTAMP:20260801T100000Z", "SUMMARY:Offene Aufgabe",
+      "STATUS:NEEDS-ACTION", "END:VTODO", "END:VCALENDAR",
+    ].join("\r\n");
+    const t = todoTransport(col, [{ href: "/cal/todo-ok/t1.ics", etag: "e1", data: ics }]);
+    const executor = loggingExecutor();
+    const { deps } = makeDeps(settings, { acc1: t });
+    const service = new SyncService({ ...deps, executor });
+    const r = await service.runCollection("todo-ok");
+
+    expect(r.skippedReason).toBeUndefined();
+    expect(r.ok).toBe(true);
+    expect(r.counts.created).toBe(1);
+    const created = executor.calls.find((p) => p.op === "create");
+    expect(created).toBeDefined();
+    expect(created?.uid).toBe("t-open@test");
+    // Die Zusicherung an der Ursache, nicht nur an der Wirkung.
+    expect(t.calls.some((c) => c.body?.includes("calendar-query"))).toBe(false);
   });
 
   // Die Warnung haengt jetzt an der PAARUNG, nicht mehr an der Sammlung allein: eine

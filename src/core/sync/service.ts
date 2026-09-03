@@ -132,9 +132,24 @@ export class SyncService {
       let timeWindow: Window | undefined;
       let delta: SyncDelta;
       if (col.kind === "calendar") {
+        // Das Fenster wird IMMER gesetzt — `applyDelta` braucht es fuer beide Sorten. Ob es
+        // zusaetzlich an den SERVER geht, entscheidet dagegen `profile.kind`, nicht `col.kind`:
+        // VEVENT und VTODO liegen beide in Sammlungen mit `kind === "calendar"` (mailbox.org
+        // fuehrt sie getrennt, s. collectionSupports), und `calendarQueryBody` filtert fest auf
+        // VEVENT. Eine Aufgaben-Sammlung ueber diesen Weg zu listen liefert deshalb immer null
+        // Treffer — ohne Fehler, ohne Warnung.
         timeWindow = windowFor(now, settings.sync.pastDays, settings.sync.futureDays);
-        const timeRange = toDavTimeRange(timeWindow);
-        delta = await syncCollection(transport, { ...fresh, syncToken: undefined }, state.snapshot, { timeRange, batchSize: settings.sync.batchSize });
+        if (profile.kind === "todo") {
+          // Kein serverseitiges `time-range` fuer Aufgaben, und zwar auch dann nicht, wenn der
+          // Query-Body eines Tages VTODO kann: die Fensterregel ist hier eine andere — offene
+          // Aufgaben liegen IMMER im Fenster, auch ohne jedes Datum (Spec § 7). Ein
+          // serverseitiger Filter wuerde genau die wegschneiden. Gefiltert wird clientseitig
+          // in `todoInWindow`; die Listung laeuft ueber PROPFIND Depth 1.
+          delta = await syncCollection(transport, { ...fresh, syncToken: undefined }, state.snapshot, { batchSize: settings.sync.batchSize });
+        } else {
+          const timeRange = toDavTimeRange(timeWindow);
+          delta = await syncCollection(transport, { ...fresh, syncToken: undefined }, state.snapshot, { timeRange, batchSize: settings.sync.batchSize });
+        }
       } else {
         delta = await syncCollection(transport, fresh, state.snapshot, { batchSize: settings.sync.batchSize });
       }
