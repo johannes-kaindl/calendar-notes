@@ -1646,6 +1646,10 @@ git commit -m "feat(mirror): Vorschlagsregel fuer Status- und Prioritaetsabbildu
     specVersion: string;
     statuses: TnStatus[];
     priorities: TnPriority[];
+    // Ohne `defaults` ist die Vorschlagsregel aus Schritt 1b nicht aufrufbar — sie verankert
+    // `needsAction`/`normal` genau daran. Beim Einfuegen von Schritt 1b hier vergessen,
+    // vom Implementer am 2026-09-03 gemeldet und ergaenzt.
+    defaults: TnDefaults;
     identification: { method: "tag"; tag: string } | { method: "property"; propertyName: string; propertyValue: string };
     fieldKeys: Record<string, string>; // Serverfeld-Kandidat → frontmatterKey, nur beschreibbare Felder
   }
