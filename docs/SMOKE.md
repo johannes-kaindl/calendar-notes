@@ -48,13 +48,14 @@ steht in `obsidian-plugins/AGENTS.md` § Staging-Vaults. Einzelfall-Override:
 npm run smoke:gui -- --setup                    # baut den Staging-Vault aus fixtures/vault neu
 npm run smoke:gui -- --section generic           # Standard-Profile (Contacts/Events)
 npm run smoke:gui -- --section pallas            # Profile aus Pallas-Notizen + Adoption
+npm run smoke:gui -- --section todo              # Aufgaben-Spiegel (VTODO, M6a)
 npm run smoke:gui -- --section generic --focus   # zusätzlich P8 (Settings-Fenster, Screenshot)
 npm run smoke:gui -- --keep                      # erzeugten Zustand NICHT zurücksetzen
 ```
 
 `--setup` baut den Vault einmalig aus dem Fixture (`fixtures/vault/`) — danach wird bei
 offenem Fenster automatisch `app:reload` ausgelöst und auf die Rückkehr des Fensters
-gewartet. Jeder `--section`-Lauf legt sein eigenes Konto (`acc-smoke`) + zwei Sammlungen
+gewartet. Jeder `--section`-Lauf legt sein eigenes Konto (`acc-smoke`) + drei Sammlungen
 gegen das eigene Radicale an, snapshotet Vault-Notizen + Plugin-Settings + State-Dateien
 VOR jeder Änderung und stellt sie im `finally` wieder her (außer `--keep`) — unabhängig
 davon, ob die Prüfpunkte grün oder rot waren.
@@ -71,12 +72,17 @@ ausgewählt wird; mehrere offene Vault-Fenster erzwingen eine eindeutige Auswahl
 | P1 | Laden | `Object.keys(app.commands.commands)` → 10 `calendar-notes:*`-Kommandos (5 aus M1–M3 + 5 seit M4: `run-on-note`/`new-event`/`new-contact`/`undo-last-change`/`push-hand-edits`); `app.setting.pluginTabs.find(id).getSettingDefinitions()` → 6 **benannte** Gruppen (Konten/Kalender & Adressbücher/Profile — welches Feld gehört wohin/Abgleich/Darstellung/Aktionen; Definitionen ohne `heading` werden vorher herausgefiltert). Stand 0.1.9 — die Liste ist wörtlich und soll rot werden, wenn sich die Oberfläche ändert |
 | P2b | Auth über den echten UI-Weg | Läuft **vor** `seedAccount` und richtet sein eigenes Konto durch die Oberfläche ein: „+“ an der Konten-Überschrift (ein `.clickable-icon[aria-label]`, **kein** `<button>`) → Name/Server-Adresse/Benutzername in die Textfelder (mit `input`-Event, sonst läuft der `onChange` nicht) → an der Passwort-Zeile „Link…“ → Obsidian-Modal `.modal.mod-secret` → „Add secret…“ → Felder `ID` und `Secret` → Save. Zusicherung ist **nicht** „`secretId` ist gesetzt“, sondern dass `plugin.discoverAccount` danach **antwortet** (kein Wurf, ≥1 Sammlung). Grund, gemessen: mit dem nachgestellten 0.1.4-Defekt meldet der Punkt `"Zugang verweigert (401)"` **bei korrekt gesetzter `secretId`** — die naheliegende Zusicherung wäre in genau diesem Lauf grün gewesen. Räumt Konto, Sammlungen und Schlüsselbund-Eintrag selbst wieder weg, **und zwar auch vorher**: `deleteSecret` statt `setSecret("")` — ein nur geleerter Eintrag kollidiert beim nächsten „Add secret“ und lässt das Konto still auf `secretIdFor(account)` zurückfallen (Symptom: „No keychain entry is linked to this account“ statt 401). Erster Lauf grün, jeder weitere rot — genau so gemessen |
 | P2a | Gegenprobe Auth | Läuft **vor** P2: Secret auf ein falsches Passwort setzen, `plugin.discoverAccount(account)` muss **werfen**, und die Meldung muss den Status **nennen** (`401`); danach setzt der Prüfpunkt das richtige Passwort selbst zurück. Radicale läuft dafür mit `htpasswd`-Auth (`fixtures/radicale/config`, Nutzer `test:test`, `rights = owner_only`). Erst P2a und P2 zusammen sagen etwas über Auth aus — ein Prüfpunkt, der nur den Erfolgsfall kennt, hätte auch den kaputten 0.1.4-Stand grün gemeldet |
-| P2 | Konto + Discovery | Konto anlegen, Secret setzen, `plugin.discoverAccount(account)` + `plugin.settingTab.mergeDiscoveredCollections(...)` → 2 Sammlungen, 0 Warnungen. Läuft in **beiden** Sektionen — `generic` mit den Standard-Profilen (`default-contact`/`default-event`), `pallas` mit aus Pallas-Notizen abgeleiteten Profilen (`plugin.createProfileFromNote(kind, file)`) |
+| P2 | Konto + Discovery | Konto anlegen, Secret setzen, `plugin.discoverAccount(account)` + `plugin.settingTab.mergeDiscoveredCollections(...)` → **3** Sammlungen (Kalender, Kontakte, Aufgaben — die dritte seit dem VTODO-Fixture aus M6a/Task 10), 0 Warnungen. Läuft in **beiden** Sektionen — `generic` mit den Standard-Profilen (`default-contact`/`default-event`), `pallas` mit aus Pallas-Notizen abgeleiteten Profilen (`plugin.createProfileFromNote(kind, file)`) |
 | P3 | Adoption (nur `--section pallas`) | `plugin.startAdoption(collectionId)` öffnet die echte AdoptionModal (vorbelegt: sure/likely → link, weak → skip, `defaultAction` in `adoption-modal.ts`); der Treiber klickt nur den vorbelegten „Verknüpfen“-Button (`.modal-container .mod-cta`), ohne Dropdowns zu ändern. Danach `plugin.service.runAll()` — verknüpfte Notizen werden aktualisiert statt neu angelegt, freier Body bleibt erhalten. |
 | P4 | Trockenlauf + Sync (`generic`) | `plugin.service.runAll({dryRun:true})` → 5 creates (3 Termine + 2 Kontakte); echter Lauf → Dateien unter `Events/`/`Contacts/` mit `dav_uid`/`dav_source`/`dav_etag`-Frontmatter |
 | P5 | Update-Pfad (`generic`) | Server-PUT auf `simple-1.ics` (Zeit + Beschreibung geändert) über echtes HTTP/Basic-Auth gegen Radicale, dann `plugin.runAll()` → `dav_etag` neu, Body enthält die neue Beschreibung, `handEdited` leer |
 | P6 | Löschung (`generic`) | Server-DELETE auf `allday-1.ics`, Trockenlauf-Plan enthält `{op:"delete", mode:"trash"}`, echter Lauf → Datei aus `Events/` verschwunden (Papierkorb) |
-| P7 | Zweiter Discovery-Lauf (`generic`) | `discoverAccount` + `mergeDiscoveredCollections` erneut — aktivierte Sammlungen bleiben aktiviert (Merge-Regel in `mergeDiscoveredCollections`) |
+| P7 | Zweiter Discovery-Lauf (`generic`) | `discoverAccount` + `mergeDiscoveredCollections` erneut — aktivierte Sammlungen bleiben aktiviert (Merge-Regel in `mergeDiscoveredCollections`). Erwartet: 3 Sammlungen, davon 2 aktiviert (`generic` lässt die Aufgaben-Sammlung aus) |
+| P20 | Aufgaben-Sammlung (`--section todo`) | Die per `supported-calendar-component-set` als `VTODO` gemeldete Sammlung steht in `plugin.settings.collections` mit `kind === "calendar"`, trägt `components: ["VTODO"]` und lässt sich aktivieren |
+| P21 | Aufgaben-Profil automatisch zugewiesen (`todo`) | Nach der Discovery trägt die Aufgaben-Sammlung `profileId === "default-todo"` — **und die Termin-Sammlung `default-event`**. Die zweite Hälfte ist die Gegenprobe im Prüfpunkt: bekäme jede Kalender-Sammlung `default-todo`, sähe der erste Vergleich genauso grün aus. Gemessen **vor** jeder eigenen Änderung des Treibers, sonst prüft er den selbst gesetzten Zustand |
+| P22 | Sync legt die Notiz an (`todo`) | `plugin.service.runAll()`, danach **per `pollUntil`** die Notiz unter `Tasks/` mit `dav_uid === "radicale-todo-1@test"`. Die Zusicherung hängt am `dav_uid`, **nicht an der Anzahl**: ob die *erledigte* Fixture-Aufgabe mitgespiegelt wird, entscheidet `todoInWindow` am heutigen Datum (ihr `COMPLETED` liegt im August 2026) — eine Zahl wäre hier ein Prüferfolg mit Ablaufdatum. Das Detail des Prüfpunkts trägt das Sync-Ergebnis (`ok`/`created`/je Sammlung), damit ein rotes P22 selbst sagt, ob der Sync gar nicht lief, warf, oder lief und nichts anlegte |
+| P23 | **Abgebildeter** Status (`todo`) | Frontmatter `status === "open"`, während der Server `STATUS:NEEDS-ACTION` liefert. **Das ist der eigentliche Punkt des Abschnitts** — ein Prüfpunkt auf „eine Notiz existiert" wäre auch dann grün, wenn `statusValue` gar nicht liefe |
+| P24 | Sichtbarkeitsmarkierung (`todo`) | Frontmatter `type === "task"` — die Markierung kommt aus `onCreate` des Profils. **Nicht `tags`:** das ist im Todo-Profil auf das Server-Feld `CATEGORIES` gemappt und trägt bei der Fixture-Aufgabe `[Finanzen, Privat]`. Geprüft wird gegen das Frontmatter, nicht gegen TaskNotes (Ruling 13): der Staging-Vault führt kein TaskNotes, und die Spec zieht die Grenze bei *wir transportieren, TaskNotes verwaltet* |
 | P8 | Settings-UI (nur `--focus`) | `app.setting.open()` + `openTabById`, `attachTo("settings", port)` auf das **eigene** Einstellungen-Fenster (Obsidian 1.13: eigenes Fenster, kein Modal im Hauptfenster); DOM enthält Passwort-`.setting-item`, Discovery-Button **und die Sammlungs-Auswahl** (`hasCollectionPicker`: unter der Überschrift steht ein echter `.checkbox-container`, nicht bloß die Überschrift — eine Überschrift ohne Zeilen darunter wäre genau der Fehlstand, der grün aussieht); Screenshot nach `docs/smoke/shots/settings.png` (gitignored) |
 | P9 | Notices | Nach P5 keine Fehler-Notices (`EXCEPTION`/`ERROR`/„fehlgeschlagen”/„failed”) |
 | P10 | Kommando via API (`generic`) | `plugin.api.plan("event.move", {start,end,tzid}, {uid:"simple-1@test",source})` → `execute` → `ok`; Server-GET auf `test/kalender/simple-1.ics` zeigt das neue `DTSTART`; Notiz-Frontmatter `start` zieht per `pollUntil` nach |
@@ -219,5 +225,47 @@ und sie kostet zwei Läufe hintereinander.
   RFC5545-Zeilenfaltung im Treiber selbst behoben). `--section generic` **12/12** (P10/P11/P12/
   P13 jetzt grün) + `--section pallas` **4/4** (keine Regression). Live per CDP zweimal
   `disablePlugin`/`enablePlugin` — `commandRegistry()` bleibt stabil bei 21 Einträgen.
+
+- **2026-09-03, Lauf 5 (M6a/Task 11, Aufgaben-Spiegel)** — Obsidian 1.14.0, macOS, Branch
+  `feat/m6a-vtodo-mirror`. Neuer Abschnitt `--section todo`: **9/9 zweimal hintereinander**,
+  danach `--section generic` **14/14**. Der Lauf hat drei Befunde erzeugt, die ohne ihn nicht
+  aufgefallen wären — der erste ist der Grund, warum diese Etappe einen GUI-Smoke braucht:
+
+  1. ⚠️ **M6a lieferte seine Hauptfunktion nicht.** `src/core/dav/requests.ts` baut die
+     `calendar-query` mit einem fest auf `VEVENT` verdrahteten `comp-filter`, und
+     `service.ts` entschied anhand von `col.kind` (calendar/addressbook), ob dieser Weg
+     genommen wird. Eine VTODO-Sammlung ist `col.kind === "calendar"` — sie bekam also den
+     Termin-Pfad und lieferte **strukturell null Treffer**, ohne Fehler und ohne Warnung.
+     `apply.ts` konnte Aufgaben längst verarbeiten, es kam nur nie eine an.
+     **Warum 608 grüne Unit-Tests das nicht sahen:** sie füttern `apply.ts` mit bereits
+     geholten Rohdaten; die Lücke lag exakt zwischen den Schichten. **Warum `assertNever` es
+     nicht sah:** der Wächter sichert die `ProfileKind`-Achse (event/contact/todo) ab, und
+     diese Stelle verzweigt auf der `CollectionKind`-Achse (calendar/addressbook), an der
+     sich nichts geändert hatte. *Ein Typ-Wächter schützt nur die Achse, an der er steht.*
+     Behoben: die Verzweigung fragt jetzt `profile.kind`; Aufgaben-Sammlungen bekommen
+     **kein** serverseitiges `time-range` (offene Aufgaben liegen laut Spec § 7 IMMER im
+     Fenster, auch ohne Datum — ein Serverfilter schnitte genau die weg) und werden über
+     `PROPFIND Depth 1` gelistet, clientseitig gefiltert von `todoInWindow`. Regressionstest:
+     `tests/core/sync/service.test.ts`, „holt eine Aufgaben-Sammlung ohne calendar-query".
+  2. **Der Treiber lud das Plugin nie neu.** Ein offenes Fenster hält den Bundle, der beim
+     Öffnen im Speicher landete; ein frisch deployter `main.js` wird nicht übernommen. Der
+     Lauf misst dann den alten Stand — unauffällig, weil die Prüfpunkte grün bleiben, sie
+     sagen nur nichts über den gebauten Build. Am teuersten trifft das die **Gegenprobe**:
+     der eingebaute Defekt liegt gar nicht im laufenden Plugin, sie bleibt grün und sieht aus
+     wie eine, die nichts findet. `disablePlugin`/`enablePlugin` läuft jetzt vor jeder
+     Messung. *(Gemeldet von `markdown-presentation` aus einem eigenen Lauf; die Meldung nahm
+     an, dieser Treiber tue es bereits — nachgemessen stand der Reload nur im `--setup`-Pfad.
+     Der Hinweis war richtig, seine Lagebeschreibung nicht.)*
+  3. **Das VTODO-Fixture hatte `generic` still beschädigt.** Seit Task 10 liegt eine dritte
+     Sammlung im Home-Set; `discoverAndMerge` wählte den Kalender über
+     `find(c => c.kind === "calendar")`, also über die Reihenfolge, und Radicale sortiert
+     nicht. Dazu prüften P2 und P7 die Sammlungszahl gegen die veraltete `2`. Derselbe Fehler
+     war im Integrationstest schon behoben (`299594e`) — der Zwilling im Treiber blieb stehen,
+     weil die Task-10-Review nur `tests/` ansah. Behoben: namentliche Wahl, Zahlen auf 3.
+
+  **Gegenprobe (Schritt 4 des Plans):** `statusValue` in `todo-values.ts` auf den Rohwert
+  zurückgedreht, gebaut, deployt, Plugin neu geladen. Ergebnis exakt wie gefordert — **P23
+  wird rot** (`status="NEEDS-ACTION"` statt `"open"`), **P20/P21/P22/P24 bleiben grün**.
+  Danach zurückgenommen, neu gebaut, Abschnitt erneut **9/9**.
 
 Vollständiges Protokoll: `docs/smoke/baseline-2026-08-22.md` (Lauf 1+2), `docs/smoke/baseline-2026-08-23.md` (Lauf 3+4).
