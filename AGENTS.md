@@ -245,6 +245,51 @@ ohne Fehler und ohne Symptom außer fehlenden Aufgaben.
   2026-08-29. Dazu die Settings-Überarbeitung aus dem Erstkontakt-Befund.
 - 498 Unit-Tests + 4 Integration-Tests (0 Warnings) — M5 fügt keine neue Fachlogik hinzu.
 
+## Was M6a liefert
+
+**Aufgaben als dritter Objekttyp, einbahnig Server → Vault.** Zurückgeschrieben wird nichts —
+das ist M6b (Spec § 11).
+
+- `src/core/ical/todo.ts` — `parseTodos`/`isOpen`. DTSTART **und** DUE sind bei VTODO beide
+  optional (RFC 5545 4.6.2), anders als DTSTART bei VEVENT; der Anker ist DTSTART, sonst DUE.
+  Die komponentenneutralen Zeit-Helfer liegen seit M6a getrennt in `ical/time.ts`.
+- `src/core/mirror/todo-values.ts` — Statusabbildung, Prioritätsabbildung, Aufgaben-Block und
+  die **eigene Fensterregel** `todoInWindow`: offene Aufgaben liegen IMMER im Fenster, auch
+  ohne jedes Datum; erledigte nur, solange ihr Abschluss im Fenster liegt. Fehlt COMPLETED,
+  entscheidet LAST-MODIFIED; fehlt auch das, wird gespiegelt statt archiviert.
+- `ProfileKind` um `"todo"` erweitert, `defaultTodoProfile()` mit `statusMap`/`priorityMap`,
+  Ordner `Tasks`, `onCreate: { type: "task" }`.
+- `collectionSupports(col, kind)` löst `holdsEvents()` ab: die Prüfung hängt an der
+  **Paarung** aus Sammlung und Profil, nicht an der Sammlung allein. mailbox.org führt VEVENT
+  und VTODO in getrennten Sammlungen, die beide `kind === "calendar"` sind (gemessen, s.
+  `docs/dav/befunde/mailbox-org.md`).
+- Ableitungs-Knopf in den Einstellungen: liest TaskNotes' In-Process-API einmalig aus und
+  **friert das Ergebnis im Profil ein** — keine Laufzeit-Kopplung. Nur `model`/`catalog`
+  lesen, nie `api.tasks.*`: sonst verwaltet calendar-notes Aufgaben, und das ist TaskNotes'
+  Zuständigkeit. Messbefund zur fremden API: `docs/tasknotes-api.md`.
+- 609 Unit-Tests + 5 Integrationstests, GUI-Smoke `--section todo` 9/9 mit Gegenprobe.
+
+### Zwei Sätze, die eine spätere Session braucht
+
+**`assertNever` sichert die Erweiterung von `ProfileKind` ab** — wer den Typ um eine vierte
+Sorte erweitert, bekommt vom Compiler jede Stelle gezeigt, die einen Zweig braucht. Der
+Wächter heißt `assertNever` (verlangt `never` an der Aufrufstelle) bzw. `nichtUnterstuetzt`
+(nimmt `ProfileKind` und wirft) in `src/core/mirror/kind.ts`.
+
+⚠️ **Er schützt aber nur die Achse, an der er steht — und es gibt zwei.** `ProfileKind`
+(contact/event/todo) sagt, *was gespiegelt wird*; `CollectionKind` (calendar/addressbook)
+sagt, *wie der Server es ausliefert*. M6a erweiterte die erste, und genau deshalb blieb ein
+Fehlstand auf der zweiten unsichtbar: `service.ts` entschied anhand von `col.kind`, ob der
+Termin-Abrufpfad genommen wird, und dessen `calendar-query` filtert fest auf VEVENT — eine
+Aufgaben-Sammlung lieferte darüber **strukturell null Treffer, ohne Fehler und ohne Warnung**.
+Gefunden hat das der GUI-Smoke, nicht der Typecheck und nicht 608 grüne Unit-Tests (die
+füttern `apply.ts` mit bereits geholten Rohdaten — die Lücke lag zwischen den Schichten).
+**Wer an einer der beiden Achsen etwas ändert, sieht auf der anderen nach.**
+
+**Die zwei Fenster-Ausdrücke in `apply.ts` müssen von Hand erschöpfend gehalten werden**, weil
+der Compiler sie nicht sieht: sie verzweigen auf den Profil-`kind`, ohne einen `never`-Zweig
+zu erzwingen. Kommt eine vierte Sorte dazu, gehört sie dort ausdrücklich eingetragen.
+
 ## Release-Checkliste
 
 Kurzfassung — Details in `docs/RELEASE.md` (Ablauf) und `docs/STORE.md` (Scorecard-
