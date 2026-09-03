@@ -20,7 +20,7 @@ describe("radicale end-to-end", () => {
   it("discovery findet kalender + kontakte", async () => {
     const d = await discover(t, server.baseUrl);
     expect(d.principal).toBe(`${server.baseUrl}test/`);
-    kal = d.collections.find((c) => c.kind === "calendar")!;
+    kal = d.collections.find((c) => c.kind === "calendar" && c.displayName === "Kalender")!;
     kon = d.collections.find((c) => c.kind === "addressbook")!;
     expect(kal.displayName).toBe("Kalender");
     expect(kal.readOnly).toBe(false);
