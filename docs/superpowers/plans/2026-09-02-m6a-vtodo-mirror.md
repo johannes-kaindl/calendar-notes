@@ -1646,34 +1646,71 @@ git commit -m "feat(mirror): Vorschlagsregel fuer Status- und Prioritaetsabbildu
     specVersion: string;
     statuses: TnStatus[];
     priorities: TnPriority[];
-    identification: { method: "tag"; tag: string } | { method: "property"; propertyName: string; value: string };
+    identification: { method: "tag"; tag: string } | { method: "property"; propertyName: string; propertyValue: string };
     fieldKeys: Record<string, string>; // Serverfeld-Kandidat → frontmatterKey, nur beschreibbare Felder
   }
   export function readTaskNotes(app: unknown): TaskNotesReading | undefined;
   export function profileFromTaskNotes(reading: TaskNotesReading, base: MappingProfile, name: string, id: string): { profile: MappingProfile; warnings: MapWarning[] };
   ```
 
-- [ ] **Schritt 1: Die echte Form der API messen — bevor Code dagegen geschrieben wird**
+- [x] **Schritt 1: Die echte Form der API messen — ERLEDIGT am 2026-09-03**
 
-TaskNotes 4.12.5 muss im Ziel-Vault installiert und aktiv sein. In der Developer-Konsole des
-laufenden Obsidian:
-```javascript
-const api = app.plugins.plugins.tasknotes.api;
-console.log(JSON.stringify({
-  info: api.model.info(),
-  caps: ["catalog.read"].map((c) => [c, api.hasCapability(c)]),
-  config: api.model.config(),
-  fields: api.catalog.fields(),
-}, null, 2));
+Gemessen gegen TaskNotes 4.12.5 im laufenden Obsidian (CDP, lesend, ein `Runtime.evaluate`).
+**Vollständiger Befund: `docs/tasknotes-api.md`.** Drei Annahmen dieses Plans sind dabei gefallen:
+
+1. **`TnPriority` trägt `weight`, nicht `order`.** Der Typ in `tasknotes-map.ts` ist falsch.
+2. **Es gibt einen `none`-Eintrag** bei Status *und* Priorität — der *nicht gesetzt*-Wert, kein
+   Arbeitszustand. Die Vorschlagsregel „kleinste `order` unter den nicht abgeschlossenen" liefert
+   damit `none` statt `open`; bei den Prioritäten liefert „kleinster `weight`" `none` statt `low`.
+   **Plausibel falsch, und ohne Messung unentdeckt.**
+3. **`taskIdentification` nennt das Wertfeld `propertyValue`**, nicht `value`.
+
+`none` lässt sich **nicht** an seinen eigenen Feldern erkennen (`isCompleted: false`,
+`excludeFromCycle: false` wie die echten offenen Status), und ein Namensvergleich auf `"none"`
+wäre genau das, was die Abbildung vermeiden muss. Die Lösung liefert `config().defaults`:
+`{ status: "open", priority: "normal", taskTag: "task" }` — TaskNotes sagt selbst, welchen Status
+eine neue Aufgabe bekommt.
+
+- [ ] **Schritt 1b: Die Vorschlagsregel an die gemessene Form anpassen**
+
+`src/core/mirror/tasknotes-map.ts` und `tests/core/mirror/tasknotes-map.test.ts` ändern:
+
+```typescript
+export interface TnPriority { value: string; weight: number }   // war: order
+export interface TnDefaults { status: string; priority: string }
+export type MapWarning =
+  | "cancelled-collides-with-completed"
+  | "single-open-status"
+  | "default-status-unknown"
+  | "default-priority-unknown";
 ```
-**Notiere wörtlich:** unter welchem Schlüssel der Statuswert steht (`value`? `id`?), wie
-`isCompleted` und `order` heißen, wie `taskIdentification` aufgebaut ist, und welche Einträge
-`catalog.fields()` für Fälligkeit, Status, Priorität, Tags und Abschlussdatum führt. Das Ergebnis
-gehört als Codeblock in `docs/dav/befunde/` — **nicht** in eine Task-Beschreibung, wo es beim
-nächsten API-Bruch niemand wiederfindet.
 
-> ⚠️ Ohne diesen Schritt ist Schritt 3 geraten. Die Vorarbeit hat `isCompleted` und `order`
-> gemessen, aber **nicht** den Schlüssel des Statuswerts selbst.
+Die toten Union-Members `"no-completed-status"` und `"no-open-status"` entfallen — beide Fälle
+geben `undefined` zurück und pushen nie eine Warnung (Befund aus dem Task-8-Review).
+
+**Neue Regel, beide Funktionen nehmen `defaults` als zweiten Parameter:**
+
+`suggestStatusMap(statuses, defaults)`
+- `needsAction` = der Eintrag mit `value === defaults.status`. Fehlt er oder ist er
+  `isCompleted: true`, Rückfall auf den nicht abgeschlossenen mit kleinster `order` **und**
+  Warnung `"default-status-unknown"`.
+- `inProcess` = nicht abgeschlossener Eintrag mit der kleinsten `order` **oberhalb** der von
+  `needsAction`. Gibt es keinen, fällt er auf `needsAction` mit Warnung `"single-open-status"`.
+- `completed` = abgeschlossener mit kleinster `order`; `cancelled` = abgeschlossener mit größter.
+  Sind beide gleich, Warnung `"cancelled-collides-with-completed"`.
+- Ohne offene oder ohne abgeschlossene Gruppe: `undefined`.
+
+`suggestPriorityMap(priorities, defaults)`
+- `normal` = der Eintrag mit `value === defaults.priority`; fehlt er, der mittlere nach `weight`
+  **und** Warnung `"default-priority-unknown"`.
+- `low` = der Eintrag mit dem **größten** `weight` unterhalb von `normal` — also der dem Default
+  nächste darunter, nicht der extremste. Genau das überspringt `none`.
+- `high` = der Eintrag mit dem **kleinsten** `weight` oberhalb von `normal`.
+- Fehlt eine Seite, fällt sie auf `normal`. Leere Liste: `undefined`.
+
+**Die Tests müssen die gemessene Standardkonfiguration abbilden** — also mit `none` in beiden
+Listen — und zusichern, dass `needsAction` auf `"open"` fällt und `low` auf `"low"`. Ein Test
+ohne `none` würde den Fehler nicht fangen, den diese Änderung behebt.
 
 - [ ] **Schritt 2: Den fehlschlagenden Test schreiben**
 
