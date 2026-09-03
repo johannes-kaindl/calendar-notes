@@ -253,9 +253,20 @@ und sie kostet zwei Läufe hintereinander.
      sagen nur nichts über den gebauten Build. Am teuersten trifft das die **Gegenprobe**:
      der eingebaute Defekt liegt gar nicht im laufenden Plugin, sie bleibt grün und sieht aus
      wie eine, die nichts findet. `disablePlugin`/`enablePlugin` läuft jetzt vor jeder
-     Messung. *(Gemeldet von `markdown-presentation` aus einem eigenen Lauf; die Meldung nahm
-     an, dieser Treiber tue es bereits — nachgemessen stand der Reload nur im `--setup`-Pfad.
-     Der Hinweis war richtig, seine Lagebeschreibung nicht.)*
+     Messung. *(Der Anstoß kam als Meldung von `markdown-presentation`. ⚠️ **Diese Stelle
+     führte deren Lagebeschreibung zunächst als falsch — das war meine Fehllesung, nicht
+     ihr Fehler.** Sie schrieb, ihr Treiber tue das „hier" bereits; „hier" meinte ihr Repo,
+     und dort stimmt es (Reload im Messpfad, Ausgabe „frisch geladen"). Ich las es als
+     Aussage über meinen Treiber und maß dort nach — wo der Reload tatsächlich fehlte.
+     **Beide Sätze waren wahr, und genau deshalb fiel es keinem auf: ein Deiktikon zeigt
+     beim Absender auf sein Repo und beim Empfänger auf dessen.** Zwischen Repo-Sessions
+     ist das die Normalform des Missverstehens; die Vorkehrung kostet vier Wörter — das
+     Repo benennen statt zu zeigen.)*
+     ⓘ **Warum das vorhandene Sicherungsmittel nicht greift:** `requireEigenerBuild` (aus
+     `tools/obsidian-cdp/vault.ts`, in 15 Treibern die erste Handlung) vergleicht die
+     deployte `main.js` per sha1 mit der im Repo — das belegt die **Herkunft** des Builds,
+     nicht, dass der laufende Prozess ihn geladen hat. Die Prüfung zielt also knapp daneben.
+     Dieser Treiber nutzt sie bislang gar nicht; das ist eine eigene, offene Lücke.
   3. **Das VTODO-Fixture hatte `generic` still beschädigt.** Seit Task 10 liegt eine dritte
      Sammlung im Home-Set; `discoverAndMerge` wählte den Kalender über
      `find(c => c.kind === "calendar")`, also über die Reihenfolge, und Radicale sortiert

@@ -1377,9 +1377,15 @@ async function main(): Promise<void> {
     // den man gerade gebaut hat. Am teuersten faellt das bei der GEGENPROBE auf — ein
     // absichtlich eingebauter Defekt liegt dann gar nicht im laufenden Plugin, die Gegenprobe
     // bleibt gruen und sieht aus wie eine, die nichts findet.
-    // (Gemeldet von markdown-presentation-87 am 2026-09-03 aus einem eigenen Lauf; die
-    // Meldung nahm an, dieser Treiber tue es bereits — nachgemessen stand der Reload nur im
-    // `--setup`-Pfad, nicht im Messpfad.)
+    // (Anstoss von markdown-presentation-87 am 2026-09-03. Diese Stelle fuehrte deren
+    // Lagebeschreibung zunaechst als falsch — das war eine Fehllesung: sie schrieb, ihr
+    // Treiber tue das "hier" bereits, und "hier" meinte IHR Repo, wo es stimmt. Ich las es
+    // als Aussage ueber diesen Treiber. Beide Saetze waren wahr; ein Deiktikon zeigt beim
+    // Absender auf sein Repo und beim Empfaenger auf dessen. Vier Woerter mehr — das Repo
+    // benennen statt zu zeigen — haetten es verhindert.)
+    // Randnotiz: `requireEigenerBuild` aus tools/obsidian-cdp/vault.ts belegt per sha1 die
+    // HERKUNFT des Builds, nicht dass der Prozess ihn geladen hat — es ersetzt den Reload
+    // also nicht. Dieser Treiber nutzt es bislang ohnehin nicht.
     const reloaded = await cdp.evaluate<string>(`
       const id = ${JSON.stringify(PLUGIN_ID)};
       const before = app.plugins.plugins[id];
