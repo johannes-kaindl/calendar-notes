@@ -1,6 +1,7 @@
 {
   "source": "obsidian-kit",
   "version": "0.28.0",
-  "sha": "2ab1bb5f6e2716d6c866b9694d4f06bea5c733c7",
-  "vendored": "2026-08-22"
+  "sha": "2ab1bb5",
+  "modules": "settings_walker.ts, folder-suggest.ts, confirm.ts",
+  "note": "Verbatim snapshot aus der Git-Ref 0.28.0 (CORE-META-22: feste Ref, nicht Arbeitsstand). Never hand-edit. Re-vendor via tools/sync-kit.sh."
 }
