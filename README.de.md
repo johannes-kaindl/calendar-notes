@@ -2,18 +2,19 @@
 
 > [🇬🇧 English](README.md) · 🇩🇪 Deutsch
 
-**Spiegelt CalDAV-Termine und CardDAV-Kontakte als Notizen im Vault — der Server bleibt die
-Wahrheit, und jede Änderung zurück auf den Server läuft über ein explizites Kommando.**
+**Spiegelt CalDAV-Termine, CalDAV-Aufgaben und CardDAV-Kontakte als Notizen im Vault — der
+Server bleibt die Wahrheit, und jede Änderung zurück auf den Server läuft über ein explizites
+Kommando.**
 
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 ![Obsidian](https://img.shields.io/badge/obsidian-1.13.0%2B%20·%20desktop%20%26%20mobile-7c3aed)
 
-<p align="center"><img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/event-note.png" width="820" alt="Eine gespiegelte Termin-Notiz im Lesemodus: Frontmatter mit type, dav_uid, dav_source, dav_etag, dav_state, title, start, end, all_day, online und rrule"></p>
+<p align="center"><img src="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/event-note.png" width="820" alt="Eine gespiegelte Termin-Notiz im Lesemodus: Frontmatter mit type, dav_uid, dav_source, dav_etag, dav_state, title, start, end, all_day, online und rrule"></p>
 
-Kalender und Kontakte liegen normalerweise auf einem Server, den man aus Obsidian heraus nie
-sieht — nicht verlinkbar, nicht auswertbar, nicht Teil des Vaults. Dieses Plugin spiegelt
-CalDAV-Kalender und CardDAV-Adressbücher als Markdown-Notizen, eine Notiz je Termin oder
-Kontakt, im Intervall synchronisiert. Der Spiegel ist per Konvention nur lesend: Frontmatter
+Kalender, Aufgaben und Kontakte liegen normalerweise auf einem Server, den man aus Obsidian
+heraus nie sieht — nicht verlinkbar, nicht auswertbar, nicht Teil des Vaults. Dieses Plugin
+spiegelt CalDAV-Kalender und CardDAV-Adressbücher als Markdown-Notizen, eine Notiz je Termin,
+Aufgabe oder Kontakt, im Intervall synchronisiert. Der Spiegel ist per Konvention nur lesend: Frontmatter
 von Hand ändern schreibt nicht auf den Server zurück. Änderungen laufen ausschließlich über
 explizite Kommandos — einen Termin verschieben, eine Telefonnummer ändern, eine:n Teilnehmer:in
 hinzufügen — jedes mit einer Diff-Vorschau, bevor irgendetwas gesendet wird.
@@ -23,6 +24,18 @@ hinzufügen — jedes mit einer Diff-Vorschau, bevor irgendetwas gesendet wird.
 - **Lesen automatisch, schreiben nur bewusst.** Der Stand des Servers wird automatisch zu
   Notizen; die Notizen ändern den Server nur über ein Kommando, das man selbst ausführt und
   bestätigt.
+- **Auch Aufgaben — vom Kalender-Server in den Vault.** Wer seine Aufgaben in Thunderbird, der
+  iOS-Erinnerungen-App oder einem anderen CalDAV-Client führt, findet sie als Notizen wieder —
+  mit Fälligkeit, Status, Priorität und Kategorien im Frontmatter, in der Schreibweise, die
+  [TaskNotes](https://github.com/callumalpass/tasknotes) erwartet. Ein Knopf in den
+  Einstellungen liest die Statusnamen **aus der TaskNotes-Installation dieses Vaults** aus und
+  trägt sie ins Profil ein; mitgelieferte Vorgaben wären falsch, weil die Namen frei
+  umbenennbar sind. Aufgaben und Termine liegen bei den meisten Anbietern in getrennten
+  Kalendern — das erkennt das Plugin selbst und weist das passende Profil zu. **Dieser Weg ist
+  vorerst eine Einbahnstraße** (Server → Vault): Änderungen an einer Aufgaben-Notiz werden noch
+  nicht zurückgeschrieben, und aus dem Vault heraus lässt sich keine Aufgabe anlegen. Eine
+  offene Aufgabe wird immer gespiegelt, auch ohne Datum — anders als Termine, die nur im
+  eingestellten Zeitfenster erscheinen.
 - **CalDAV und CardDAV in einem Plugin**, ein gemeinsamer Transport, server-agnostische
   Discovery (RFC 4791/6352/6578) — getestet gegen [Radicale](https://radicale.org), entworfen
   nach denselben Standards wie mailbox.org und Nextcloud (gegen keinen der beiden bisher live
@@ -59,22 +72,52 @@ hinzufügen — jedes mit einer Diff-Vorschau, bevor irgendetwas gesendet wird.
 
 ## Installation
 
-### Community Plugins
-Noch nicht im Obsidian-Community-Verzeichnis eingereicht. Sobald gelistet:
-Einstellungen → Community-Plugins → Durchsuchen → „Calendar and Contact Notes" suchen.
+Repository: [git.jkaindl.de/jkaindl/calendar-notes](https://git.jkaindl.de/jkaindl/calendar-notes)
 
-### Manuell
+> **Hinweis (2026-09-04):** Calendar and Contact Notes ist derzeit **nicht im
+> Community-Plugin-Browser gelistet**. Das GitHub-Konto, auf dem der Mirror lag, ist nicht
+> verfügbar, und damit entfiel auch der Store-Eintrag. Das Plugin selbst ist davon unberührt
+> und wird weiter gepflegt — die Releases erscheinen auf Forgejo, und die Wege unten
+> funktionieren heute.
+
+### Mit dem AnySource Sideloader (empfohlen)
+
+Der [AnySource Sideloader](https://git.jkaindl.de/jkaindl/anysource-sideloader) installiert und
+aktualisiert Plugins aus beliebigen Git-Forges, unabhängig vom Community Store.
+
+1. AnySource Sideloader installieren und aktivieren. (Seine eigene Erstinstallation ist manuell
+   — unabhängig vom Store zu sein ist ja der Punkt —, aber sie fällt nur einmal an; danach hält
+   er sich und alles andere selbst aktuell.)
+2. Dieses Repository als Quelle eintragen:
+   `https://git.jkaindl.de/jkaindl/calendar-notes`
+3. **Calendar and Contact Notes** installieren und aktivieren.
+
+Updates kommen danach wie bei jedem anderen Plugin.
+
+### Manuelle Installation
+
 `main.js`, `manifest.json` und `styles.css` aus dem
-[letzten Release](https://github.com/johannes-kaindl/calendar-notes/releases) nach
-`<vault>/.obsidian/plugins/calendar-notes/` kopieren, dann das Plugin aktivieren.
+[letzten Forgejo-Release](https://git.jkaindl.de/jkaindl/calendar-notes/releases/latest)
+herunterladen und in den Vault kopieren. Ab 0.1.10 liegt jedem Release zusätzlich
+`checksums.sha256` bei — damit lässt sich das Heruntergeladene mit
+`shasum -a 256 -c checksums.sha256` prüfen.
 
-### BRAT (Beta)
-`johannes-kaindl/calendar-notes` in [BRAT](https://github.com/TfTHacker/obsidian42-brat)
-eintragen, um Vorab-Builds zu verfolgen.
+```bash
+cp main.js manifest.json styles.css "<dein-vault>/.obsidian/plugins/calendar-notes/"
+```
+
+Danach: Obsidian → **Einstellungen → Community-Plugins → neu laden** → **Calendar and Contact
+Notes** aktivieren.
+
+### Über den Community-Plugin-Browser
+
+Wieder verfügbar, sobald der Store-Eintrag zurück ist: **Einstellungen → Community-Plugins →
+Durchsuchen**, nach **Calendar and Contact Notes** suchen, installieren und aktivieren.
 
 ### Aus dem Quelltext
+
 ```bash
-git clone https://github.com/johannes-kaindl/calendar-notes
+git clone https://git.jkaindl.de/jkaindl/calendar-notes
 cd calendar-notes && npm install && npm run build
 # main.js manifest.json styles.css → <vault>/.obsidian/plugins/calendar-notes/
 ```
@@ -83,7 +126,7 @@ cd calendar-notes && npm install && npm run build
 
 ### Einrichtung: Konto → Discovery → Sammlungen → Profil
 
-<img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/preview.png" width="584" alt="Das Vorschau-Modal nach dem Trockenlauf: Kalender 3 neu, Kontakte 2 neu, noch nichts geschrieben — Schließen oder Jetzt ausführen">
+<img src="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/preview.png" width="584" alt="Das Vorschau-Modal nach dem Trockenlauf: Kalender 3 neu, Kontakte 2 neu, noch nichts geschrieben — Schließen oder Jetzt ausführen">
 
 1. **Einstellungen → Calendar and Contact Notes → Konten → Konto hinzufügen.** Name,
    Server-Basis-URL und Benutzername eintragen, dann **Verbindung testen & Sammlungen
@@ -105,7 +148,7 @@ cd calendar-notes && npm install && npm run build
 
 ### Adoption: bestehende Notizen verknüpfen statt duplizieren
 
-<img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/adoption.png" width="584" alt="Das Adoptions-Modal schlägt vor, die bestehende Notiz 2026-09-01 Zahnärztin mit dem Server-Eintrag Zahnärztin Dr. Müller zu verknüpfen (start+title, likely 0,75) — mit Alle sicheren übernehmen, Abbrechen und Verknüpfen">
+<img src="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/adoption.png" width="584" alt="Das Adoptions-Modal schlägt vor, die bestehende Notiz 2026-09-01 Zahnärztin mit dem Server-Eintrag Zahnärztin Dr. Müller zu verknüpfen (start+title, likely 0,75) — mit Alle sicheren übernehmen, Abbrechen und Verknüpfen">
 
 Liegen im Zielordner einer Sammlung bereits Notizen — aus einem anderen System migriert, von
 Hand geschrieben —, **Bestehende Notizen verknüpfen…** ausführen (oder den Button neben der
@@ -118,7 +161,7 @@ ein Duplikat zu erzeugen.
 
 ### Kommandos
 
-<a href="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/command-form.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/thumbs/command-form.png" width="380" alt="Das aus dem Schema erzeugte Formular „Termin anlegen“: Titel, Start, Ende, Ganztägig, Ort, Beschreibung und URL — geschrieben wird erst mit Speichern"></a><br><sub>Vorschau anklicken für volle Größe</sub>
+<a href="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/command-form.png"><img src="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/thumbs/command-form.png" width="380" alt="Das aus dem Schema erzeugte Formular „Termin anlegen“: Titel, Start, Ende, Ganztägig, Ort, Beschreibung und URL — geschrieben wird erst mit Speichern"></a><br><sub>Vorschau anklicken für volle Größe</sub>
 
 Die mittlere Spalte ist, was in der Befehlspalette getippt wird.
 
@@ -137,7 +180,7 @@ Die mittlere Spalte ist, was in der Befehlspalette getippt wird.
 
 ### Konfiguration
 
-<a href="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/settings.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/thumbs/settings.png" width="380" alt="Der Einstellungen-Tab mit einem Konto (Name, Server-URL, Benutzername, Passwort auf diesem Gerät hinterlegt), der gefundenen Sammlungsgruppe und den zwei Standard-Profilen"></a><br><sub>Vorschau anklicken für volle Größe</sub>
+<a href="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/settings.png"><img src="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/thumbs/settings.png" width="380" alt="Der Einstellungen-Tab mit einem Konto (Name, Server-URL, Benutzername, Passwort auf diesem Gerät hinterlegt), der gefundenen Sammlungsgruppe und den zwei Standard-Profilen"></a><br><sub>Vorschau anklicken für volle Größe</sub>
 
 | Einstellung | Was sie tut | Standard |
 |---|---|---|
@@ -198,6 +241,10 @@ Mail-Transport-Vertrag: [`docs/API.md`](docs/API.md).
   aus Sicht des Plugins nur lesend, außerhalb eines expliziten Kommandos (**Handänderungen auf
   den Server übertragen** ist die eine bewusste Ausnahme — eine geprüfte und bestätigte
   Diff-Vorschau, kein stiller Merge).
+- **Aufgaben werden nur in eine Richtung gespiegelt** (Server → Vault). Änderungen an einer
+  Aufgaben-Notiz werden nicht zurückgeschrieben, und ein Kommando zum Anlegen aus dem Vault
+  gibt es noch nicht. Das Lesen ist vollständig: Fälligkeit, Status, Priorität und Kategorien
+  kommen alle an.
 - **Wiederholende Termine sind eine Notiz je Master**, nicht eine je Vorkommen. Eine
   serverseitige Ausnahme für ein einzelnes Vorkommen bekommt eine eigene Notiz, verlinkt mit
   dem Master.

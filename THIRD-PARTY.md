@@ -31,7 +31,7 @@ licenses that apply to it.
 ## Vendored source (copied into the tree, not an npm dependency)
 
 `src/vendor/kit/` and `src/vendor/kit-obsidian/` contain modules copied from
-[`obsidian-kit`](https://github.com/johannes-kaindl) — the maintainer's own shared library for
+[`obsidian-kit`](https://git.jkaindl.de/jkaindl/obsidian-kit) — the maintainer's own shared library for
 Obsidian plugins in this workspace (`obsidian-kit@0.28.0`, see `VENDOR.json` next to each
 file for the exact commit and vendoring date; `tools/sync-kit.sh` re-vendors them). Both the
 source library and this plugin are authored by Johannes Kaindl and licensed
