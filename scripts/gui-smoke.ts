@@ -48,7 +48,7 @@ import {
   requireUntil,
   requireVisible,
 } from "../../tools/obsidian-cdp/cdp.js";
-import { buildVault, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
+import { buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
 import { capture, writeShot } from "../../tools/obsidian-cdp/shot.js";
 import { startRadicale, type RunningServer } from "./dav-server.js";
 
@@ -1363,6 +1363,31 @@ async function main(): Promise<void> {
   }
   if (focus) await requireVisible(cdp);
 
+  // HERKUNFT DES BUILDS, bevor irgendetwas gemessen wird — und bevor der try-Block den ersten
+  // Zustand anfasst (Snapshots, Radicale, Sidebars). Ein Abbruch hier hinterlaesst nichts zum
+  // Aufraeumen, deshalb steht er ausserhalb.
+  //
+  // Der Ort wird aus dem Fenster gelesen, an dem wir tatsaechlich haengen, nicht aus
+  // `resolveVaultDir()`: `--vault` waehlt das Fenster ueber den Namen, und geprueft gehoert,
+  // was gemessen wird. Faellt beides auseinander (offenes Fenster auf einem anderen Pfad als
+  // der erwartete Staging-Vault), zeigt die Fehlermeldung den echten Pfad.
+  //
+  // Das zweite Argument ist nicht optional, sondern der ganze Punkt: einarmig bliebe nur das
+  // `nosourcemap`-Suffix als Indiz, und das FEHLT beim haeufigsten Fehlfall — einem alten
+  // eigenen Deploy. Der Guard warnte dann `ungeklaert` und liesse den Fehllauf durch.
+  // Setzt voraus, dass `main.js` frisch gebaut ist (`npm run deploy` tut beides).
+  //
+  // ⚠️ Er ersetzt den Plugin-Reload weiter unten NICHT und wird von ihm nicht ersetzt: dies
+  // hier belegt, dass der richtige Build auf der PLATTE liegt, der Reload, dass der PROZESS
+  // ihn geladen hat. Beide Luecken sind real und keine deckt die andere ab.
+  const ort = await cdp.evaluate<{ basePath: string; configDir: string }>(`
+    return { basePath: app.vault.adapter.basePath, configDir: app.vault.configDir };
+  `);
+  requireEigenerBuild(
+    join(ort.basePath, ort.configDir, "plugins", PLUGIN_ID, "main.js"),
+    join(REPO_ROOT, "main.js"),
+  );
+
   const cleanupFns: { label: string; run: () => Promise<void> }[] = [];
   let radicale: RunningServer | undefined;
 
@@ -1383,9 +1408,10 @@ async function main(): Promise<void> {
     // als Aussage ueber diesen Treiber. Beide Saetze waren wahr; ein Deiktikon zeigt beim
     // Absender auf sein Repo und beim Empfaenger auf dessen. Vier Woerter mehr — das Repo
     // benennen statt zu zeigen — haetten es verhindert.)
-    // Randnotiz: `requireEigenerBuild` aus tools/obsidian-cdp/vault.ts belegt per sha1 die
-    // HERKUNFT des Builds, nicht dass der Prozess ihn geladen hat — es ersetzt den Reload
-    // also nicht. Dieser Treiber nutzt es bislang ohnehin nicht.
+    // Randnotiz: `requireEigenerBuild` (oben, vor dem try) belegt per sha1 die HERKUNFT des
+    // Builds, nicht dass der Prozess ihn geladen hat — es ersetzt diesen Reload also nicht,
+    // und dieser Reload ersetzt es nicht. Bis 2026-09-04 stand hier "Dieser Treiber nutzt es
+    // bislang ohnehin nicht"; seitdem tut er es.
     const reloaded = await cdp.evaluate<string>(`
       const id = ${JSON.stringify(PLUGIN_ID)};
       const before = app.plugins.plugins[id];
