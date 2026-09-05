@@ -49,3 +49,8 @@
 .calendar-notes-form-errors {
   color: var(--text-error);
 }
+
+.calendar-notes-skipped-hint {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}

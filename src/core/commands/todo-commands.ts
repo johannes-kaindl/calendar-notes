@@ -2,7 +2,7 @@ import type { TodoData } from "../ical/todo";
 import { parseTodos, primaryTodo } from "../ical/todo";
 import { newTodoIcs } from "../ical/mutate";
 import { reverseStatus, reversePriority } from "../mirror/todo-reverse";
-import { fmKeyFor } from "../mirror/profile";
+import { fmKeyFor, type MappingProfile } from "../mirror/profile";
 import type { CommandContext, CommandPlan, CommandTarget } from "./types";
 
 /**
@@ -16,6 +16,26 @@ import type { CommandContext, CommandPlan, CommandTarget } from "./types";
  * Was hier fehlt, verschwindet nicht still: `planPushHandEdits` meldet es in `skipped`.
  */
 export const TODO_SUPPORTED = ["title", "due", "start", "description", "status", "priority", "categories"] as const;
+
+export type TodoServerFeld = (typeof TODO_SUPPORTED)[number];
+
+/**
+ * Welches Server-Feld traegt dieser Frontmatter-Schluessel — oder keines?
+ *
+ * Die eine Stelle, an der diese Frage beantwortet wird. `planTodoHandEdits` braucht die
+ * Antwort, um zu mutieren, das Auswahl-Modal, um VORHER anzuzeigen, was nicht mitgeht
+ * (Spec §4). Beide auf dieselbe Funktion zu setzen ist der Punkt: zwei Kopien der Regel
+ * liefen auseinander, und der Nutzer saehe dann eine Ankuendigung, die das Senden nicht
+ * einhaelt — in beide Richtungen unbemerkt, weil kein Test die Haelften vergleicht.
+ */
+export function todoServerFeld(profile: MappingProfile, fmKey: string): TodoServerFeld | undefined {
+  return TODO_SUPPORTED.find((f) => fmKeyFor(profile, f) === fmKey);
+}
+
+/** Die Teilmenge der geaenderten Frontmatter-Schluessel, fuer die es kein Server-Feld gibt. */
+export function nichtUebertragbareKeys(profile: MappingProfile, changedKeys: string[]): string[] {
+  return changedKeys.filter((k) => todoServerFeld(profile, k) === undefined);
+}
 
 export function hrefOfTodoTarget(target: CommandTarget): string {
   if (!("href" in target) || !target.href) throw new Error("todo-Kommando ohne href im Target");

@@ -4,7 +4,7 @@ import { parseEvents, primaryEvent } from "../ical/event";
 import { parseTodos, primaryTodo } from "../ical/todo";
 import { applyTodoMutation, type TodoMutation } from "../ical/mutate";
 import { reverseStatus, reversePriority } from "../mirror/todo-reverse";
-import { TODO_SUPPORTED, diffTodoFields, hrefOfTodoTarget } from "./todo-commands";
+import { diffTodoFields, hrefOfTodoTarget, todoServerFeld } from "./todo-commands";
 import { applyMutation, type EventMutation } from "../ical/mutate";
 import { parseContact } from "../vcard/contact";
 import { applyContactMutation, type ContactMutation } from "../vcard/mutate";
@@ -143,7 +143,7 @@ function planTodoHandEdits(ctx: CommandContext, frontmatter: Record<string, unkn
   if (!beforeTodo) throw new Error("push-hand-edits: kein VTODO vorhanden");
   const mutations: TodoMutation[] = [];
   for (const fmKey of keys) {
-    const sf = TODO_SUPPORTED.find((f) => fmKeyFor(ctx.profile, f) === fmKey);
+    const sf = todoServerFeld(ctx.profile, fmKey);
     if (!sf) { skipped.push({ key: fmKey, reason: "kein unterstuetztes Server-Feld fuer dieses Frontmatter-Feld" }); continue; }
     const raw = frontmatter[fmKey];
     switch (sf) {
