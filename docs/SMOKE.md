@@ -8,10 +8,17 @@ CalDAV/CardDAV-Server (Radicale).
 
 ## Voraussetzungen
 
-⚠️ **Zuerst prüfen, wer sonst an Obsidian hängt.** Obsidian ist Single-Instance — ein
-`quit` trifft die Instanz, an der möglicherweise eine andere Session arbeitet, und zerstört
-deren Zustand. Der eigene Lauf ist danach sauber grün; der Schaden entsteht woanders und
-fällt nicht auf.
+⚠️ **Zuerst prüfen, wer sonst an Obsidian hängt.** Ein `quit` trifft die Instanz, an der
+möglicherweise eine andere Session arbeitet, und zerstört deren Zustand. Der eigene Lauf ist
+danach sauber grün; der Schaden entsteht woanders und fällt nicht auf. Was gerade offen ist,
+beantwortet `/json/list` (der Fenstertitel trägt den Vault) — **nicht** der CDP-Lock: den hält
+nur, wer gerade misst, ein offenes Fremdfenster ist keine Messung.
+
+ⓘ Hier stand „Obsidian ist Single-Instance". Das ist seit dem 2026-09-02 widerlegt (Dach-
+`AGENTS.md` § Staging-Vaults): die Sperre hängt am Profil, nicht am Rechner — mit eigenem
+`--user-data-dir` und eigenem Debug-Port läuft eine zweite Instanz daneben. Für **destruktive**
+Arbeit (Absturz reproduzieren, quitten, dutzendfach neu laden) ist das der richtige Ort statt
+einer Nachfrage. Für einen normalen Smoke-Lauf bleibt es beim Mitnutzen.
 
 ```bash
 lsof -nP -iTCP:9222 -sTCP:LISTEN >/dev/null && echo "läuft bereits — NICHT beenden"
@@ -48,7 +55,7 @@ steht in `obsidian-plugins/AGENTS.md` § Staging-Vaults. Einzelfall-Override:
 npm run smoke:gui -- --setup                    # baut den Staging-Vault aus fixtures/vault neu
 npm run smoke:gui -- --section generic           # Standard-Profile (Contacts/Events)
 npm run smoke:gui -- --section pallas            # Profile aus Pallas-Notizen + Adoption
-npm run smoke:gui -- --section todo              # Aufgaben-Spiegel (VTODO, M6a)
+npm run smoke:gui -- --section todo              # Aufgaben-Spiegel + Rückschreiben (VTODO, M6a/M6b)
 npm run smoke:gui -- --section generic --focus   # zusätzlich P8 (Settings-Fenster, Screenshot)
 npm run smoke:gui -- --keep                      # erzeugten Zustand NICHT zurücksetzen
 ```
@@ -69,7 +76,7 @@ ausgewählt wird; mehrere offene Vault-Fenster erzwingen eine eindeutige Auswahl
 
 | # | Titel | Wie gemessen |
 |---|---|---|
-| P1 | Laden | `Object.keys(app.commands.commands)` → 10 `calendar-notes:*`-Kommandos (5 aus M1–M3 + 5 seit M4: `run-on-note`/`new-event`/`new-contact`/`undo-last-change`/`push-hand-edits`); `app.setting.pluginTabs.find(id).getSettingDefinitions()` → 6 **benannte** Gruppen (Konten/Kalender & Adressbücher/Profile — welches Feld gehört wohin/Abgleich/Darstellung/Aktionen; Definitionen ohne `heading` werden vorher herausgefiltert). Stand 0.1.9 — die Liste ist wörtlich und soll rot werden, wenn sich die Oberfläche ändert |
+| P1 | Laden | `Object.keys(app.commands.commands)` → **11** `calendar-notes:*`-Kommandos (5 aus M1–M3 + 5 seit M4: `run-on-note`/`new-event`/`new-contact`/`undo-last-change`/`push-hand-edits`, + `todo-sync` seit M6b); `app.setting.pluginTabs.find(id).getSettingDefinitions()` → 6 **benannte** Gruppen (Konten/Kalender & Adressbücher/Profile — welches Feld gehört wohin/Abgleich/Darstellung/Aktionen; Definitionen ohne `heading` werden vorher herausgefiltert). Stand 0.1.9 — die Liste ist wörtlich und soll rot werden, wenn sich die Oberfläche ändert |
 | P2b | Auth über den echten UI-Weg | Läuft **vor** `seedAccount` und richtet sein eigenes Konto durch die Oberfläche ein: „+“ an der Konten-Überschrift (ein `.clickable-icon[aria-label]`, **kein** `<button>`) → Name/Server-Adresse/Benutzername in die Textfelder (mit `input`-Event, sonst läuft der `onChange` nicht) → an der Passwort-Zeile „Link…“ → Obsidian-Modal `.modal.mod-secret` → „Add secret…“ → Felder `ID` und `Secret` → Save. Zusicherung ist **nicht** „`secretId` ist gesetzt“, sondern dass `plugin.discoverAccount` danach **antwortet** (kein Wurf, ≥1 Sammlung). Grund, gemessen: mit dem nachgestellten 0.1.4-Defekt meldet der Punkt `"Zugang verweigert (401)"` **bei korrekt gesetzter `secretId`** — die naheliegende Zusicherung wäre in genau diesem Lauf grün gewesen. Räumt Konto, Sammlungen und Schlüsselbund-Eintrag selbst wieder weg, **und zwar auch vorher**: `deleteSecret` statt `setSecret("")` — ein nur geleerter Eintrag kollidiert beim nächsten „Add secret“ und lässt das Konto still auf `secretIdFor(account)` zurückfallen (Symptom: „No keychain entry is linked to this account“ statt 401). Erster Lauf grün, jeder weitere rot — genau so gemessen |
 | P2a | Gegenprobe Auth | Läuft **vor** P2: Secret auf ein falsches Passwort setzen, `plugin.discoverAccount(account)` muss **werfen**, und die Meldung muss den Status **nennen** (`401`); danach setzt der Prüfpunkt das richtige Passwort selbst zurück. Radicale läuft dafür mit `htpasswd`-Auth (`fixtures/radicale/config`, Nutzer `test:test`, `rights = owner_only`). Erst P2a und P2 zusammen sagen etwas über Auth aus — ein Prüfpunkt, der nur den Erfolgsfall kennt, hätte auch den kaputten 0.1.4-Stand grün gemeldet |
 | P2 | Konto + Discovery | Konto anlegen, Secret setzen, `plugin.discoverAccount(account)` + `plugin.settingTab.mergeDiscoveredCollections(...)` → **3** Sammlungen (Kalender, Kontakte, Aufgaben — die dritte seit dem VTODO-Fixture aus M6a/Task 10), 0 Warnungen. Läuft in **beiden** Sektionen — `generic` mit den Standard-Profilen (`default-contact`/`default-event`), `pallas` mit aus Pallas-Notizen abgeleiteten Profilen (`plugin.createProfileFromNote(kind, file)`) |
@@ -83,6 +90,12 @@ ausgewählt wird; mehrere offene Vault-Fenster erzwingen eine eindeutige Auswahl
 | P22 | Sync legt die Notiz an (`todo`) | `plugin.service.runAll()`, danach **per `pollUntil`** die Notiz unter `Tasks/` mit `dav_uid === "radicale-todo-1@test"`. Die Zusicherung hängt am `dav_uid`, **nicht an der Anzahl**: ob die *erledigte* Fixture-Aufgabe mitgespiegelt wird, entscheidet `todoInWindow` am heutigen Datum (ihr `COMPLETED` liegt im August 2026) — eine Zahl wäre hier ein Prüferfolg mit Ablaufdatum. Das Detail des Prüfpunkts trägt das Sync-Ergebnis (`ok`/`created`/je Sammlung), damit ein rotes P22 selbst sagt, ob der Sync gar nicht lief, warf, oder lief und nichts anlegte |
 | P23 | **Abgebildeter** Status (`todo`) | Frontmatter `status === "open"`, während der Server `STATUS:NEEDS-ACTION` liefert. **Das ist der eigentliche Punkt des Abschnitts** — ein Prüfpunkt auf „eine Notiz existiert" wäre auch dann grün, wenn `statusValue` gar nicht liefe |
 | P24 | Sichtbarkeitsmarkierung (`todo`) | Frontmatter `type === "task"` — die Markierung kommt aus `onCreate` des Profils. **Nicht `tags`:** das ist im Todo-Profil auf das Server-Feld `CATEGORIES` gemappt und trägt bei der Fixture-Aufgabe `[Finanzen, Privat]`. Geprüft wird gegen das Frontmatter, nicht gegen TaskNotes (Ruling 13): der Staging-Vault führt kein TaskNotes, und die Spec zieht die Grenze bei *wir transportieren, TaskNotes verwaltet* |
+| P25 | Kommando nur bei aktiver Aufgaben-Sammlung (`todo`) | `app.commands.commands["calendar-notes:todo-sync"].checkCallback(true)` → `true`; danach **im selben Prüfpunkt** alle Sammlungen im Speicher deaktivieren → `false`, dann zurück. Die zweite Hälfte ist die Gegenprobe: ein `checkCallback`, das stumpf `true` liefert, sähe ohne sie genauso grün aus. `saveSettings()` wird dabei nicht gerufen — der Zustand auf der Platte bleibt unberührt |
+| P26 | Gruppierung im Auswahl-Modal (`todo`) | Frontmatter `status` der gespiegelten Aufgabe auf `done` setzen (über `processFrontMatter`, danach **auf den `metadataCache` warten**), Kommando ausführen, Modal per DOM lesen: **genau eine** Zeile, unter „Im Vault geändert", mit dem Pfad dieser Notiz — und die Gruppen „neu"/„auf beiden Seiten" leer. Gruppen werden über die Reihenfolge im DOM zugeordnet (jede `h3` eröffnet eine, die folgende Tabelle gehört zu ihr) und über DE/EN-Muster benannt |
+| P27 | Senden schreibt (`todo`) | Nach dem Klick auf den CTA: Server-GET auf `test/aufgaben/t1.ics` zeigt `STATUS:COMPLETED`, **und** das `dav_etag` der Notiz ist ein anderes als vorher. Beide Hälften in einem Punkt: ein neues ETag ohne Server-Änderung wäre ein Resync von irgendetwas, ein `COMPLETED` ohne neues ETag hieße, die Notiz kennt den Stand nicht, den sie selbst ausgelöst hat |
+| P28 | Erstanlage aus dem Vault (`todo`) | Notiz ohne `dav_uid` unter `Tasks/` anlegen → erscheint in der Gruppe „neu" → senden → (a) auf dem Server liegt eine Ressource mit dieser `SUMMARY` (per PROPFIND gefunden, der Name leitet sich aus einer im Plugin erzeugten UID ab), (b) **die Ausgangsnotiz** trägt danach die `dav_uid`, (c) es gibt **genau eine** Notiz mit diesem Titel. (b) und (c) sind der Punkt: ohne sie bliebe die Notiz „neu" und legte die Aufgabe bei **jedem** Lauf erneut an — genau so gemessen am 2026-09-05, s. „Lauf 2026-09-05" |
+| P29 | Bewahrungsprobe (`todo`) | Die **abgebrochene** Fixture-Aufgabe (`t3.ics`, `STATUS:CANCELLED`) im Vault am **Titel** ändern und senden → Server trägt die neue `SUMMARY` **und weiterhin `STATUS:CANCELLED`**. Das Default-Profil bildet `CANCELLED` und `COMPLETED` beide auf `done` ab; die nutzersichtbare Zusage ist, dass daraus keine erledigte Aufgabe wird. Gegenprobe s. unten — sie ist **nicht** die aus dem Plan |
+| P30 | Der Senden-Knopf zählt mit (`todo`) | Im offenen Modal: CTA trägt `1` → Zeile auf „Überspringen" (echtes `change`-Ereignis am `<select>`) → CTA `0` → „Alle auswählen" → CTA `1` **und** das sichtbare Dropdown steht wieder auf `vault`. Kein Unit-Test fängt das: entfernt man `aktualisiereSendenKnopf()` aus dem `onChange`, bleiben alle Tests grün (in M6b/Task 8 gemessen) |
 | P8 | Settings-UI (nur `--focus`) | `app.setting.open()` + `openTabById`, `attachTo("settings", port)` auf das **eigene** Einstellungen-Fenster (Obsidian 1.13: eigenes Fenster, kein Modal im Hauptfenster); DOM enthält Passwort-`.setting-item`, Discovery-Button **und die Sammlungs-Auswahl** (`hasCollectionPicker`: unter der Überschrift steht ein echter `.checkbox-container`, nicht bloß die Überschrift — eine Überschrift ohne Zeilen darunter wäre genau der Fehlstand, der grün aussieht); Screenshot nach `docs/smoke/shots/settings.png` (gitignored) |
 | P9 | Notices | Nach P5 keine Fehler-Notices (`EXCEPTION`/`ERROR`/„fehlgeschlagen”/„failed”) |
 | P10 | Kommando via API (`generic`) | `plugin.api.plan("event.move", {start,end,tzid}, {uid:"simple-1@test",source})` → `execute` → `ok`; Server-GET auf `test/kalender/simple-1.ics` zeigt das neue `DTSTART`; Notiz-Frontmatter `start` zieht per `pollUntil` nach |
@@ -94,6 +107,54 @@ Alle Prüfungen laufen über `cdp.evaluate` gegen `app.plugins.plugins["calendar
 private TS-Methoden (`startAdoption`, `confirmAdoption`, `discoverAccount`,
 `createProfileFromNote`) sind zur Laufzeit ganz normale Objekteigenschaften (TS `private`
 ist ein Compile-Zeit-Konzept) und darüber ohne Änderung an `main.ts` erreichbar.
+
+## Lauf 2026-09-05 — `--section todo` 15/15, mit einem gefundenen Defekt
+
+M6b/Task 11. Gegen die laufende Instanz gefahren (**mitgenutzt, nicht neu gestartet** — an ihr
+hingen fünf fremde Vaults), CDP-Lock `--exclusive focus`.
+
+**Die Baseline hat sofort etwas gefunden.** Vor der Erweiterung mit dem *alten* Treiberstand
+gefahren: **8/9**, P1 rot. Nicht das Plugin — der Prüfpunkt zählt die Kommandos hart, und M6b
+hatte `todo-sync` dazugelegt. Genau dafür ist die Baseline da: ein Lauf *nach* dem Umbau hätte
+dasselbe Rot gezeigt, und es wäre nicht von einem eigenen Fehler zu unterscheiden gewesen.
+
+**P28 war rot und hat einen echten Defekt gefangen** (das, was ein Prüfpunkt können muss). Eine
+im Vault entstandene Aufgabe wurde korrekt auf den Server geschrieben — aber der Resync danach
+legte eine **zweite** Notiz an (`Tasks/Fahrrad reparieren (2).md`), während die Ausgangsnotiz
+ohne `dav_uid` blieb. Folge: sie wäre beim **nächsten** Lauf wieder „neu" gewesen und hätte die
+Aufgabe erneut angelegt — eine Aufgabe pro Lauf, unbegrenzt. Behoben über
+`CommandPlan.claimsNote` (die Ausgangsnotiz beansprucht die erzeugte UID) → `ApplyInput.claim`.
+
+⚠️ **Der erste Fix war grün im Unit-Test und rot im echten Obsidian.** Der Fake im
+`execute`-Test ließ `byPath` jeden Pfad finden; `VaultNoteLookup.byPath` liefert dagegen nur
+**geprimte** Pfade, und die Ausgangsnotiz steht in keinem Index und in keinem State. Der Fake
+konnte mehr als das Original — die Zusicherung war dadurch keine. Seither nimmt `lookupFor`
+`extraPaths`, und der Fake bildet den Vertrag nach (er merkt sich, was geprimt wurde).
+
+### Die Gegenprobe zu P29 ist eine andere als die geplante
+
+Der Plan sah vor, die Bewahrungsregel in `reverseStatus` auszukommentieren; P29 müsse dann rot
+werden. **Gemessen: wird er nicht** — und der Grund ist strukturell. `handEditedKeys` meldet nur
+Schlüssel, deren Frontmatter-Wert vom zuletzt geschriebenen abweicht; `prevWritten.status` ist
+aber immer `statusValue(raw.status)`. Ist `status` also ein geänderter Schlüssel, kann
+`statusValue(alt) === ziel` nicht gelten — die Bewahrung greift auf diesem Weg nie. Sie schützt
+eine **andere** Bauart. Beide Hälften am 2026-09-05 gefahren:
+
+| Gegenprobe | P29 |
+|---|---|
+| (b) `planTodoHandEdits` mutiert **alle** unterstützten Felder statt nur der geänderten, Bewahrung **an** | **grün** — `STATUS:CANCELLED` bleibt stehen |
+| (c) dasselbe, Bewahrung **aus** | **rot** — `STATUS:COMPLETED`, die abgebrochene Aufgabe wird zur erledigten umgedeutet |
+
+Damit ist die Regel live belegt: sie trägt genau dann, wenn eine Implementierung den Status
+mitschreibt, ohne dass er sich geändert hat — die naheliegende Alternative („schreib die Notiz
+auf den Server"). Für die aktuelle Fassung ist sie ein Netz, kein Wirkmechanismus; deshalb steht
+in `AGENTS.md`, dass beide Eigenschaften zusammen die Zusage tragen.
+
+Rezept für (b): in `src/core/commands/push-hand-edits.ts::planTodoHandEdits` über
+`TODO_SUPPORTED.map((f) => fmKeyFor(ctx.profile, f))` iterieren statt über `keys`. Für (c)
+zusätzlich Schritt 1 in `src/core/mirror/todo-reverse.ts::reverseStatus` auskommentieren.
+Danach `npm run deploy` — der Treiber lädt das Plugin selbst neu, aber nur den Build, der auf
+der Platte liegt.
 
 ## Behobener Befund (2026-08-23, Fix-Runde 1)
 

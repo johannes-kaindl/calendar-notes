@@ -27,7 +27,7 @@
  *   npm run smoke:gui -- --setup                  # baut den Staging-Vault aus dem Fixture neu
  *   npm run smoke:gui -- --section generic         # Standard-Profile (Contacts/Events)
  *   npm run smoke:gui -- --section pallas          # Profile aus Pallas-Notizen + Adoption
- *   npm run smoke:gui -- --section todo            # Aufgaben-Spiegel (VTODO, M6a)
+ *   npm run smoke:gui -- --section todo            # Aufgaben-Spiegel + Rueckschreiben (M6a/M6b)
  *   npm run smoke:gui -- --section generic --focus # zusaetzlich P8 (Settings-UI, Screenshot)
  *
  * Jeder Lauf legt ein eigenes Konto + zwei Sammlungen an, benutzt Radicale auf Port 5298
@@ -336,8 +336,11 @@ async function checkP1(cdp: Cdp): Promise<void> {
     const matchesOrder = (expected: string[]): boolean => named !== null && named.length === expected.length && expected.every((h, i) => named[i] === h);
     const headingsOk = matchesOrder(SETTING_HEADINGS_DE) || matchesOrder(SETTING_HEADINGS_EN);
     // Seit M4 (Task 6) kommen 5 weitere Kommandos dazu (run-on-note/new-event/new-contact/
-    // undo-last-change/push-hand-edits, s. main.ts registerCommands()) — 5 aus M1-M3 + 5 neu = 10.
-    const ok = cmds.length === 10 && headingsOk;
+    // undo-last-change/push-hand-edits, s. main.ts registerCommands()) — 5 aus M1-M3 + 5 neu = 10,
+    // seit M6b dazu `todo-sync` = 11. Die Zahl steht hier bewusst hart: sie ist der einzige
+    // Punkt, an dem ein VERSEHENTLICH weggefallenes Kommando auffiele. Wer eines hinzufuegt,
+    // zieht sie mit — der Baseline-Lauf vor der Erweiterung meldet das von selbst.
+    const ok = cmds.length === 11 && headingsOk;
     record("P1", "Laden", ok, `${cmds.length} Kommandos, benannte Settings-Gruppen: ${JSON.stringify(named)} (erwartet DE ${JSON.stringify(SETTING_HEADINGS_DE)} oder EN ${JSON.stringify(SETTING_HEADINGS_EN)})`);
   } catch (e) {
     record("P1", "Laden", false, e instanceof Error ? e.message : String(e));
@@ -1275,6 +1278,361 @@ async function checkP22to24(cdp: Cdp, note: TodoNote): Promise<void> {
     `type=${JSON.stringify(note.type)}, tags=${tagsInfo}`);
 }
 
+// ── P25-P30: Aufgaben ZURUECKSCHREIBEN (--section todo, M6b Task 11) ────────────────────
+//
+// P20-P24 oben messen die Hinrichtung (Server → Notiz). Hier geht es um die Rueckrichtung,
+// und die hat einen anderen Gegenstand: nicht "es wurde etwas geschrieben", sondern "es
+// wurde GENAU das geschrieben, was der Nutzer im Modal gesehen hat" — inklusive dessen,
+// was NICHT geschrieben werden darf (P29).
+
+const TODO_UID_CANCELLED = "radicale-todo-3@test";
+const TODO_CMD = `${PLUGIN_ID}:todo-sync`;
+const TODO_NEUE_NOTIZ = "Tasks/Fahrrad reparieren.md";
+
+/** Das Auswahl-Modal — ueber den Titel identifiziert, nicht ueber "das oberste Modal": ein
+ *  stehengebliebener fremder Dialog machte den Punkt sonst rot mit einer Meldung ueber
+ *  fehlende Tabellenzeilen, und die Ursache stuende nicht drin. DE und EN, wie bei P8. */
+const TODO_MODAL = `[...document.querySelectorAll(".modal-container .modal")]`
+  + `.find((m) => /aufgaben mit dem server|sync tasks with the server/i.test(((m.querySelector(".modal-title") || {}).textContent) || ""))`;
+
+const GRUPPE = {
+  vaultOnly: /im vault geändert|im vault geaendert|changed in the vault/i,
+  neu: /noch nicht auf dem server|not on the server yet/i,
+  konflikt: /auf beiden seiten|changed on both sides/i,
+};
+
+interface ModalZeile { path: string; felder: string; wahl: string }
+interface ModalSicht { gruppen: { label: string; zeilen: ModalZeile[] }[]; cta: string }
+
+function zeilenVon(s: ModalSicht, re: RegExp): ModalZeile[] {
+  return s.gruppen.filter((g) => re.test(g.label)).flatMap((g) => g.zeilen);
+}
+
+/** Die Zahl im CTA-Knopf. `-1` heisst "keine gefunden" und ist damit von einer echten 0
+ *  unterscheidbar — die 0 ist bei P30 ein ERWARTETER Wert, kein Fehlerfall. */
+function ctaZahl(s: string): number {
+  const m = s.match(/\d+/);
+  return m ? Number(m[0]) : -1;
+}
+
+async function leseTodoModal(cdp: Cdp): Promise<ModalSicht> {
+  const sicht = await cdp.evaluate<ModalSicht | null>(`
+    const m = ${TODO_MODAL};
+    if (!m) return null;
+    const gruppen = [];
+    let aktuell = null;
+    // Reihenfolge im DOM traegt die Zuordnung: jede Ueberschrift eroeffnet eine Gruppe, die
+    // folgende Tabelle gehoert zu ihr. Leere Gruppen zeichnet das Modal gar nicht.
+    for (const el of m.querySelectorAll("h3, table.calendar-notes-diff-table")) {
+      if (el.tagName === "H3") { aktuell = { label: (el.textContent || "").trim(), zeilen: [] }; gruppen.push(aktuell); continue; }
+      if (!aktuell) continue;
+      for (const tr of el.querySelectorAll("tbody tr")) {
+        const td = tr.querySelectorAll("td");
+        const sel = tr.querySelector("select");
+        aktuell.zeilen.push({
+          path: ((td[0] || {}).textContent || "").trim(),
+          felder: ((td[1] || {}).textContent || "").trim(),
+          wahl: sel ? sel.value : "",
+        });
+      }
+    }
+    const cta = m.querySelector("button.mod-cta");
+    return { gruppen, cta: cta ? (cta.textContent || "").trim() : "" };
+  `);
+  if (!sicht) throw new Error("Auswahl-Modal ist nicht (mehr) offen");
+  return sicht;
+}
+
+async function oeffneTodoModal(cdp: Cdp): Promise<ModalSicht> {
+  await cdp.evaluate(`app.commands.executeCommandById(${JSON.stringify(TODO_CMD)}); return true;`);
+  // Das Kommando laeuft ueber `fireAndForget` und holt vorher den Serverstand (ein REPORT je
+  // Sammlung) — das Modal ist also NICHT im selben Tick da.
+  await requireUntil(cdp, TODO_MODAL, "Auswahl-Modal ist nicht aufgegangen", 30_000);
+  return leseTodoModal(cdp);
+}
+
+/** Eine Zeile im Modal auf eine Entscheidung stellen — ueber das SICHTBARE Dropdown, damit
+ *  der Weg derselbe ist wie beim Nutzer (`change`-Ereignis inklusive). */
+async function setzeWahl(cdp: Cdp, path: string, wahl: string): Promise<void> {
+  await cdp.evaluate(`
+    const m = ${TODO_MODAL};
+    if (!m) throw new Error("Auswahl-Modal nicht offen");
+    const tr = [...m.querySelectorAll("tbody tr")].find((r) => ((r.querySelector("td") || {}).textContent || "").trim() === ${JSON.stringify(path)});
+    if (!tr) throw new Error("Zeile nicht im Modal: " + ${JSON.stringify(path)});
+    const sel = tr.querySelector("select");
+    if (!sel) throw new Error("Zeile ohne Dropdown: " + ${JSON.stringify(path)});
+    sel.value = ${JSON.stringify(wahl)};
+    sel.dispatchEvent(new Event("change"));
+    return true;
+  `);
+}
+
+async function klickeImModal(cdp: Cdp, muster: RegExp, was: string): Promise<void> {
+  await cdp.evaluate(`
+    const m = ${TODO_MODAL};
+    if (!m) throw new Error("Auswahl-Modal nicht offen");
+    const b = [...m.querySelectorAll(".modal-button-container button")].find((x) => ${muster}.test((x.textContent || "").trim()));
+    if (!b) throw new Error("Knopf nicht gefunden: " + ${JSON.stringify(was)});
+    b.click();
+    return true;
+  `);
+}
+
+/** Senden = der CTA-Knopf. Er traegt keinen festen Text (die Zahl steckt drin), deshalb
+ *  ueber die Klasse — dieselbe, die `setCta()` setzt. */
+async function sendeTodoModal(cdp: Cdp): Promise<void> {
+  await cdp.evaluate(`
+    const m = ${TODO_MODAL};
+    if (!m) throw new Error("Auswahl-Modal nicht offen");
+    const b = m.querySelector("button.mod-cta");
+    if (!b) throw new Error("Senden-Knopf nicht gefunden");
+    b.click();
+    return true;
+  `);
+  await requireUntil(cdp, `!(${TODO_MODAL})`, "Modal hat sich nach dem Senden nicht geschlossen");
+}
+
+async function setzeFrontmatter(cdp: Cdp, path: string, key: string, wert: string): Promise<void> {
+  await cdp.evaluate(`
+    const f = app.vault.getAbstractFileByPath(${JSON.stringify(path)});
+    if (!f) throw new Error("Notiz nicht gefunden: " + ${JSON.stringify(path)});
+    await app.fileManager.processFrontMatter(f, (fm) => { fm[${JSON.stringify(key)}] = ${JSON.stringify(wert)}; });
+    return true;
+  `);
+  // MUTATION UND WARTEPHASE TRENNEN (s. `syncTodosAndRead`): das Kommando liest das
+  // Frontmatter aus dem `metadataCache`, und der laeuft dem Schreibvorgang hinterher.
+  await requireUntil(
+    cdp,
+    `((app.metadataCache.getFileCache(app.vault.getAbstractFileByPath(${JSON.stringify(path)})) || {}).frontmatter || {})[${JSON.stringify(key)}] === ${JSON.stringify(wert)}`,
+    `Frontmatter-Aenderung (${key}) ist im metadataCache nicht angekommen`,
+  );
+}
+
+async function frontmatterVon(cdp: Cdp, path: string): Promise<Record<string, unknown>> {
+  return cdp.evaluate<Record<string, unknown>>(`
+    const f = app.vault.getAbstractFileByPath(${JSON.stringify(path)});
+    if (!f) return {};
+    return (app.metadataCache.getFileCache(f) || {}).frontmatter || {};
+  `);
+}
+
+/** Notiz zu einer dav_uid — der Pfad haengt am Titel und wird deshalb nicht geraten. */
+async function notizMitUid(cdp: Cdp, uid: string): Promise<string> {
+  const p = await pollUntil<string>(cdp, `
+    for (const f of app.vault.getMarkdownFiles()) {
+      const fm = (app.metadataCache.getFileCache(f) || {}).frontmatter || {};
+      if (fm["dav_uid"] === ${JSON.stringify(uid)}) return f.path;
+    }
+    return null;
+  `, 20_000, 400);
+  if (!p) throw new Error(`Keine Notiz mit dav_uid=${uid} — wurde sie gespiegelt?`);
+  return p;
+}
+
+/** RFC5545-Zeilenfaltung entfalten, bevor irgendetwas gesucht wird — eine SUMMARY bricht bei
+ *  75 Oktetten, und der gesuchte Text stuende dann auf zwei physischen Zeilen. */
+function entfalte(ics: string): string {
+  return ics.replace(/\r?\n[ \t]/g, "");
+}
+
+/** Node-seitig auf einen Serverzustand warten. Der PUT laeuft asynchron im Renderer; ein
+ *  sofortiges GET misst den Stand davor. Praedikat statt Regex, weil die gesuchten Titel
+ *  Klammern tragen — als Regex waeren das Gruppen, und `(geprueft)` matchte auch ohne sie. */
+async function warteAufServer(
+  radicale: RunningServer,
+  relPath: string,
+  passt: (body: string) => boolean,
+  timeoutMs = 30_000,
+): Promise<string> {
+  const deadline = Date.now() + timeoutMs;
+  let body = "";
+  while (Date.now() < deadline) {
+    body = entfalte((await davGet(radicale, relPath)).body);
+    if (passt(body)) return body;
+    await new Promise((r2) => setTimeout(r2, 500));
+  }
+  return body;
+}
+
+/** Die Ressourcen-Namen einer Sammlung, direkt vom Server (PROPFIND Depth: 1). Der Name der
+ *  neu angelegten Aufgabe leitet sich aus einer im Plugin erzeugten UID ab — er ist von
+ *  aussen nicht vorhersagbar, und ihn aus dem Plugin zu lesen hiesse, den Pruefling nach dem
+ *  Ergebnis zu fragen. */
+async function davNamen(radicale: RunningServer, relPath: string): Promise<string[]> {
+  const url = new URL(relPath, radicale.baseUrl).toString();
+  const res = await fetch(url, {
+    method: "PROPFIND",
+    headers: { Authorization: davAuthHeader(radicale.user, radicale.pass), Depth: "1", "Content-Type": "application/xml" },
+    body: `<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:getetag/></d:prop></d:propfind>`,
+  });
+  const text = await res.text();
+  return [...text.matchAll(/<[^>]*href[^>]*>([^<]*\.ics)<\/[^>]*href[^>]*>/gi)].map((m) => (m[1] ?? "").split("/").pop() ?? "");
+}
+
+async function checkP25(cdp: Cdp): Promise<void> {
+  const r = await cdp.evaluate<{ vorhanden: boolean; mit: boolean; ohne: boolean }>(`
+    const cmd = app.commands.commands[${JSON.stringify(TODO_CMD)}];
+    if (!cmd || typeof cmd.checkCallback !== "function") return { vorhanden: false, mit: false, ohne: true };
+    const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+    const vorher = plugin.settings;
+    const mit = !!cmd.checkCallback(true);
+    // Gegenprobe IM Pruefpunkt (wie bei P21): ohne aktive Aufgaben-Sammlung darf das Kommando
+    // NICHT anbietbar sein. Ohne diese Haelfte waere ein checkCallback, das stumpf true
+    // liefert, genauso gruen. Nur der Speicher-Zustand wird angefasst, nicht saveSettings —
+    // die Einstellungen auf der Platte bleiben unberuehrt.
+    let ohne = true;
+    try {
+      plugin.settings = { ...vorher, collections: vorher.collections.map((c) => ({ ...c, enabled: false })) };
+      ohne = !!cmd.checkCallback(true);
+    } finally {
+      plugin.settings = vorher;
+    }
+    return { vorhanden: true, mit, ohne };
+  `);
+  record("P25", "Kommando nur bei aktiver Aufgaben-Sammlung anbietbar", r.vorhanden && r.mit && !r.ohne,
+    r.vorhanden ? `mit Sammlung=${r.mit}, ohne Sammlung=${r.ohne} (erwartet: true/false)` : `Kommando ${TODO_CMD} nicht registriert`);
+}
+
+/**
+ * P26 (Gruppierung), P30 (die Zahl im Senden-Knopf) und P27 (der Schreibvorgang) haengen an
+ * EINEM Szenario: die gespiegelte offene Aufgabe wird im Vault abgehakt. Sie zu trennen
+ * hiesse, dreimal denselben Zustand herzustellen.
+ */
+async function checkP26P30P27(cdp: Cdp, radicale: RunningServer, notePath: string): Promise<void> {
+  const vorher = await frontmatterVon(cdp, notePath);
+  await setzeFrontmatter(cdp, notePath, "status", "done");
+
+  const sicht = await oeffneTodoModal(cdp);
+  const imVault = zeilenVon(sicht, GRUPPE.vaultOnly);
+  const uebrige = zeilenVon(sicht, GRUPPE.neu).length + zeilenVon(sicht, GRUPPE.konflikt).length;
+  record("P26", "Modal fuehrt genau die geaenderte Notiz unter „im Vault geaendert“",
+    imVault.length === 1 && imVault[0]?.path === notePath && uebrige === 0,
+    `vault-only=[${imVault.map((z) => `${z.path} (${z.felder})`).join(" | ")}], neu+konflikt=${uebrige}, `
+      + `Gruppen=[${sicht.gruppen.map((g) => g.label).join(" | ")}]`);
+
+  // P30: die Beschriftung wird nach JEDER Aenderung neu gezogen — Einzel-Dropdown UND
+  // Sammelknopf. Kein Unit-Test faengt das: entfernt man `aktualisiereSendenKnopf()` aus
+  // `onChange`, bleiben alle Tests gruen (gemessen in Task 8).
+  const start = ctaZahl(sicht.cta);
+  await setzeWahl(cdp, notePath, "skip");
+  const nachSkip = ctaZahl((await leseTodoModal(cdp)).cta);
+  await klickeImModal(cdp, /alle auswählen|alle auswaehlen|select all/i, "Alle auswaehlen");
+  const nachAlle = await leseTodoModal(cdp);
+  const zeileNachAlle = zeilenVon(nachAlle, GRUPPE.vaultOnly)[0];
+  record("P30", "Senden-Knopf zaehlt mit — bei Einzelwahl und Sammelknopf",
+    start === 1 && nachSkip === 0 && ctaZahl(nachAlle.cta) === 1 && zeileNachAlle?.wahl === "vault",
+    `Start=${start}, nach „Überspringen“=${nachSkip}, nach „Alle auswählen“=${ctaZahl(nachAlle.cta)} `
+      + `(Dropdown steht auf "${zeileNachAlle?.wahl ?? "—"}")`);
+
+  await sendeTodoModal(cdp);
+  const body = await warteAufServer(radicale, "test/aufgaben/t1.ics", (b) => b.includes("STATUS:COMPLETED"));
+  const etagVorher = String(vorher["dav_etag"] ?? "");
+  const nachher = await pollUntil<Record<string, unknown>>(cdp, `
+    const f = app.vault.getAbstractFileByPath(${JSON.stringify(notePath)});
+    const fm = f ? ((app.metadataCache.getFileCache(f) || {}).frontmatter || {}) : {};
+    return String(fm["dav_etag"] || "") !== ${JSON.stringify(etagVorher)} ? fm : null;
+  `, 30_000, 500) ?? await frontmatterVon(cdp, notePath);
+  const etagNeu = String(nachher["dav_etag"] ?? "");
+  // Beide Haelften gehoeren in EINEN Punkt: ein neues ETag ohne Serveraenderung waere ein
+  // Resync von irgendetwas, ein COMPLETED ohne neues ETag hiesse, die Notiz kennt den
+  // Stand nicht, den sie selbst ausgeloest hat.
+  record("P27", "Senden schreibt auf den Server und zieht die Notiz nach",
+    /STATUS:COMPLETED/.test(body) && etagNeu !== "" && etagNeu !== etagVorher,
+    `Server: ${(body.match(/STATUS:[A-Z-]+/) ?? ["kein STATUS"])[0]}, dav_etag ${etagVorher || "—"} → ${etagNeu || "—"}`);
+}
+
+async function checkP28(cdp: Cdp, radicale: RunningServer): Promise<void> {
+  await cdp.evaluate(`
+    const p = ${JSON.stringify(TODO_NEUE_NOTIZ)};
+    if (!app.vault.getAbstractFileByPath(p)) {
+      await app.vault.create(p, "---\\ntype: task\\ntitle: Fahrrad reparieren\\nstatus: open\\ndue: 2026-10-01\\n---\\n\\nSchlauch flicken.\\n");
+    }
+    return true;
+  `);
+  await requireUntil(
+    cdp,
+    `((app.metadataCache.getFileCache(app.vault.getAbstractFileByPath(${JSON.stringify(TODO_NEUE_NOTIZ)})) || {}).frontmatter || {})["title"] === "Fahrrad reparieren"`,
+    "Neue Aufgaben-Notiz ist im metadataCache nicht angekommen",
+  );
+
+  const sicht = await oeffneTodoModal(cdp);
+  const neu = zeilenVon(sicht, GRUPPE.neu);
+  const inListe = neu.some((z) => z.path === TODO_NEUE_NOTIZ);
+  await klickeImModal(cdp, /auswahl aufheben|clear selection/i, "Auswahl aufheben");
+  await setzeWahl(cdp, TODO_NEUE_NOTIZ, "vault");
+  await sendeTodoModal(cdp);
+
+  // Der Server ist die eine Haelfte: eine neue Ressource mit dem Titel muss entstehen.
+  const deadline = Date.now() + 30_000;
+  let gefunden = "";
+  while (Date.now() < deadline && gefunden === "") {
+    for (const name of await davNamen(radicale, "test/aufgaben/")) {
+      const r = await davGet(radicale, `test/aufgaben/${name}`);
+      if (entfalte(r.body).includes("SUMMARY:Fahrrad reparieren")) { gefunden = name; break; }
+    }
+    if (gefunden === "") await new Promise((r2) => setTimeout(r2, 500));
+  }
+
+  // Die andere Haelfte ist der Punkt: die AUSGANGSNOTIZ muss danach zum Server-Objekt
+  // gehoeren. Tut sie es nicht, ist sie beim naechsten Lauf wieder "neu" — und legt die
+  // Aufgabe ein zweites Mal an.
+  const fm = await pollUntil<Record<string, unknown>>(cdp, `
+    const f = app.vault.getAbstractFileByPath(${JSON.stringify(TODO_NEUE_NOTIZ)});
+    const c = f ? ((app.metadataCache.getFileCache(f) || {}).frontmatter || {}) : {};
+    return c["dav_uid"] ? c : null;
+  `, 20_000, 500) ?? await frontmatterVon(cdp, TODO_NEUE_NOTIZ);
+  const dubletten = await cdp.evaluate<string[]>(`
+    const out = [];
+    for (const f of app.vault.getMarkdownFiles()) {
+      if (!f.path.startsWith("Tasks/")) continue;
+      const c = (app.metadataCache.getFileCache(f) || {}).frontmatter || {};
+      if (c["title"] === "Fahrrad reparieren") out.push(f.path);
+    }
+    return out;
+  `);
+  record("P28", "Im Vault entstandene Aufgabe wird angelegt UND gehoert danach dem Server",
+    inListe && gefunden !== "" && !!fm["dav_uid"] && dubletten.length === 1,
+    `in Gruppe „neu“=${inListe}, Server-Ressource=${gefunden || "keine"}, `
+      + `dav_uid der Ausgangsnotiz=${JSON.stringify(fm["dav_uid"] ?? null)}, Notizen mit diesem Titel=[${dubletten.join(" | ")}]`);
+}
+
+/**
+ * P29 — die Bewahrungsprobe, und der Punkt, der einen Defekt faengt statt einen Erfolg zu
+ * bestaetigen.
+ *
+ * Gegenstand ist die nutzersichtbare Zusage aus der Spec: **eine abgebrochene Aufgabe wird
+ * nicht zu einer erledigten umgedeutet.** Server: `STATUS:CANCELLED`; das Default-Profil
+ * bildet CANCELLED **und** COMPLETED auf `done` ab. Geaendert wird nur der Titel — der
+ * Status bleibt in der Notiz, was er ist.
+ *
+ * ⚠️ Die Gegenprobe dazu ist NICHT „die Bewahrungsregel in `reverseStatus` auskommentieren“,
+ * wie der Plan sie vorsah. Gemessen beim Bau: auf diesem Weg ist `status` gar kein
+ * geaenderter Schluessel, `planTodoHandEdits` erzeugt fuer ihn also keine Mutation, und der
+ * Punkt bliebe auch ohne die Regel gruen. Der Defekt, den er faengt, sitzt eine Ebene
+ * darueber: eine Fassung, die alle unterstuetzten Felder mutiert statt nur der geaenderten
+ * (die naheliegende Alternative — „schreib die Notiz auf den Server“). Genau die Fassung
+ * braeuchte die Bewahrungsregel, und genau die faerbt diesen Punkt rot. Das Rezept steht in
+ * `docs/SMOKE.md`.
+ */
+async function checkP29(cdp: Cdp, radicale: RunningServer): Promise<void> {
+  const path = await notizMitUid(cdp, TODO_UID_CANCELLED);
+  const neuerTitel = "Umzug nach Bremen (geprueft)";
+  await setzeFrontmatter(cdp, path, "title", neuerTitel);
+
+  const sicht = await oeffneTodoModal(cdp);
+  const zeile = zeilenVon(sicht, GRUPPE.vaultOnly).find((z) => z.path === path);
+  await klickeImModal(cdp, /auswahl aufheben|clear selection/i, "Auswahl aufheben");
+  await setzeWahl(cdp, path, "vault");
+  await sendeTodoModal(cdp);
+
+  const body = await warteAufServer(radicale, "test/aufgaben/t3.ics", (b) => b.includes(`SUMMARY:${neuerTitel}`));
+  const status = (body.match(/STATUS:[A-Z-]+/) ?? ["kein STATUS"])[0];
+  record("P29", "Titel-Aenderung an einer ABGEBROCHENEN Aufgabe laesst CANCELLED stehen",
+    zeile !== undefined && body.includes(`SUMMARY:${neuerTitel}`) && status === "STATUS:CANCELLED",
+    `Zeile im Modal=${zeile ? `ja (${zeile.felder})` : "nein"}, Server: ${status}, `
+      + `SUMMARY=${(body.match(/SUMMARY:.*/) ?? ["—"])[0].trim()}`);
+}
+
 async function checkP8(port: number, vault: string): Promise<void> {
   const workspace = await attachTo("workspace", port, vault);
   if (!workspace) {
@@ -1474,6 +1832,13 @@ async function main(): Promise<void> {
       await checkP20(cdp, discovery);
       const note = await syncTodosAndRead(cdp);
       await checkP22to24(cdp, note);
+      // M6b (Rueckrichtung). Reihenfolge ist Absicht: P26 zaehlt die Zeilen im Modal, also
+      // darf die neue Notiz aus P28 zu dem Zeitpunkt noch nicht existieren.
+      await checkP25(cdp);
+      if (note.path === "") recordSkip("P26/P27/P30", "Rueckschreiben", "keine gespiegelte Aufgaben-Notiz (s. P22)");
+      else await checkP26P30P27(cdp, radicale, note.path);
+      await checkP28(cdp, radicale);
+      await checkP29(cdp, radicale);
     } else {
       // Die Aufgaben-Sammlung bleibt in `generic` AUS. Sie hat ihren eigenen Abschnitt, und
       // die Zahlen hier (5 creates, Events/=3, Contacts/=2) sind Aussagen ueber Termine und

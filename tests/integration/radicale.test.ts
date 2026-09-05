@@ -67,15 +67,18 @@ describe("radicale end-to-end", () => {
     expect(d4.deleted).toEqual([]);             // angelegt+gelöscht zwischen zwei Syncs → nie im Snapshot, also auch nicht "deleted"
   });
 
-  it("entdeckt die Aufgaben-Sammlung und liest beide VTODOs", async () => {
+  it("entdeckt die Aufgaben-Sammlung und liest alle drei VTODOs", async () => {
     const d = await discover(t, server.baseUrl);
     const auf = d.collections.find((c) => c.displayName.toLowerCase().includes("aufgaben"));
     expect(auf).toBeDefined();
     expect(auf!.components?.map((x) => x.toUpperCase())).toContain("VTODO");
     const ds = await syncCollection(t, auf!, undefined);
-    expect(ds.changed).toHaveLength(2);
+    expect(ds.changed).toHaveLength(3);
     const uids = ds.changed.map((o) => parseTodos(o.data)[0]!.uid).sort();
-    expect(uids).toEqual(["radicale-todo-1@test", "radicale-todo-2@test"]);
+    // t3 ist die ABGEBROCHENE Aufgabe (STATUS:CANCELLED, bewusst ohne COMPLETED und
+    // LAST-MODIFIED, damit `todoInWindow` sie datumsunabhaengig fuehrt). Sie ist das
+    // Material fuer P29 des GUI-Smokes und faellt sonst nirgends auf.
+    expect(uids).toEqual(["radicale-todo-1@test", "radicale-todo-2@test", "radicale-todo-3@test"]);
   });
 
   /**
