@@ -289,8 +289,14 @@ export class CommandFlow {
     let ok = 0;
     try {
       for (const r of resync) {
-        const res = await resyncObject(this.deps, settings, r.collectionId, r.href);
-        if (!res.error) ok += 1;
+        try {
+          const res = await resyncObject(this.deps, settings, r.collectionId, r.href);
+          if (!res.error) ok += 1;
+        } catch {
+          // Ein werfender Resync (Transportfehler) darf den Lauf nicht abbrechen: die PUTs
+          // sind zu diesem Zeitpunkt schon geschrieben, und ihre Ergebnis-Meldung steht noch
+          // aus. Sie zu verschlucken waere schlimmer als ein nicht nachgezogener Serverstand.
+        }
       }
     } finally {
       this.deps.busy.release();

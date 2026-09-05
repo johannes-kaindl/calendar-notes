@@ -1758,6 +1758,8 @@ Erweitert den vorhandenen Abschnitt `todo` des Treibers. **Ein Prüfpunkt muss d
 - **P28** — Eine Notiz ohne `dav_uid` im Aufgabenordner erscheint in der Gruppe „neu" und wird nach dem Senden mit `dav_uid` versehen.
 - **P29 (der scharfe)** — **Bewahrungsprobe:** Server auf `CANCELLED` setzen, Frontmatter unverändert auf dem darauf abbildenden Wert lassen, Kommando fahren → die Aufgabe erscheint **nicht** in der Liste, und der Server steht danach unverändert auf `CANCELLED`.
 
+- **P30** — **Aus Task 8 uebergeben, weil kein Unit-Test ihn fangen kann:** die Zahl im Senden-Knopf haengt an einer Verdrahtung im DOM (`onChange` → `aktualisiereSendenKnopf`). Gemessen: entfernt man den Aufruf, bleiben alle 161 Tests gruen. Pruefpunkt: eine Zeile im Modal von „Vault gewinnt" auf „Ueberspringen" stellen → die Beschriftung des CTA-Knopfes zaehlt herunter. Dasselbe fuer die Sammelknoepfe („Alle auswaehlen"/„Auswahl aufheben"), die zusaetzlich die sichtbaren Dropdowns mitziehen muessen — der Plan sah dort ein `close(); open()` vor, das durch Handles ersetzt wurde.
+
   ⚠️ P29 ist der Prüfpunkt, der den Defekt fängt: ohne die Bewahrungsregel (Task 1) würde die Aufgabe in der Liste auftauchen und nach dem Senden auf `COMPLETED` springen. Ein Punkt, der nur „Senden hat funktioniert" prüft, wäre in genau diesem Fall grün.
 
 - [ ] **Step 2: Baseline festhalten**

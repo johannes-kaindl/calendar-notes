@@ -91,3 +91,41 @@ describe("sammleTodoNotizen", () => {
     expect(await sammle(flowMit(app, {}), settings())).toEqual([]);
   });
 });
+
+/** `holeServerstand` ist der einzige Weg, auf dem dieses Kommando VAULT-Inhalt ueberschreibt
+ *  ("Server gewinnt"). Er laeuft deshalb unter demselben Busy-Guard wie jeder Schreibvorgang. */
+describe("holeServerstand", () => {
+  function flowMitBusy(frei: boolean, gerufen: string[]): CommandFlow {
+    const deps = {
+      settings: () => settings(),
+      busy: { tryAcquire: () => frei, release: () => gerufen.push("release"), isBusy: () => !frei },
+      stateStore: { load: (source: string) => Promise.resolve(leererState(source)) },
+      secrets: { get: () => "pw", has: () => true, set: () => undefined },
+      now: () => new Date("2026-09-05T10:00:00Z"),
+      // Ein Aufruf hierhin BEWEIST, dass resyncObject gelaufen ist: es loest zuerst die
+      // Sammlung auf und holt sich dann den Transport.
+      transportFor: () => { gerufen.push("transport"); throw new Error("nicht erreichbar"); },
+    } as unknown as SyncDeps;
+    return new CommandFlow(fakeApp({}), deps, {} as never);
+  }
+  const holen = (flow: CommandFlow): Promise<number> =>
+    (flow as unknown as { holeServerstand(s: PluginSettings, r: { collectionId: string; href: string }[]): Promise<number> })
+      .holeServerstand(settings(), [{ collectionId: "c1", href: "/c1/a.ics" }]);
+
+  it("fasst nichts an, wenn der Guard belegt ist", async () => {
+    const gerufen: string[] = [];
+    expect(await holen(flowMitBusy(false, gerufen))).toBe(0);
+    expect(gerufen).toEqual([]); // kein Transport, kein release — gar nichts passiert
+  });
+
+  it("ueberlebt einen werfenden Resync und gibt den Guard frei", async () => {
+    // Zwei Dinge in einem Fall, weil sie dieselbe Ursache haben: die PUTs sind hier laengst
+    // geschrieben, ihre Ergebnis-Meldung steht noch aus. Fliegt der Wurf durch, sieht der
+    // Nutzer statt seiner Bilanz einen unerwarteten Fehler — und ohne `finally` bliebe der
+    // Guard belegt, sodass der naechste Sync-Lauf dauerhaft "busy" meldete.
+    const gerufen: string[] = [];
+    await expect(holen(flowMitBusy(true, gerufen))).resolves.toBe(0);
+    expect(gerufen).toContain("transport"); // der Resync wurde wirklich versucht
+    expect(gerufen).toContain("release");
+  });
+});
