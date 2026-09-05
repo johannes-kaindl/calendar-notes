@@ -28,10 +28,16 @@ phone number, add an attendee — each shown as a diff before anything is sent.
   reads the status names **out of this vault's own TaskNotes installation** and writes them
   into the profile — shipping defaults would be wrong, because those names are freely
   renamable. Most providers keep tasks and events in separate calendars; the plugin detects
-  that itself and assigns the matching profile. **This direction is currently one-way**
-  (server → vault): editing a task note does not write back yet, and you cannot create a task
-  from the vault. An open task is always mirrored, even without a date — unlike events, which
-  only appear inside the configured time window.
+  that itself and assigns the matching profile. An open task is always mirrored, even without a
+  date — unlike events, which only appear inside the configured time window.
+- **And tasks go back the other way, too.** Tick a task off in your vault, move its due date or
+  rename it, then run **Sync tasks with the server** — a task you created in the vault is
+  created on the server in the same pass. The command never writes on its own: it first shows
+  **every** difference, grouped into *changed in the vault*, *new* and *changed on both sides*,
+  and asks per row which side wins. Preselected is what you evidently meant — ticking off and
+  creating go along, a conflict stays untouched until someone decides. Fields that cannot be
+  transferred are named **before** you send, not missing afterwards. A cancelled task is never
+  reinterpreted as a completed one, even though TaskNotes usually gives both the same status.
 - **CalDAV and CardDAV in one plugin**, sharing a transport, with server-agnostic discovery
   (RFC 4791/6352/6578) — tested against [Radicale](https://radicale.org), and designed to the
   same standards as mailbox.org and Nextcloud (not yet verified against either live server).
@@ -225,9 +231,13 @@ versioning rules and a mail-transport integration contract: [`docs/API.md`](docs
   read-only from the plugin's perspective outside of an explicit command (`Write hand edits to
   the server` is the one deliberate exception — a diff you review and confirm, not a silent
   merge).
-- **Tasks are mirrored one way only** (server → vault). Editing a task note does not write
-  back, and there is no command to create a task from the vault yet. Reading is complete:
-  due date, status, priority and categories all arrive.
+- **Deleting is never mirrored, in either direction.** Delete a task note in your vault and the
+  note is gone — the task on the server stays. That is deliberate: an accidentally deleted
+  mirror must not take server data with it.
+- **Writing tasks back covers the fields the mapping knows** — title, due date, start,
+  description, status, priority and categories. Progress and completion time follow from the
+  status change instead of being writable by hand, and recurrence rules are not written back at
+  all. Whatever a change touches beyond that is listed in the dialog before you send.
 - **Recurring events are one note per master**, not one note per occurrence. A server-side
   exception to a single occurrence gets its own note, linked to the master.
 - **On mobile, the secret is per device** — there is no cross-device credential sync, by
