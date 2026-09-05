@@ -98,7 +98,7 @@ function text(v: unknown): string | undefined {
  * Zurueckschreiben. Beim Anlegen gibt es kein "Vorher", also ist `alt` immer `undefined`;
  * liefert die Abbildung nichts, faellt `newTodoIcs` auf `NEEDS-ACTION` zurueck statt zu raten.
  */
-export function planTodoCreate(ctx: CommandContext, frontmatter: Record<string, unknown>): CommandPlan {
+export function planTodoCreate(ctx: CommandContext, frontmatter: Record<string, unknown>, notePath?: string): CommandPlan {
   const uid = `cn-${Math.floor(ctx.rand() * 1e9).toString(36)}-${ctx.now.getTime().toString(36)}@calendar-notes`;
   const status = reverseStatus(ctx.profile, undefined, fmWert(ctx, frontmatter, "status"));
   const prio = reversePriority(ctx.profile, undefined, fmWert(ctx, frontmatter, "priority"));
@@ -123,5 +123,8 @@ export function planTodoCreate(ctx: CommandContext, frontmatter: Record<string, 
     summary: "Create task on the server", summaryKey: "plan.todo.create.summary", summaryArgs: [],
     diff: diffTodoFields(undefined, after), newRaw,
     contentType: "text/calendar", hrefForPut: `${ctx.collection.href}${uid}.ics`, createsNew: true,
+    // Die Ausgangsnotiz beansprucht die erzeugte UID — sonst legt der Resync danach eine
+    // zweite Notiz an, s. `CommandPlan.claimsNote`.
+    ...(notePath !== undefined ? { claimsNote: { path: notePath, uid } } : {}),
   };
 }

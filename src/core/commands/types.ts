@@ -48,6 +48,17 @@ export interface CommandPlan {
   contentType: "text/calendar" | "text/vcard";
   hrefForPut: string;
   createsNew: boolean;
+  /**
+   * Nur bei `createsNew`: die Notiz, aus der das Objekt entstanden ist, mit der dafuer
+   * erzeugten UID.
+   *
+   * Ohne sie findet der Resync nach dem PUT keine Notiz zu dieser UID und legt eine ZWEITE
+   * an (`freePath` haengt eine Nummer an) — die Ausgangsnotiz bliebe ohne `dav_uid`, waere
+   * beim naechsten Lauf wieder „neu" und legte die Aufgabe ein weiteres Mal auf dem Server
+   * an. Gemessen am 2026-09-05 als P28 des GUI-Smokes: `Fahrrad reparieren (2).md` neben
+   * `Fahrrad reparieren.md`.
+   */
+  claimsNote?: { path: string; uid: string };
   invite?: { attendees: string[]; method: "REQUEST" | "CANCEL" };
   delete?: true;
 }

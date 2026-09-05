@@ -52,7 +52,13 @@ function resolve(deps: SyncDeps, settings: PluginSettings, plan: CommandPlan): R
  * TROTZDEM gespeichert — der naechste echte Sync-Lauf soll das Objekt nicht nochmal als
  * "geaendert" sehen, nur weil der lokale Notiz-Schreibvorgang stolperte.
  */
-export async function resyncObject(deps: SyncDeps, settings: PluginSettings, collectionId: string, href: string): Promise<{ plans: NotePlan[]; error?: string }> {
+export async function resyncObject(
+  deps: SyncDeps,
+  settings: PluginSettings,
+  collectionId: string,
+  href: string,
+  claim?: { path: string; uid: string },
+): Promise<{ plans: NotePlan[]; error?: string }> {
   const col = settings.collections.find((c) => c.id === collectionId);
   // Fix M7 (Review-Runde 3): fruehere Version gab hier `{ plans: [] }` OHNE `error` zurueck —
   // der Aufrufer (`executeCommandPlanLocked`) liest `!resync.error` als `resynced: true` und
@@ -68,7 +74,7 @@ export async function resyncObject(deps: SyncDeps, settings: PluginSettings, col
   const transport = deps.transportFor(account, secret);
   const source = sourceOf(col);
   const state = await deps.stateStore.load(source);
-  const lookup = await deps.lookupFor(profile);
+  const lookup = await deps.lookupFor(profile, claim ? [claim.path] : undefined);
   const resolveAttendee = deps.resolveAttendee?.();
   const now = deps.now();
   const hp = hrefPath(href);
@@ -102,6 +108,7 @@ export async function resyncObject(deps: SyncDeps, settings: PluginSettings, col
     lookup,
     now,
     ...(resolveAttendee ? { resolveAttendee } : {}),
+    ...(claim ? { claim } : {}),
   });
 
   // `emit("changed", …)` AUSSERHALB des try-Blocks — s. selber Kommentar in `service.ts`
@@ -214,7 +221,9 @@ async function executeCommandPlanLocked(deps: SyncDeps, settings: PluginSettings
     return { ok: false, conflict: false, error: "transport-error" };
   }
 
-  const resync = await resyncObject(deps, settings, collectionId, plan.hrefForPut);
+  // Bei einer Erstanlage aus einer Vault-Notiz bekommt der Resync gesagt, welche Notiz zu
+  // der neuen UID gehoert — sie traegt sie ja noch nicht.
+  const resync = await resyncObject(deps, settings, collectionId, plan.hrefForPut, plan.claimsNote);
   const uid = resync.plans[0]?.uid ?? targetUid;
   return { ok: true, uid, etag: res.etag, resynced: !resync.error, ...(resync.error ? { resyncError: resync.error } : {}) };
 }

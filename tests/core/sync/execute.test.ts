@@ -126,6 +126,36 @@ function updatePlan(overrides: Partial<CommandPlan> = {}): CommandPlan {
 }
 
 describe("executeCommandPlan", () => {
+  it("reicht claimsNote an den Resync durch: die Ausgangsnotiz wird aktualisiert, nicht dupliziert", async () => {
+    // Der Weg, den P28 des GUI-Smokes gemessen hat: eine im Vault entstandene Notiz wird auf
+    // den Server geschrieben; der Resync danach muss SIE meinen und nicht daneben eine zweite
+    // anlegen. Hier haengt die Zusicherung am Plan-Pfad des Executors.
+    const eigene = { path: "Contacts/Eigene Notiz.md", frontmatter: {}, body: "" };
+    const { deps, executor } = makeDeps({ transport: fakeTransport() });
+    // Der Fake bildet den Vertrag von `VaultNoteLookup` nach: `byPath` liefert NUR geprimte
+    // Pfade. Ein grosszuegigerer Fake (jeder Pfad findbar) war hier zuerst gruen, waehrend der
+    // Lauf gegen ein echtes Obsidian rot blieb — die Ausgangsnotiz steht in keinem Index und
+    // in keinem State, sie muss also ueber `extraPaths` mitgeprimt werden.
+    const geprimt: string[] = [];
+    const mitLookup: SyncDeps = {
+      ...deps,
+      lookupFor: async (_p, extraPaths) => {
+        geprimt.push(...(extraPaths ?? []));
+        return {
+          byUid: () => undefined,
+          byPath: (p2: string) => (geprimt.includes(p2) && p2 === eigene.path ? eigene : undefined),
+          exists: (p2: string) => p2 === eigene.path,
+          hasBacklinks: () => false,
+        };
+      },
+    };
+    const plan = updatePlan({ createsNew: true, etag: undefined, claimsNote: { path: eigene.path, uid: UID } });
+    const res = await executeCommandPlan(mitLookup, baseSettings(), plan);
+    expect(res.ok).toBe(true);
+    expect(executor.calls.map((c) => [c.op, c.path])).toEqual([["update", eigene.path]]);
+    expect(geprimt).toContain(eigene.path);
+  });
+
   it("Erfolg: PUT (If-Match) + Resync legt/aktualisiert Notiz ueber den Executor an", async () => {
     const transport = fakeTransport();
     const { deps, executor } = makeDeps({ transport });

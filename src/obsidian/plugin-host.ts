@@ -132,7 +132,7 @@ export function buildSyncDeps(app: App, pluginDir: string, host: { settings(): P
       const base = obsidianTransport({ timeoutMs: host.settings().sync.requestTimeoutMs });
       return withBasicAuth(base, account.username, password);
     },
-    async lookupFor(profile): Promise<NoteLookup> {
+    async lookupFor(profile, extraPaths): Promise<NoteLookup> {
       const lookup = new VaultNoteLookup(app, profile);
       const settings = host.settings();
       // Sammlungen, deren EFFEKTIVES Profil (inkl. Ordner-Override) genau dieses `profile` ist —
@@ -142,7 +142,7 @@ export function buildSyncDeps(app: App, pluginDir: string, host: { settings(): P
         return ep?.id === profile.id && ep.folder === profile.folder;
       });
       const pathLists = await Promise.all(cols.map((c) => statePathsFor(app, sourceOf(c), pluginDir)));
-      await lookup.prime(pathLists.flat());
+      await lookup.prime([...pathLists.flat(), ...(extraPaths ?? [])]);
       return lookup;
     },
     executor,

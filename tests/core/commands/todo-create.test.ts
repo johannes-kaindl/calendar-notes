@@ -26,6 +26,24 @@ describe("planTodoCreate", () => {
     expect(p.contentType).toBe("text/calendar");
   });
 
+  it("beansprucht die Ausgangsnotiz fuer die erzeugte UID", () => {
+    // Ohne diesen Anspruch legt der Resync nach dem PUT eine ZWEITE Notiz an, und die
+    // Ausgangsnotiz bliebe ohne dav_uid — beim naechsten Lauf waere sie wieder "neu" und
+    // legte die Aufgabe erneut auf dem Server an (gemessen als P28 des GUI-Smokes).
+    const p = planTodoCreate(ctx(), { title: "Rueckruf Werkstatt" }, "Tasks/Rueckruf Werkstatt.md");
+    const uid = primaryTodo(parseTodos(p.newRaw))?.uid;
+    expect(p.claimsNote).toEqual({ path: "Tasks/Rueckruf Werkstatt.md", uid });
+    // Die UID im Anspruch MUSS die des Bodys sein — eine zweite erzeugte waere eine, die auf
+    // dem Server nie ankommt, und der Anspruch liefe ins Leere.
+    expect(p.hrefForPut.endsWith(`${uid}.ics`)).toBe(true);
+  });
+
+  it("laesst claimsNote weg, wenn kein Notizpfad genannt ist", () => {
+    // Der Weg ueber `api.execute` kennt keine Ausgangsnotiz — dort darf kein Anspruch
+    // entstehen, sonst beansprucht der Plan einen Pfad, den niemand gemeint hat.
+    expect(planTodoCreate(ctx(), { title: "X" }).claimsNote).toBeUndefined();
+  });
+
   it("legt den href unter der Collection an und endet auf .ics", () => {
     const p = planTodoCreate(ctx(), { title: "X" });
     expect(p.hrefForPut.startsWith("https://dav.example/cal/todo/")).toBe(true);

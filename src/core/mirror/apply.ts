@@ -30,6 +30,15 @@ export interface ApplyInput {
   now: Date;
   timeWindow?: Window;
   resolveAttendee?: AttendeeResolver;
+  /**
+   * „Diese UID gehoert zu dieser bereits vorhandenen Notiz."
+   *
+   * Der Weg fuer eine im Vault entstandene Aufgabe, die gerade erst auf den Server geschrieben
+   * wurde: sie traegt noch keine `dav_uid`, `byUid` findet sie also nicht — ohne diesen Hinweis
+   * entstuende eine zweite Notiz daneben (s. `CommandPlan.claimsNote`). Der Hinweis gilt fuer
+   * genau eine UID; alles andere laeuft weiter ueber `byUid`.
+   */
+  claim?: { path: string; uid: string };
 }
 export interface ApplyResult {
   plans: NotePlan[];
@@ -104,7 +113,10 @@ export function applyDelta(i: ApplyInput): ApplyResult {
       const inWindow = objectInWindow(kind, obj.data, i.timeWindow);
       for (const it of items) {
         const rid = it.recurrenceId ?? "";
-        const existing = i.lookup.byUid(it.uid, i.source, it.recurrenceId);
+        // Der Anspruch greift nur fuer die genannte UID und nur, wenn `byUid` nichts findet:
+        // eine bereits gespiegelte Notiz gewinnt immer gegen ihn.
+        const existing = i.lookup.byUid(it.uid, i.source, it.recurrenceId)
+          ?? (i.claim && i.claim.uid === it.uid && it.recurrenceId === undefined ? i.lookup.byPath(i.claim.path) : undefined);
         if (!inWindow) {
           if (existing) push(planArchive(i.profile, existing));
           continue;

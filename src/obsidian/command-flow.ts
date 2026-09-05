@@ -423,7 +423,7 @@ export class CommandFlow {
 
   private bauTodoCreate(a: TodoSyncAuswahl, settings: PluginSettings): CommandPlan | null {
     const ctx = this.ctxFuer(a, settings);
-    return ctx ? planTodoCreate(ctx, a.note.note.frontmatter) : null;
+    return ctx ? planTodoCreate(ctx, a.note.note.frontmatter, a.note.note.path) : null;
   }
 
   // ── gemeinsame Bausteine ─────────────────────────────────────────────────

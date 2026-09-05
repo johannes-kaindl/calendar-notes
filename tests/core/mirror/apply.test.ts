@@ -204,6 +204,63 @@ describe("applyDelta — todos", () => {
     });
     expect(out.plans.filter((x) => x.op === "create")).toHaveLength(1);
   });
+  it("beansprucht die genannte Notiz fuer eine neue UID, statt eine zweite anzulegen", () => {
+    // Der Fall: eine im Vault entstandene Aufgabe wurde gerade auf den Server geschrieben.
+    // Sie traegt noch keine dav_uid, `byUid` findet sie also nicht — ohne `claim` entstuende
+    // "Tasks/Steuererklärung vorbereiten (2).md" daneben, und die Ausgangsnotiz waere beim
+    // naechsten Lauf wieder "neu" (gemessen als P28 des GUI-Smokes, 2026-09-05).
+    const eigene = { path: "Tasks/Eigene Aufgabe.md", frontmatter: { title: "Steuererklärung vorbereiten" }, body: "Belege suchen." };
+    const out = applyDelta({
+      profile: defaultTodoProfile(),
+      source: "acc/tasks",
+      now: NOW,
+      state: emptyState("acc/tasks"),
+      lookup: lookupOf([eigene]),
+      claim: { path: eigene.path, uid: "todo-1@test" },
+      delta: delta({ changed: [{ href: "https://s/cal/t1.ics", data: fx("ical", "todo-simple.ics"), etag: '"e1"' }] }),
+    });
+    expect(out.plans.map((x) => [x.op, x.path])).toEqual([["update", "Tasks/Eigene Aufgabe.md"]]);
+    const pl = out.plans[0]!;
+    if (pl.op !== "update") throw new Error("erwartet: update");
+    expect(pl.set["dav_uid"]).toBe("todo-1@test");
+    expect(pl.set["dav_source"]).toBe("acc/tasks");
+    expect(out.state.objects["/cal/t1.ics"]!.notes[""]!.path).toBe("Tasks/Eigene Aufgabe.md");
+  });
+
+  it("ignoriert den Anspruch fuer eine ANDERE UID", () => {
+    // Sonst risse ein Anspruch eine beliebige fremde Aufgabe an sich, sobald zwei Objekte im
+    // selben Delta ankommen — der Anspruch gilt fuer genau eine UID.
+    const fremde = { path: "Tasks/Fremde Notiz.md", frontmatter: {}, body: "" };
+    const out = applyDelta({
+      profile: defaultTodoProfile(),
+      source: "acc/tasks",
+      now: NOW,
+      state: emptyState("acc/tasks"),
+      lookup: lookupOf([fremde]),
+      claim: { path: fremde.path, uid: "eine-ganz-andere@test" },
+      delta: delta({ changed: [{ href: "https://s/cal/t1.ics", data: fx("ical", "todo-simple.ics"), etag: '"e1"' }] }),
+    });
+    expect(out.plans.map((x) => x.op)).toEqual(["create"]);
+    expect(out.plans[0]!.path).not.toBe(fremde.path);
+  });
+
+  it("laesst eine bereits gespiegelte Notiz gegen den Anspruch gewinnen", () => {
+    // byUid vor claim: waere es umgekehrt, verschoebe ein Anspruch eine schon zugeordnete
+    // Aufgabe auf eine andere Notiz.
+    const gespiegelt = { path: "Tasks/Schon da.md", frontmatter: { dav_uid: "todo-1@test", dav_source: "acc/tasks" }, body: "" };
+    const andere = { path: "Tasks/Anspruch.md", frontmatter: {}, body: "" };
+    const out = applyDelta({
+      profile: defaultTodoProfile(),
+      source: "acc/tasks",
+      now: NOW,
+      state: emptyState("acc/tasks"),
+      lookup: lookupOf([gespiegelt, andere]),
+      claim: { path: andere.path, uid: "todo-1@test" },
+      delta: delta({ changed: [{ href: "https://s/cal/t1.ics", data: fx("ical", "todo-simple.ics"), etag: '"e1"' }] }),
+    });
+    expect(out.plans.map((x) => x.path)).toEqual(["Tasks/Schon da.md"]);
+  });
+
   it("archiviert eine lange erledigte Aufgabe statt sie anzulegen", () => {
     const p = defaultTodoProfile();
     const alt = fx("ical", "todo-done.ics").replace("COMPLETED:20260814T183000Z", "COMPLETED:20200101T000000Z");

@@ -48,7 +48,16 @@ export interface SyncDeps {
   secrets: SecretStore;
   stateStore: StateStore;
   transportFor(account: Account, password: string): Transport;
-  lookupFor(profile: MappingProfile): Promise<NoteLookup>; // inkl. prime()
+  /**
+   * `NoteLookup` fuer dieses Profil, bereits geprimt (Index-Pfade + State-Pfade).
+   *
+   * `extraPaths` primt zusaetzliche Notizen, die in beiden Quellen NICHT vorkommen — der Fall
+   * ist eine im Vault entstandene Aufgabe, die gerade erst auf den Server geschrieben wurde:
+   * sie traegt noch keine `dav_uid`, steht also in keinem Index und in keinem State. Ohne sie
+   * hier zu nennen, liefert `byPath` fuer sie `undefined` (bewusst — s. `VaultNoteLookup`),
+   * und `CommandPlan.claimsNote` liefe ins Leere.
+   */
+  lookupFor(profile: MappingProfile, extraPaths?: string[]): Promise<NoteLookup>;
   executor: PlanExecutor;
   notify: Notifier;
   now(): Date;
