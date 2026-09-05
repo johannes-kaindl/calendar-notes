@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { executeCommandPlan, resyncObject } from "../../../src/core/sync/execute";
+import { describe, it, expect, vi } from "vitest";
+import { executeCommandPlan, executeCommandPlans, resyncObject } from "../../../src/core/sync/execute";
 import { createBusyGuard, type BusyGuard } from "../../../src/core/sync/busy";
 import { createEmitter, type SyncEvents } from "../../../src/core/sync/events";
 import type { SyncDeps, Notifier, PlanExecutor } from "../../../src/core/sync/types";
@@ -360,5 +360,67 @@ describe("resyncObject", () => {
     const { plans, error } = await resyncObject(deps, baseSettings(), "ab1", CARD_HREF);
     expect(plans).toEqual([]);
     expect(error).toBe("no-secret");
+  });
+});
+
+describe("executeCommandPlans", () => {
+  it("nimmt den Busy-Guard EINMAL, nicht je Plan", async () => {
+    // DER Regressionstest dieses Moduls. `busy.ts` haelt bewusst KEINEN
+    // Reentrancy-Zaehler; eine Schleife ueber die oeffentliche `executeCommandPlan` bekaeme
+    // ab dem zweiten Plan "busy" zurueck — bei intakter API und ohne dass irgendjemand
+    // kollidiert. Der Fehler saehe aus wie ein Nebenlaeufigkeitsproblem und waere ein
+    // Eigentor.
+    const busy = createBusyGuard();
+    const spy = vi.spyOn(busy, "tryAcquire");
+    const { deps } = makeDeps({ transport: fakeTransport(), busy });
+    const r = await executeCommandPlans(deps, baseSettings(), [
+      updatePlan({ hrefForPut: CARD_HREF }),
+      updatePlan({ hrefForPut: CARD_HREF }),
+      updatePlan({ hrefForPut: CARD_HREF }),
+    ]);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(r).toHaveLength(3);
+    expect(busy.isBusy()).toBe(false); // am Ende wieder freigegeben
+  });
+
+  it("gibt je Plan ein Ergebnis in derselben Reihenfolge zurueck", async () => {
+    const { deps } = makeDeps({ transport: fakeTransport() });
+    const a = updatePlan({ commandId: "a" });
+    const b = updatePlan({ commandId: "b" });
+    const r = await executeCommandPlans(deps, baseSettings(), [a, b]);
+    expect(r.map((x) => x.plan.commandId)).toEqual(["a", "b"]);
+  });
+
+  it("bricht mit busy ab, wenn ein anderer Lauf den Guard haelt", async () => {
+    const busy = createBusyGuard();
+    busy.tryAcquire();
+    const { deps } = makeDeps({ transport: fakeTransport(), busy });
+    const r = await executeCommandPlans(deps, baseSettings(), [updatePlan()]);
+    expect(r[0]?.result).toMatchObject({ ok: false, error: "busy" });
+  });
+
+  it("stoppt nach einem Transportfehler", async () => {
+    // Spec § 6: ist das Netz weg, kosten weitere Versuche nur Zeit. Zwei Plaene hinein,
+    // ein Ergebnis heraus — ohne den Abbruch waeren es zwei.
+    const { deps } = makeDeps({ transport: fakeTransport({ throws: true }) });
+    const r = await executeCommandPlans(deps, baseSettings(), [updatePlan(), updatePlan()]);
+    expect(r).toHaveLength(1);
+    expect(r[0]?.result).toMatchObject({ ok: false, error: "transport-error" });
+  });
+
+  it("macht nach einem Konflikt weiter", async () => {
+    // Ein 412 betrifft genau ein Objekt; die uebrigen muessen trotzdem geschrieben werden.
+    const { deps } = makeDeps({ transport: fakeTransport({ putStatus: 412 }) });
+    const r = await executeCommandPlans(deps, baseSettings(), [updatePlan(), updatePlan()]);
+    expect(r).toHaveLength(2);
+    expect(r[0]?.result).toMatchObject({ ok: false, conflict: true });
+  });
+
+  it("gibt eine leere Liste ohne Plaene zurueck und nimmt den Guard gar nicht", async () => {
+    const busy = createBusyGuard();
+    const spy = vi.spyOn(busy, "tryAcquire");
+    const { deps } = makeDeps({ transport: fakeTransport(), busy });
+    expect(await executeCommandPlans(deps, baseSettings(), [])).toEqual([]);
+    expect(spy).not.toHaveBeenCalled();
   });
 });

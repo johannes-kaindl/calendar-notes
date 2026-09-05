@@ -138,6 +138,43 @@ export async function executeCommandPlan(deps: SyncDeps, settings: PluginSetting
   }
 }
 
+export interface PlanOutcome { plan: CommandPlan; result: ExecuteResult }
+
+/**
+ * Fuehrt mehrere Plaene unter EINEM Busy-Guard aus.
+ *
+ * ⚠️ Warum das nicht einfach eine Schleife ueber `executeCommandPlan` ist: `busy.ts` haelt
+ * bewusst KEINEN Reentrancy-Zaehler („ein einfacher gemeinsamer Zustand reicht"). Eine
+ * Schleife ueber die oeffentliche Variante bekaeme ab dem zweiten Plan `busy` zurueck — bei
+ * intakter API und ohne dass irgendjemand kollidiert. Der Fehler saehe aus wie ein
+ * Nebenlaeufigkeitsproblem und waere in Wahrheit ein Eigentor.
+ *
+ * Umgekehrt darf der Guard auch nicht entfallen: sonst faehrt der Intervall-Sync zwischen
+ * zwei Plaene und schreibt gegen dieselbe Collection.
+ *
+ * **Teilerfolg ist ein gueltiger Ausgang** — jeder Plan bekommt sein eigenes Ergebnis. Ein
+ * KONFLIKT stoppt die uebrigen nicht (er betrifft genau ein Objekt), ein TRANSPORTFEHLER
+ * schon: ist die Verbindung weg, kosten weitere Versuche nur Zeit, und der Aufrufer soll
+ * sehen, wo der Lauf endete, statt eine Liste identischer Fehler zu bekommen.
+ */
+export async function executeCommandPlans(deps: SyncDeps, settings: PluginSettings, plans: CommandPlan[]): Promise<PlanOutcome[]> {
+  if (plans.length === 0) return [];
+  if (!deps.busy.tryAcquire()) {
+    return plans.map((plan) => ({ plan, result: { ok: false, conflict: false, error: "busy" } }));
+  }
+  try {
+    const out: PlanOutcome[] = [];
+    for (const plan of plans) {
+      const result = await executeCommandPlanLocked(deps, settings, plan);
+      out.push({ plan, result });
+      if (!result.ok && !result.conflict && result.error === "transport-error") break;
+    }
+    return out;
+  } finally {
+    deps.busy.release();
+  }
+}
+
 async function executeCommandPlanLocked(deps: SyncDeps, settings: PluginSettings, plan: CommandPlan): Promise<ExecuteResult> {
   const resolved = resolve(deps, settings, plan);
   if ("error" in resolved) return { ok: false, conflict: false, error: resolved.error };
