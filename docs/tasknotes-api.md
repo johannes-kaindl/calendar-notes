@@ -15,7 +15,24 @@ konsultiert zu werden.
 { "packageName": "@tasknotes/model", "specVersion": "0.3.0-rc.3", "runtimeApiVersion": 1 }
 ```
 
-`api.hasCapability("catalog.read")` und `("model.read")` → beide `true`.
+`api.hasCapability("catalog.read")` und `("model.read")` → beide `true`. Das ist unser Gate
+(`src/obsidian/tasknotes.ts:107`).
+
+⚠️ **Die Capability-Strings sind NICHT systematisch — ein aus dem Methodennamen abgeleiteter
+String kann `false` liefern, obwohl die Methode existiert und funktioniert.** Gemessen von
+`mailstone-81` am 2026-09-05 (hier nicht nachgemessen): `hasCapability("tasks.create")` → `false`,
+während `api.tasks.create` eine funktionsfähige Funktion ist und `hasCapability("tasks.write")`
+→ `true` sagt. Wer den naheliegenden String als Gate nimmt, sperrt sich bei intakter API lautlos
+selbst aus.
+
+Für uns folgenlos — `catalog.read` ist oben unabhängig gemessen —, aber die Lehre gilt über den
+Anlass hinaus: **jeden Capability-String, den man neu benutzt, einmal gegen die Existenz der
+Methode gegenprüfen**, statt ihn aus dem Namen zu bilden.
+
+ⓘ **Ebenfalls von `mailstone-81` gemeldet, hier noch nicht nachgemessen:** `api.apiVersion`
+existiert als eigenes Feld am api-Objekt (`number`, Wert 1) — neben `model.info().runtimeApiVersion`.
+Zwei Versionsfelder nebeneinander; diese Datei kannte bisher nur das zweite. Beim nächsten
+Live-Kontakt mit laufendem TaskNotes selbst messen und diesen Vorbehalt dann streichen.
 
 ## `api.model.config().statuses`
 
