@@ -3,8 +3,8 @@ import type { Account, CollectionConfig } from "../settings";
 import type { ObjectSchema } from "./schema";
 
 export type CommandTarget =
-  | { kind: "event" | "contact"; source: string; href: string; uid: string }
-  | { kind: "event" | "contact"; source: string; new: true };
+  | { kind: "event" | "contact" | "todo"; source: string; href: string; uid: string }
+  | { kind: "event" | "contact" | "todo"; source: string; new: true };
 
 export interface CommandContext {
   now: Date;

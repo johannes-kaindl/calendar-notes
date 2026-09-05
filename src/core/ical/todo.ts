@@ -65,6 +65,18 @@ function todoFromComponent(vt: ICAL.Component): TodoData {
   return t;
 }
 
+/**
+ * Das massgebliche VTODO einer Ressource — Pendant zu `primaryEvent`.
+ *
+ * Anders als dort gibt es hier keine RECURRENCE-ID-Auswahl: `TodoData` fuehrt kein solches
+ * Feld, weil Instanz-Notizen fuer wiederkehrende Aufgaben ausdrueckliches Nicht-Ziel sind
+ * (Spec M6a § 11). Eine CalDAV-Ressource traegt regulaer genau ein VTODO; mehrere waeren
+ * Instanzen derselben Serie, und dann ist die erste die Serie selbst.
+ */
+export function primaryTodo(todos: TodoData[]): TodoData | undefined {
+  return todos[0];
+}
+
 export function parseTodos(ics: string): TodoData[] {
   const jcal: unknown = ICAL.parse(ics);
   if (!Array.isArray(jcal)) throw new Error("kein VCALENDAR");

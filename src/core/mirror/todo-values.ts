@@ -4,7 +4,7 @@ import type { MappingProfile } from "./profile";
 import type { ManagedValues } from "./fields";
 
 /** RFC 5545 3.8.1.9: 1–4 hoch, 5 normal, 6–9 niedrig, 0 = undefiniert. */
-function priorityValue(p: MappingProfile, prio: number | undefined): string | undefined {
+export function priorityValue(p: MappingProfile, prio: number | undefined): string | undefined {
   if (prio === undefined || prio === 0) return undefined;
   const map = p.priorityMap;
   if (!map) return undefined;
@@ -13,7 +13,7 @@ function priorityValue(p: MappingProfile, prio: number | undefined): string | un
   return map.low;
 }
 
-function statusValue(p: MappingProfile, status: string | undefined): string | undefined {
+export function statusValue(p: MappingProfile, status: string | undefined): string | undefined {
   const map = p.statusMap;
   if (!map) return undefined; // lieber nichts schreiben als eine geratene Vokabel
   switch (status?.toUpperCase()) {

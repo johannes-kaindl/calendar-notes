@@ -1,13 +1,17 @@
 import { fmKeyFor, type FmVal } from "../mirror/profile";
 import { fmEquals } from "../mirror/hash";
 import { parseEvents, primaryEvent } from "../ical/event";
+import { parseTodos, primaryTodo } from "../ical/todo";
+import { applyTodoMutation, type TodoMutation } from "../ical/mutate";
+import { reverseStatus, reversePriority } from "../mirror/todo-reverse";
+import { diffTodoFields, hrefOfTodoTarget, todoServerFeld } from "./todo-commands";
 import { applyMutation, type EventMutation } from "../ical/mutate";
 import { parseContact } from "../vcard/contact";
 import { applyContactMutation, type ContactMutation } from "../vcard/mutate";
 import { diffEventFields, hrefOfEventTarget } from "./event-commands";
 import { diffContactFields, hrefOfContactTarget } from "./contact-commands";
 import type { CommandContext, CommandPlan } from "./types";
-import { assertNever, nichtUnterstuetzt } from "../mirror/kind";
+import { assertNever } from "../mirror/kind";
 
 export interface SkippedField {
   key: string;
@@ -119,6 +123,59 @@ function planContactHandEdits(ctx: CommandContext, frontmatter: Record<string, u
   };
 }
 
+/**
+ * Handaenderungen an einer Aufgaben-Notiz als Server-Plan.
+ *
+ * Der Unterschied zu Termin und Kontakt steckt in `status` und `priority`: beide Felder
+ * werden NICHT einfach uebernommen, sondern durch die bewahrende Rueckabbildung geschickt
+ * (`todo-reverse.ts`). Liefert sie `undefined`, entsteht fuer dieses Feld keine Mutation —
+ * der Serverzustand passt weiterhin zum Frontmatter-Wert, es gibt also nichts zu schreiben.
+ * Genau daran haengt, dass eine abgebrochene Aufgabe nicht zu einer erledigten wird.
+ *
+ * Folge fuer den Aufrufer: `keys.length > 0` heisst NICHT, dass ein Plan entsteht. Aendert
+ * jemand nur den Status auf einen Wert, der weiter zum Server passt, ist das Ergebnis `null`
+ * ohne `skipped`-Eintrag — nichts uebersprungen, nichts zu tun.
+ */
+function planTodoHandEdits(ctx: CommandContext, frontmatter: Record<string, unknown>, keys: string[], skipped: SkippedField[]): CommandPlan | null {
+  const before = ctx.raw;
+  if (before === undefined) throw new Error("push-hand-edits: kein Rohdaten (raw) vorhanden");
+  const beforeTodo = primaryTodo(parseTodos(before));
+  if (!beforeTodo) throw new Error("push-hand-edits: kein VTODO vorhanden");
+  const mutations: TodoMutation[] = [];
+  for (const fmKey of keys) {
+    const sf = todoServerFeld(ctx.profile, fmKey);
+    if (!sf) { skipped.push({ key: fmKey, reason: "kein unterstuetztes Server-Feld fuer dieses Frontmatter-Feld" }); continue; }
+    const raw = frontmatter[fmKey];
+    switch (sf) {
+      case "title": mutations.push({ kind: "summary", summary: str(raw) ?? "" }); break;
+      case "description": mutations.push({ kind: "description", description: nullableStr(raw) }); break;
+      case "due": mutations.push({ kind: "due", due: nullableStr(raw) }); break;
+      case "start": mutations.push({ kind: "start", start: nullableStr(raw) }); break;
+      case "categories": mutations.push({ kind: "categories", categories: Array.isArray(raw) ? raw.map(String) : [] }); break;
+      case "status": {
+        const s = reverseStatus(ctx.profile, beforeTodo.status, raw);
+        if (s) mutations.push({ kind: "status", status: s });
+        break;
+      }
+      case "priority": {
+        const p = reversePriority(ctx.profile, beforeTodo.priority, raw);
+        if (p !== undefined) mutations.push({ kind: "priority", priority: p });
+        break;
+      }
+    }
+  }
+  if (mutations.length === 0) return null;
+  const newRaw = mutations.reduce((raw, m) => applyTodoMutation(raw, m, { now: ctx.now }), before);
+  const afterTodo = primaryTodo(parseTodos(newRaw));
+  if (!afterTodo) throw new Error("push-hand-edits: kein VTODO nach Mutation");
+  return {
+    commandId: "push-hand-edits", target: ctx.target,
+    summary: "Write hand edits to the server", summaryKey: "plan.push-hand-edits.summary", summaryArgs: [],
+    diff: diffTodoFields(beforeTodo, afterTodo), newRaw,
+    etag: ctx.etag, contentType: "text/calendar", hrefForPut: hrefOfTodoTarget(ctx.target), createsNew: false,
+  };
+}
+
 export function planPushHandEdits(ctx: CommandContext, frontmatter: Record<string, unknown>, prevWritten: Record<string, FmVal>): PushHandEditsResult {
   const keys = handEditedKeys(frontmatter, prevWritten);
   const skipped: SkippedField[] = [];
@@ -126,7 +183,7 @@ export function planPushHandEdits(ctx: CommandContext, frontmatter: Record<strin
   let plan: CommandPlan | null;
   if (ctx.profile.kind === "event") plan = planEventHandEdits(ctx, frontmatter, keys, skipped);
   else if (ctx.profile.kind === "contact") plan = planContactHandEdits(ctx, frontmatter, keys, skipped);
-  else if (ctx.profile.kind === "todo") nichtUnterstuetzt(ctx.profile.kind, "Hand-Edits");
+  else if (ctx.profile.kind === "todo") plan = planTodoHandEdits(ctx, frontmatter, keys, skipped);
   else assertNever(ctx.profile.kind, "Hand-Edits");
   return { plan, skipped };
 }

@@ -3,10 +3,14 @@ import { commandsFor, findCommand } from "../core/commands/registry";
 import { targetFromFrontmatter } from "../core/commands/target";
 import type { CommandContext, CommandDescriptor, CommandPlan, CommandTarget } from "../core/commands/types";
 import { planPushHandEdits } from "../core/commands/push-hand-edits";
-import { resolveHref } from "../core/dav/url";
-import { effectiveProfile, sourceOf, type Account, type CollectionConfig } from "../core/settings";
+import { hrefPath, resolveHref } from "../core/dav/url";
+import { listEtags } from "../core/dav/sync";
+import { effectiveProfile, sourceOf, type Account, type CollectionConfig, type PluginSettings } from "../core/settings";
 import type { ObjectState } from "../core/state/collection-state";
-import { executeCommandPlan, resyncObject, type ExecuteResult } from "../core/sync/execute";
+import { executeCommandPlan, executeCommandPlans, resyncObject, type ExecuteResult } from "../core/sync/execute";
+import { baseCollectionOf } from "../core/sync/service";
+import { classifyTodos, type ClassifiedTodo, type TodoNoteState } from "../core/sync/todo-collect";
+import { nichtUebertragbareKeys, planTodoCreate } from "../core/commands/todo-commands";
 import type { SyncDeps } from "../core/sync/types";
 import { describeExecuteError } from "./execute-i18n";
 import { t } from "../i18n/strings";
@@ -15,6 +19,7 @@ import { tr, trPlan, trTitle } from "./command-i18n";
 import { SchemaFormModal } from "./command-modal";
 import type { InviteRouter } from "./invite";
 import { PlanPreviewModal } from "./plan-preview-modal";
+import { TodoSyncModal, type TodoSyncAuswahl } from "./todo-sync-modal";
 
 /** Waehlt eine AKTIVIERTE Sammlung EINER Art (Kalender/Adressbuch) fuer „neuer Termin/Kontakt". */
 class KindCollectionSuggestModal extends FuzzySuggestModal<CollectionConfig> {
@@ -66,6 +71,36 @@ interface ResolvedTarget {
  * noch `addCommand`, die eigentliche Kette (Ziel erkennen → Formular → Vorschau → ausfuehren
  * → Einladung ausliefern) lebt hier, damit main.ts nicht weiter waechst.
  */
+/**
+ * Auswahl → Arbeitsliste. Bewusst pur und exportiert, damit die Zuordnung ohne DOM testbar
+ * ist: sie traegt die Regel, dass "Server gewinnt" KEIN DAV-Schreibvorgang ist, sondern ein
+ * `resyncObject` — der einzige Weg, auf dem dieses Kommando Vault-Inhalt ueberschreibt.
+ *
+ * Beide Bauer duerfen `null` liefern (keine Rohdaten, kein Kontext, oder schlicht nichts zu
+ * aendern, weil die bewahrende Rueckabbildung keinen Wechsel sieht). Das ist kein Fehler und
+ * faellt hier still weg.
+ */
+export function planlisteAus(
+  auswahl: TodoSyncAuswahl[],
+  bauHandEdit: (a: TodoSyncAuswahl) => CommandPlan | null,
+  bauCreate: (a: TodoSyncAuswahl) => CommandPlan | null,
+): { plaene: CommandPlan[]; resync: { collectionId: string; href: string }[] } {
+  const plaene: CommandPlan[] = [];
+  const resync: { collectionId: string; href: string }[] = [];
+  for (const a of auswahl) {
+    if (a.entscheidung === "server") {
+      const { collectionId, href } = a.note.note;
+      // Ohne beides gibt es nichts nachzuholen — eine nie gespiegelte Notiz hat keinen
+      // Serverstand, den der Server gewinnen koennte.
+      if (collectionId && href) resync.push({ collectionId, href });
+      continue;
+    }
+    const plan = a.note.group === "new" ? bauCreate(a) : bauHandEdit(a);
+    if (plan) plaene.push(plan);
+  }
+  return { plaene, resync };
+}
+
 export class CommandFlow {
   constructor(
     private readonly app: App,
@@ -179,6 +214,216 @@ export class CommandFlow {
       return;
     }
     await this.openPreview(plan, resolved, () => this.fireAndForget(this.runPushHandEdits(true), t("op.pushHandEdits")));
+  }
+
+  // ── command-todo-sync ────────────────────────────────────────────────────
+  runTodoSync(): void {
+    this.fireAndForget(this.startTodoSync(), t("op.command"));
+  }
+
+  /**
+   * Der Einstiegspunkt des Sammel-Kommandos. Die Reihenfolge zaehlt: erst der Serverstand
+   * (ein Request je SAMMLUNG, nicht je Notiz), dann klassifizieren, dann fragen, dann
+   * schreiben — letzteres unter EINEM Busy-Guard (`executeCommandPlans`).
+   */
+  private async startTodoSync(): Promise<void> {
+    const settings = this.deps.settings();
+    const notes = await this.sammleTodoNotizen(settings);
+    const klassifiziert = classifyTodos(notes, await this.holeServerEtags(settings, notes));
+    if (klassifiziert.length === 0) {
+      new Notice(t("todoSync.empty"));
+      return;
+    }
+    new TodoSyncModal(
+      this.app,
+      klassifiziert,
+      (auswahl) => this.fireAndForget(this.sendeAuswahl(auswahl), t("op.command")),
+      (c) => this.nichtUebertragbarFuer(c, settings),
+    ).open();
+  }
+
+  /** Welche geaenderten Felder dieser Zeile gehen NICHT mit (Spec §4)? Braucht das Profil,
+   *  deshalb hier und nicht im Modal. */
+  private nichtUebertragbarFuer(c: ClassifiedTodo, settings: PluginSettings): string[] {
+    const col = settings.collections.find((x) => x.id === c.note.collectionId);
+    const profile = col ? effectiveProfile(settings, col) : undefined;
+    return profile ? nichtUebertragbareKeys(profile, c.changedKeys) : [];
+  }
+
+  private async sendeAuswahl(auswahl: TodoSyncAuswahl[]): Promise<void> {
+    const settings = this.deps.settings();
+    // Die Plaene werden VORHER gebaut, weil `bauTodoHandEdit` Rohdaten nachlaedt und damit
+    // asynchron ist — `planlisteAus` bleibt bewusst synchron und pur, sonst waere die
+    // Zuordnungsregel (insbesondere "Server gewinnt" → kein Plan) nicht ohne DOM testbar.
+    const vorbereitet = new Map<string, CommandPlan | null>();
+    for (const a of auswahl) {
+      if (a.entscheidung !== "vault") continue;
+      const plan = a.note.group === "new" ? this.bauTodoCreate(a, settings) : await this.bauTodoHandEdit(a, settings);
+      vorbereitet.set(a.note.note.path, plan);
+    }
+    const nachschlagen = (a: TodoSyncAuswahl): CommandPlan | null => vorbereitet.get(a.note.note.path) ?? null;
+    const { plaene, resync } = planlisteAus(auswahl, nachschlagen, nachschlagen);
+
+    const ergebnisse = await executeCommandPlans(this.deps, settings, plaene);
+    const nachgezogen = await this.holeServerstand(settings, resync);
+    const ok = ergebnisse.filter((e) => e.result.ok).length;
+    const konflikte = ergebnisse.filter((e) => !e.result.ok && e.result.conflict).length;
+    if (ergebnisse.length > 0) new Notice(t("todoSync.result", ok, ergebnisse.length - ok));
+    if (konflikte > 0) new Notice(t("todoSync.resultConflict", konflikte));
+    if (nachgezogen > 0) new Notice(t("todoSync.resultResync", nachgezogen));
+  }
+
+  /**
+   * "Server gewinnt" ausfuehren: den Serverstand in die Notiz holen.
+   *
+   * Unter dem Busy-Guard, weil `resyncObject` gegen den Collection-State SCHREIBT — dieselbe
+   * Luecke, die M4/Review-Runde 3 in `resolveTargetFresh` geschlossen hat. Ohne ihn liefe das
+   * hier parallel zu einem `SyncService.runAll()` gegen denselben State.
+   */
+  private async holeServerstand(settings: PluginSettings, resync: { collectionId: string; href: string }[]): Promise<number> {
+    if (resync.length === 0) return 0;
+    if (!this.deps.busy.tryAcquire()) {
+      new Notice(describeExecuteError("busy"));
+      return 0;
+    }
+    let ok = 0;
+    try {
+      for (const r of resync) {
+        try {
+          const res = await resyncObject(this.deps, settings, r.collectionId, r.href);
+          if (!res.error) ok += 1;
+        } catch {
+          // Ein werfender Resync (Transportfehler) darf den Lauf nicht abbrechen: die PUTs
+          // sind zu diesem Zeitpunkt schon geschrieben, und ihre Ergebnis-Meldung steht noch
+          // aus. Sie zu verschlucken waere schlimmer als ein nicht nachgezogener Serverstand.
+        }
+      }
+    } finally {
+      this.deps.busy.release();
+    }
+    return ok;
+  }
+
+  /**
+   * Alle Aufgaben-Notizen mit ihrem zuletzt geschriebenen Stand.
+   *
+   * Zwei Quellen, und beide werden gebraucht: der Collection-State kennt die **gespiegelten**
+   * Aufgaben (uid/href/etag/written), der Profilordner zusaetzlich die **neuen**, die es dort
+   * noch nicht gibt. Ohne die zweite Quelle fehlte die Gruppe „neu" komplett.
+   *
+   * Die beiden Schleifen laufen NACHEINANDER ueber alle Sammlungen, nicht ineinander: sonst
+   * haelt die Ordner-Schleife eine gespiegelte Notiz fuer neu, weil ihre Sammlung erst spaeter
+   * an der Reihe ist — und legt sie bei zwei Aufgaben-Sammlungen zweimal an.
+   */
+  private async sammleTodoNotizen(settings: PluginSettings): Promise<TodoNoteState[]> {
+    const out: TodoNoteState[] = [];
+    const gesehen = new Set<string>();
+    const cols = settings.collections.filter((c) => c.enabled && effectiveProfile(settings, c)?.kind === "todo");
+
+    for (const col of cols) {
+      const state = await this.deps.stateStore.load(sourceOf(col));
+      // Der State-Schluessel IST der href-Pfad — genau der Vertrag, auf den `classifyTodos`
+      // seine ETag-Karte stuetzt. Deshalb `entries`, nicht `values`.
+      for (const [hp, obj] of Object.entries(state.objects)) {
+        for (const note of Object.values(obj.notes)) {
+          if (!(this.app.vault.getAbstractFileByPath(note.path) instanceof TFile)) continue;
+          gesehen.add(note.path);
+          out.push({
+            path: note.path,
+            frontmatter: this.frontmatterVon(note.path),
+            prevWritten: note.written ?? {},
+            uid: obj.uid,
+            href: hrefPath(resolveHref(col.href, hp)),
+            etag: obj.etag,
+            collectionId: col.id,
+          });
+        }
+      }
+    }
+
+    for (const col of cols) {
+      const profile = effectiveProfile(settings, col);
+      if (!profile) continue;
+      const praefix = `${profile.folder}/`;
+      for (const file of this.app.vault.getMarkdownFiles()) {
+        if (!file.path.startsWith(praefix) || gesehen.has(file.path)) continue;
+        const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
+        if (frontmatter[profile.uidField]) continue; // traegt eine dav_uid → gehoert dem State
+        gesehen.add(file.path); // zwei Sammlungen duerfen sich denselben Ordner teilen
+        out.push({ path: file.path, frontmatter, prevWritten: {}, collectionId: col.id });
+      }
+    }
+    return out;
+  }
+
+  private frontmatterVon(path: string): Record<string, unknown> {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    return file instanceof TFile ? (this.app.metadataCache.getFileCache(file)?.frontmatter ?? {}) : {};
+  }
+
+  /**
+   * Der Serverstand als ETag-Karte — **ein** Request je Sammlung, nicht einer je Notiz.
+   *
+   * Das ist der Grund, warum die vollstaendige Konfliktanzeige bezahlbar ist (Spec §3): bei
+   * zwanzig geaenderten Aufgaben in einer Sammlung kostet sie einen Request, nicht zwanzig.
+   */
+  private async holeServerEtags(settings: PluginSettings, notes: TodoNoteState[]): Promise<Map<string, string>> {
+    const karte = new Map<string, string>();
+    const ids = new Set(notes.map((n) => n.collectionId).filter((x): x is string => !!x));
+    for (const id of ids) {
+      const col = settings.collections.find((c) => c.id === id);
+      const account = col ? settings.accounts.find((a) => a.id === col.accountId) : undefined;
+      if (!col || !account) continue;
+      const secret = this.deps.secrets.get(account.secretId);
+      if (secret === null || secret === "") continue;
+      try {
+        const etags = await listEtags(this.deps.transportFor(account, secret), baseCollectionOf(col), {});
+        for (const [href, etag] of Object.entries(etags)) karte.set(href, etag);
+      } catch {
+        // Eine unerreichbare Sammlung darf den ganzen Lauf nicht toeten: ihre Notizen landen
+        // dann in "conflict" (kein ETag gefunden) und werden dem Nutzer vorgelegt, statt
+        // stillschweigend ueberschrieben zu werden.
+      }
+    }
+    return karte;
+  }
+
+  /** Der Kommando-Kontext einer Auswahlzeile — wie `resolveTarget`, nur ohne die aktive
+   *  Datei, weil der Sammellauf ueber viele Notizen geht. */
+  private ctxFuer(a: TodoSyncAuswahl, settings: PluginSettings, raw?: string, etag?: string): CommandContext | undefined {
+    const n = a.note.note;
+    const col = settings.collections.find((c) => c.id === n.collectionId);
+    const account = col ? settings.accounts.find((x) => x.id === col.accountId) : undefined;
+    const profile = col ? effectiveProfile(settings, col) : undefined;
+    if (!col || !account || !profile) return undefined;
+    const source = sourceOf(col);
+    // `n.href` ist ein href-PFAD (Schluessel-Vertrag aus Task 4); der PUT braucht die volle URL.
+    const target: CommandTarget =
+      n.href && n.uid
+        ? { kind: "todo", source, href: resolveHref(col.href, n.href), uid: n.uid }
+        : { kind: "todo", source, new: true };
+    return buildCommandContext({
+      app: this.app, settings, now: this.deps.now(), profile, collection: col, account, target,
+      ...(raw !== undefined ? { raw } : {}),
+      ...(etag !== undefined ? { etag } : {}),
+    });
+  }
+
+  private async bauTodoHandEdit(a: TodoSyncAuswahl, settings: PluginSettings): Promise<CommandPlan | null> {
+    const n = a.note.note;
+    if (!n.collectionId || !n.href) return null;
+    const col = settings.collections.find((c) => c.id === n.collectionId);
+    if (!col) return null;
+    const obj = (await this.deps.stateStore.load(sourceOf(col))).objects[n.href];
+    if (!obj) return null;
+    const ctx = this.ctxFuer(a, settings, obj.raw, obj.etag);
+    if (!ctx) return null;
+    return planPushHandEdits(ctx, n.frontmatter, n.prevWritten).plan;
+  }
+
+  private bauTodoCreate(a: TodoSyncAuswahl, settings: PluginSettings): CommandPlan | null {
+    const ctx = this.ctxFuer(a, settings);
+    return ctx ? planTodoCreate(ctx, a.note.note.frontmatter) : null;
   }
 
   // ── gemeinsame Bausteine ─────────────────────────────────────────────────

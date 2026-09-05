@@ -24,7 +24,9 @@ function skipped(collectionId: string, dryRun: boolean, reason: NonNullable<Coll
   return { collectionId, ok: true, dryRun, plans: [], counts: zeroCounts(), handEdited: [], skippedReason: reason };
 }
 
-function baseCollectionOf(col: CollectionConfig): DavCollection {
+/** `CollectionConfig` → `DavCollection`. Exportiert seit M6b, damit der Aufgaben-Abgleich
+ *  fuer `listEtags` dieselbe Umrechnung nutzt statt eines Casts. */
+export function baseCollectionOf(col: CollectionConfig): DavCollection {
   return {
     href: col.href,
     kind: col.kind,

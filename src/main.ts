@@ -8,7 +8,7 @@ import { withBasicAuth } from "./core/dav/transport";
 import type { MappingProfile, ProfileKind } from "./core/mirror/profile";
 import { suggestProfileFromNote } from "./core/mirror/profile-from-note";
 import { assertNever } from "./core/mirror/kind";
-import { normalizeSettings, repairSecretLinks, sourceOf, type Account, type CollectionConfig, type PluginSettings } from "./core/settings";
+import { effectiveProfile, normalizeSettings, repairSecretLinks, sourceOf, type Account, type CollectionConfig, type PluginSettings } from "./core/settings";
 import type { CalendarNotesApi } from "./core/api/types";
 import { ensureDefaultCommands } from "./core/commands/registry";
 import type { RunInfo } from "./core/state/collection-state";
@@ -251,6 +251,19 @@ export default class CalendarNotesPlugin extends Plugin {
     this.addCommand({ id: "new-contact", name: t("cmd.newContact"), callback: () => this.commandFlow.newContact() });
     this.addCommand({ id: "undo-last-change", name: t("cmd.undo"), callback: () => this.commandFlow.undoLast() });
     this.addCommand({ id: "push-hand-edits", name: t("cmd.pushHandEdits"), callback: () => this.commandFlow.pushHandEdits() });
+    this.addCommand({
+      id: "todo-sync",
+      name: t("todoSync.title"),
+      // `checkCallback`, weil das Kommando ohne aktivierte Aufgaben-Sammlung nichts tun
+      // KANN — gemessen an der Sammlung, nicht am blossen Vorhandensein eines Profils:
+      // ein angelegtes, aber nirgends zugewiesenes Profil ergaebe ein Kommando, das sich
+      // mit "nichts zu senden" meldet, obwohl gar nichts eingerichtet ist.
+      checkCallback: (checking: boolean) => {
+        const moeglich = this.settings.collections.some((c) => c.enabled && effectiveProfile(this.settings, c)?.kind === "todo");
+        if (moeglich && !checking) this.commandFlow.runTodoSync();
+        return moeglich;
+      },
+    });
   }
 
   private async runAll(): Promise<void> {

@@ -28,7 +28,15 @@ export async function multiget(t: Transport, col: DavCollection, hrefs: string[]
   return out;
 }
 
-async function listEtags(t: Transport, col: DavCollection, opts: SyncOptions): Promise<Record<string, string>> {
+/**
+ * Die ETags einer Sammlung, verschluesselt auf **href-Pfade** (nicht volle URLs).
+ *
+ * Exportiert seit M6b: der Aufgaben-Abgleich braucht den Serverstand, ohne die Rohdaten zu
+ * holen — ein Request je Sammlung statt einer je Notiz. Wer die Karte benutzt, muss seine
+ * eigenen href-Werte durch dieselbe Normalisierung schicken (`hrefPath(resolveHref(...))`),
+ * sonst trifft kein Schluessel und alles sieht nach Konflikt aus.
+ */
+export async function listEtags(t: Transport, col: DavCollection, opts: SyncOptions): Promise<Record<string, string>> {
   let res;
   if (col.kind === "calendar" && opts.timeRange) {
     res = await t({ method: "REPORT", url: col.href, headers: { Depth: "1", ...XML }, body: calendarQueryBody(opts.timeRange) });
