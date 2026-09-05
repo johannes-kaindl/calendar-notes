@@ -230,6 +230,8 @@ export const EN: Record<string, string> = {
 
   "plan.retry": "Retry with the current version",
 
+  "plan.todo.create.summary": "Create task on the server",
+
   "plan.undo.last.summary": "Undo last change (state from {0})",
 
   "settings.accounts.add": "Add account",
@@ -326,6 +328,23 @@ export const EN: Record<string, string> = {
   "preview.perCollection.counts": "{0}: {1} created, {2} updated, {3} archived, {4} deleted, {5} unchanged, {6} errors",
   "preview.perCollection.error": "{0}: failed — {1}",
   "preview.perCollection.skipped": "{0}: skipped ({1})",
+
+  "todoSync.cancel": "Cancel",
+  "todoSync.choice.server": "Server wins",
+  "todoSync.choice.skip": "Skip",
+  "todoSync.choice.vault": "Vault wins",
+  "todoSync.conflict.hint": "These tasks changed here AND on the server. Choose per row which side wins — “server” discards your change in the note.",
+  "todoSync.empty": "Nothing to send — every task matches the server.",
+  "todoSync.group.conflict": "Changed on both sides ({0})",
+  "todoSync.group.new": "New, not on the server yet ({0})",
+  "todoSync.group.vaultOnly": "Changed in the vault ({0})",
+  "todoSync.result": "{0} written, {1} failed.",
+  "todoSync.resultConflict": "{0} could not be written because they changed on the server in the meantime.",
+  "todoSync.selectAll": "Select all",
+  "todoSync.selectNone": "Clear selection",
+  "todoSync.send": "Send {0}",
+  "todoSync.skippedFields": "Not transferable: {0}",
+  "todoSync.title": "Sync tasks with the server",
 };
 
 export const DE: Record<string, string> = {
@@ -548,6 +567,8 @@ export const DE: Record<string, string> = {
 
   "plan.retry": "Mit frischem Stand erneut",
 
+  "plan.todo.create.summary": "Aufgabe auf dem Server anlegen",
+
   "plan.undo.last.summary": "Letzte Änderung zurücknehmen (Stand von {0})",
 
   "settings.accounts.add": "Konto hinzufügen",
@@ -644,6 +665,23 @@ export const DE: Record<string, string> = {
   "preview.perCollection.counts": "{0}: {1} neu, {2} aktualisiert, {3} archiviert, {4} gelöscht, {5} unverändert, {6} Fehler",
   "preview.perCollection.error": "{0}: fehlgeschlagen — {1}",
   "preview.perCollection.skipped": "{0}: übersprungen ({1})",
+
+  "todoSync.cancel": "Abbrechen",
+  "todoSync.choice.server": "Server gewinnt",
+  "todoSync.choice.skip": "Überspringen",
+  "todoSync.choice.vault": "Vault gewinnt",
+  "todoSync.conflict.hint": "Diese Aufgaben haben sich hier UND auf dem Server geändert. Wähle je Zeile, welche Seite gewinnt — „Server“ verwirft deine Änderung in der Notiz.",
+  "todoSync.empty": "Nichts zu senden — jede Aufgabe stimmt mit dem Server überein.",
+  "todoSync.group.conflict": "Auf beiden Seiten geändert ({0})",
+  "todoSync.group.new": "Neu, noch nicht auf dem Server ({0})",
+  "todoSync.group.vaultOnly": "Im Vault geändert ({0})",
+  "todoSync.result": "{0} geschrieben, {1} fehlgeschlagen.",
+  "todoSync.resultConflict": "{0} konnten nicht geschrieben werden, weil sie sich zwischenzeitlich auf dem Server geändert haben.",
+  "todoSync.selectAll": "Alle auswählen",
+  "todoSync.selectNone": "Auswahl aufheben",
+  "todoSync.send": "{0} senden",
+  "todoSync.skippedFields": "Nicht übertragbar: {0}",
+  "todoSync.title": "Aufgaben mit dem Server abgleichen",
 };
 
 export function initI18n(rawLang: string | null | undefined): void {
