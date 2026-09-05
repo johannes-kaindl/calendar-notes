@@ -1,5 +1,9 @@
 import type { TodoData } from "../ical/todo";
-import type { CommandTarget } from "./types";
+import { parseTodos, primaryTodo } from "../ical/todo";
+import { newTodoIcs } from "../ical/mutate";
+import { reverseStatus, reversePriority } from "../mirror/todo-reverse";
+import { fmKeyFor } from "../mirror/profile";
+import type { CommandContext, CommandPlan, CommandTarget } from "./types";
 
 /**
  * Die Server-Felder einer Aufgabe, die aus dem Vault heraus geschrieben werden duerfen.
@@ -42,4 +46,62 @@ export function diffTodoFields(before: TodoData | undefined, after: TodoData): {
     if (b !== a) out.push({ field: String(f), ...(b !== undefined ? { before: b } : {}), ...(a !== undefined ? { after: a } : {}) });
   }
   return out;
+}
+
+/** Liest einen Frontmatter-Wert ueber die Profil-Abbildung statt ueber einen festen Namen —
+ *  `start` heisst im Default-Profil `scheduled`, `categories` heisst `tags`. Wer den
+ *  Server-Feldnamen als Frontmatter-Key nimmt, findet nichts und legt still eine leere
+ *  Aufgabe an. */
+function fmWert(ctx: CommandContext, fm: Record<string, unknown>, serverField: string): unknown {
+  const key = fmKeyFor(ctx.profile, serverField);
+  return key === null ? undefined : fm[key];
+}
+
+function text(v: unknown): string | undefined {
+  return typeof v === "string" && v.length > 0 ? v : undefined;
+}
+
+/**
+ * Eine im Vault entstandene Aufgabe zum Server-Objekt machen.
+ *
+ * Die UID wird hier erzeugt, nicht vom Server vergeben: CalDAV verlangt sie im Body, und der
+ * Name der Ressource leitet sich davon ab. Beide muessen uebereinstimmen — laufen sie
+ * auseinander, findet der naechste Sync die Notiz nicht wieder. `ctx.rand` ist injizierbar,
+ * damit der Test einen festen Namen bekommt.
+ *
+ * `createsNew: true` waehlt in `executeCommandPlanLocked` den `If-None-Match: *`-Header. Das
+ * schuetzt gegen eine Ressource, die zwischen Planung und Ausfuehrung unter demselben Namen
+ * entstanden ist — unwahrscheinlich, aber der Header kostet nichts und die Alternative waere
+ * ein stilles Ueberschreiben.
+ *
+ * Status und Prioritaet laufen ueber dieselbe bewahrende Rueckabbildung wie beim
+ * Zurueckschreiben. Beim Anlegen gibt es kein "Vorher", also ist `alt` immer `undefined`;
+ * liefert die Abbildung nichts, faellt `newTodoIcs` auf `NEEDS-ACTION` zurueck statt zu raten.
+ */
+export function planTodoCreate(ctx: CommandContext, frontmatter: Record<string, unknown>): CommandPlan {
+  const uid = `cn-${Math.floor(ctx.rand() * 1e9).toString(36)}-${ctx.now.getTime().toString(36)}@calendar-notes`;
+  const status = reverseStatus(ctx.profile, undefined, fmWert(ctx, frontmatter, "status"));
+  const prio = reversePriority(ctx.profile, undefined, fmWert(ctx, frontmatter, "priority"));
+  const kategorien = fmWert(ctx, frontmatter, "categories");
+  const due = text(fmWert(ctx, frontmatter, "due"));
+  const start = text(fmWert(ctx, frontmatter, "start"));
+  const beschreibung = text(fmWert(ctx, frontmatter, "description"));
+  const newRaw = newTodoIcs({
+    uid,
+    summary: text(fmWert(ctx, frontmatter, "title")) ?? "",
+    ...(due !== undefined ? { due } : {}),
+    ...(start !== undefined ? { start } : {}),
+    ...(beschreibung !== undefined ? { description: beschreibung } : {}),
+    ...(status !== undefined ? { status } : {}),
+    ...(typeof prio === "number" ? { priority: prio } : {}),
+    ...(Array.isArray(kategorien) ? { categories: kategorien.map(String) } : {}),
+  }, { now: ctx.now });
+  const after = primaryTodo(parseTodos(newRaw));
+  if (!after) throw new Error("planTodoCreate: erzeugtes ICS enthaelt kein VTODO");
+  return {
+    commandId: "todo.create", target: ctx.target,
+    summary: "Create task on the server", summaryKey: "plan.todo.create.summary", summaryArgs: [],
+    diff: diffTodoFields(undefined, after), newRaw,
+    contentType: "text/calendar", hrefForPut: `${ctx.collection.href}${uid}.ics`, createsNew: true,
+  };
 }
