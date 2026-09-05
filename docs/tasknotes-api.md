@@ -29,6 +29,13 @@ Für uns folgenlos — `catalog.read` ist oben unabhängig gemessen —, aber di
 Anlass hinaus: **jeden Capability-String, den man neu benutzt, einmal gegen die Existenz der
 Methode gegenprüfen**, statt ihn aus dem Namen zu bilden.
 
+ⓘ **Ebenfalls von `mailstone-81` gemeldet (2026-09-05), hier nicht nachgemessen — betrifft uns
+nicht, weil wir es nirgends nutzen:** `model.validateTask` taugt **nicht** als Vorab-Prüfung
+einer Erstellungs-Eingabe. Es verlangt ein vollständiges `TaskInfo` (`status`, `dateCreated`,
+`dateModified`) und meldet `missing_required` auch für Eingaben, mit denen `tasks.create`
+klaglos anlegt — es prüft den Zustand **nach** dem Anlegen, nicht die Eingabe **davor**. Der
+Name legt das Gegenteil nahe; deshalb steht es hier.
+
 ⓘ **Ebenfalls von `mailstone-81` gemeldet, hier noch nicht nachgemessen:** `api.apiVersion`
 existiert als eigenes Feld am api-Objekt (`number`, Wert 1) — neben `model.info().runtimeApiVersion`.
 Zwei Versionsfelder nebeneinander; diese Datei kannte bisher nur das zweite. Beim nächsten
