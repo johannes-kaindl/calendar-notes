@@ -36,10 +36,21 @@ einer Erstellungs-Eingabe. Es verlangt ein vollständiges `TaskInfo` (`status`, 
 klaglos anlegt — es prüft den Zustand **nach** dem Anlegen, nicht die Eingabe **davor**. Der
 Name legt das Gegenteil nahe; deshalb steht es hier.
 
-ⓘ **Ebenfalls von `mailstone-81` gemeldet, hier noch nicht nachgemessen:** `api.apiVersion`
-existiert als eigenes Feld am api-Objekt (`number`, Wert 1) — neben `model.info().runtimeApiVersion`.
-Zwei Versionsfelder nebeneinander; diese Datei kannte bisher nur das zweite. Beim nächsten
-Live-Kontakt mit laufendem TaskNotes selbst messen und diesen Vorbehalt dann streichen.
+✅ **Nachgemessen am 2026-09-05** (TaskNotes 4.12.5, laufende Instanz, lesender Einzelzugriff):
+`api.apiVersion` existiert als eigenes Feld am api-Objekt, `typeof "number"`, Wert **1** — und
+`model.info().runtimeApiVersion` liefert **denselben** Wert. Von `mailstone-81` gemeldet, hier
+bestätigt; der frühere Vorbehalt ist damit erledigt.
+
+Zwei Versionsfelder nebeneinander sagen aber **nicht**, dass eines das andere ersetzt: gemessen
+ist nur, dass sie heute übereinstimmen — nicht, dass sie es müssen. Wer eine Version prüft,
+nimmt `model.info()`, weil dort auch `specVersion` steht (die Form, die sich ändert), und weil
+`apiVersion` am Wurzelobjekt hängt, das TaskNotes ohne Ankündigung umbauen kann.
+
+**Die 23 Schlüssel des api-Objekts** (2026-09-05): `apiVersion`, `bases`, `catalog`, `errors`,
+`events`, `extensionRegistry`, `extensions`, `lifecycle`, `model`, `mutationContextByPath`,
+`mutationContextStack`, `nlp`, `plugin`, `pomodoro`, `query`, `recurring`, `relationships`,
+`settings`, `stats`, `system`, `tasks`, `time`, `ui`. Für `calendar-notes` bleiben davon genau
+zwei erlaubt (`model`, `catalog`) — die Liste steht hier als Messbefund, nicht als Angebot.
 
 ## `api.model.config().statuses`
 
