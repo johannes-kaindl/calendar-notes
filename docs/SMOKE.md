@@ -108,10 +108,15 @@ private TS-Methoden (`startAdoption`, `confirmAdoption`, `discoverAccount`,
 `createProfileFromNote`) sind zur Laufzeit ganz normale Objekteigenschaften (TS `private`
 ist ein Compile-Zeit-Konzept) und darüber ohne Änderung an `main.ts` erreichbar.
 
-## Lauf 2026-09-05 — `--section todo` 15/15, mit einem gefundenen Defekt
+## Lauf 2026-09-05 — `todo` 15/15, `generic` 14/14, `pallas` 6/6 — mit einem gefundenen Defekt
 
 M6b/Task 11. Gegen die laufende Instanz gefahren (**mitgenutzt, nicht neu gestartet** — an ihr
 hingen fünf fremde Vaults), CDP-Lock `--exclusive focus`.
+
+`generic` und `pallas` liefen **nach** dem M6b-Merge nochmal, weil dieser mit `apply.ts` und
+`execute.ts` geteilten Kern angefasst hat: 14/14 und 6/6, keine Regression. Ein Abschnitt, der
+den geänderten Code gar nicht ruft, ist keine Aussage über ihn — der `claim`-Weg ist optional,
+aber er liegt in derselben Schleife.
 
 **Die Baseline hat sofort etwas gefunden.** Vor der Erweiterung mit dem *alten* Treiberstand
 gefahren: **8/9**, P1 rot. Nicht das Plugin — der Prüfpunkt zählt die Kommandos hart, und M6b
