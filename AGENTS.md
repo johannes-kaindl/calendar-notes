@@ -290,6 +290,52 @@ füttern `apply.ts` mit bereits geholten Rohdaten — die Lücke lag zwischen de
 der Compiler sie nicht sieht: sie verzweigen auf den Profil-`kind`, ohne einen `never`-Zweig
 zu erzwingen. Kommt eine vierte Sorte dazu, gehört sie dort ausdrücklich eingetragen.
 
+## Was M6b liefert
+
+**Die Rückrichtung: Vault → Server.** Ein Sammel-Kommando (`todo-sync`) zeigt alle
+Unterschiede gruppiert und fragt je Zeile, welche Seite gewinnt. Gebündelt wird die
+**Bestätigung**, nicht das Schreiben ohne sie.
+
+- `src/core/mirror/todo-reverse.ts` — `reverseStatus`/`reversePriority`, **bewahrend**.
+- `src/core/sync/todo-collect.ts` — `classifyTodos`: drei Gruppen (nur im Vault geändert /
+  neu / auf beiden Seiten geändert), rein, transportfrei. Der Serverstand kommt als
+  **ETag-Karte je Sammlung** (ein Request, nicht einer je Notiz) — das macht die vollständige
+  Konfliktanzeige bezahlbar.
+- `src/core/commands/todo-commands.ts` — `planTodoCreate` (Erstanlage mit `If-None-Match`),
+  `TODO_SUPPORTED`, `todoServerFeld`.
+- `src/core/sync/execute.ts` — `executeCommandPlans`: mehrere Pläne unter **einem**
+  Busy-Guard.
+- `src/obsidian/todo-sync-modal.ts` — das Auswahl-Modal.
+- 689 Unit-Tests + 6 Integrationstests, GUI-Smoke `--section todo` **15/15** mit Gegenprobe.
+
+**Löschen bleibt Nicht-Ziel** (Spec §8): kein Weg im Plugin erzeugt einen `delete`-Plan für
+eine Aufgabe. Wer eine Notiz löscht, löscht die Notiz — die Aufgabe auf dem Server bleibt.
+
+### Drei Sätze, die eine spätere Session braucht
+
+**Die Zusage „eine abgebrochene Aufgabe wird nicht zu einer erledigten" hängt an ZWEI
+Eigenschaften, nicht an einer.** `statusMap` bildet `CANCELLED` und `COMPLETED` beide auf
+`done` ab, rückwärts ist die Abbildung also nicht eindeutig. Es tragen: (a) `planTodoHandEdits`
+mutiert **nur geänderte** Frontmatter-Schlüssel, und (b) `reverseStatus` schreibt nichts, wenn
+der alte Serverzustand weiterhin auf den neuen Wert abbildet. Am 2026-09-05 live gemessen:
+schaltet man (a) ab, hält (b) die Zusage; schaltet man beide ab, wird aus `CANCELLED` ein
+`COMPLETED`. **Solange (a) steht, ist (b) unerreichbar** — `handEditedKeys` meldet `status` nur,
+wenn der Frontmatter-Wert vom zuletzt geschriebenen abweicht, und dann kann
+`statusValue(alt) === ziel` nicht mehr gelten. (b) ist also ein Netz für eine andere Bauart, kein
+Wirkmechanismus der aktuellen. Wer (a) ändert, zieht seine Begründung aus (b) — und umgekehrt.
+
+**Eine im Vault entstandene Aufgabe muss ihre neue UID BEANSPRUCHEN**
+(`CommandPlan.claimsNote` → `ApplyInput.claim`). Ohne das findet der Resync nach dem PUT keine
+Notiz zu dieser UID, legt eine zweite an, und die Ausgangsnotiz bleibt ohne `dav_uid` — beim
+nächsten Lauf ist sie wieder „neu" und legt die Aufgabe **erneut** an. Am 2026-09-05 als P28 des
+GUI-Smokes gemessen und behoben.
+
+⚠️ **`VaultNoteLookup.byPath` liefert nur GEPRIMTE Pfade** — das ist Absicht (s. Klassenkopf),
+aber es macht jeden Fake gefährlich, der großzügiger ist. Der erste Fix zum Absatz darüber war
+im Unit-Test grün und gegen ein echtes Obsidian rot, weil der Fake jeden Pfad fand. Wer eine
+Notiz auflöst, die weder im Profil-Index noch im State steht, nennt ihren Pfad in
+`lookupFor(profile, extraPaths)` — und der Fake im Test bildet das nach.
+
 ## Release-Checkliste
 
 Kurzfassung — Details in `docs/RELEASE.md` (Ablauf) und `docs/STORE.md` (Scorecard-
