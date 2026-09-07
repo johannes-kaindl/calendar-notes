@@ -125,7 +125,7 @@ export class MemoryStateStore implements StateStore
 **Interfaces:**
 ```ts
 export interface NoteIndexEntry { path: string; uid: string; source: string; recurrenceId?: string }
-export function buildNoteIndex(files: { path: string; frontmatter?: Record<string, unknown> }[], profile: MappingProfile): Map<string, NoteIndexEntry>   // pure Helfer; key = `${source} ${uid} ${recurrenceId ?? ""}`
+export function buildNoteIndex(files: { path: string; frontmatter?: Record<string, unknown> }[], profile: MappingProfile): Map<string, NoteIndexEntry>   // pure Helfer; key = `${source}\x00${uid}\x00${recurrenceId ?? ""}`
 export class VaultNoteLookup implements NoteLookup   // constructor(app: App, profile: MappingProfile); baut Index aus app.vault.getMarkdownFiles() + metadataCache.getFileCache(f)?.frontmatter beim ersten Zugriff (lazy) ; byPath liest Frontmatter aus Cache und Body aus app.vault.cachedRead → NoteLookup ist synchron, deshalb: `await lookup.prime(paths?)` lädt Bodies vorab für alle Index-Treffer (Service ruft prime() vor applyDelta); `hasBacklinks(path)` scannt metadataCache.resolvedLinks nach Einträgen mit Ziel path
 export interface PlanExecutor { execute(plan: NotePlan): Promise<void> }
 export function vaultPlanExecutor(app: App): PlanExecutor
