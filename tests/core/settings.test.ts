@@ -53,6 +53,13 @@ describe("settings", () => {
     expect(effectiveProfile(s, c)?.folder).toBe("Termine/2026");
     expect(effectiveProfile(s, { ...c, profileId: "nope" })).toBeUndefined();
   });
+
+  it("secretIdFor bleibt zur Vorlage byte-gleich für bestehende Konto-IDs", () => {
+    // Bestands-IDs sind UUID-artig oder Kleinbuchstaben-Slugs; die Kit-Fassung normalisiert
+    // nur Zeichen außerhalb [a-z0-9-] — für diese IDs ändert sich also nichts.
+    expect(secretIdFor("3fa85f64-5717-4562-b3fc-2c963f66afa6")).toBe("calendar-notes-3fa85f64-5717-4562-b3fc-2c963f66afa6");
+    expect(secretIdFor("privat")).toBe("calendar-notes-privat");
+  });
 });
 
 describe("repairSecretLinks", () => {

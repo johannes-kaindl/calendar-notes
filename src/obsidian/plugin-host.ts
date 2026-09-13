@@ -9,9 +9,9 @@ import { createBusyGuard } from "../core/sync/busy";
 import type { Notifier, SyncDeps } from "../core/sync/types";
 import { t } from "../i18n/strings";
 import type { MailTransport } from "../core/api/types";
-import { obsidianSecretStore } from "./secrets";
 import { adapterStateStore } from "./state-store";
 import { obsidianTransport } from "./transport";
+import { obsidianSecretStore } from "../vendor/kit-obsidian/secrets";
 import { vaultPlanExecutor, VaultNoteLookup } from "./vault-notes";
 
 /** Registry fuer Fremd-Plugin-Mail-Transporte (mailstone-Vertrag, s. `invite.ts`).

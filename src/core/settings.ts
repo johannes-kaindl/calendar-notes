@@ -1,4 +1,5 @@
 import { mergeSettings } from "../vendor/code-kit/settings";
+import { secretIdFor as kitSecretIdFor } from "../vendor/kit/secrets";
 import { defaultContactProfile, defaultEventProfile, defaultTodoProfile, validateProfile, type MappingProfile, type ProfileKind } from "./mirror/profile";
 import type { SchedulingInfo } from "./dav/scheduling";
 import type { SecretStore } from "./sync/types";
@@ -200,7 +201,7 @@ export function normalizeSettings(raw: unknown): PluginSettings {
 }
 
 export function secretIdFor(accountId: string): string {
-  return `calendar-notes-${accountId}`;
+  return kitSecretIdFor("calendar-notes", accountId);
 }
 
 /** Raeumt den Schaden auf, den die Versionen bis 0.1.4 angerichtet haben: der Passwort-Verweis

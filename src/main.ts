@@ -22,9 +22,10 @@ import { CommandFlow } from "./obsidian/command-flow";
 import { InviteRouter } from "./obsidian/invite";
 import { buildSyncDeps, createMailTransportRegistry, type MailTransportRegistry } from "./obsidian/plugin-host";
 import { PreviewModal } from "./obsidian/preview-modal";
-import { obsidianSecretStore, type SecretStore } from "./obsidian/secrets";
 import { CalendarNotesSettingTab, type SettingsHost } from "./obsidian/settings-tab";
 import { obsidianTransport } from "./obsidian/transport";
+import { obsidianSecretStore } from "./vendor/kit-obsidian/secrets";
+import type { SecretStore } from "./vendor/kit/secrets";
 
 /** Waehlt in der Kommandopalette eine der AKTIVIERTEN Sammlungen fuer einen Einzel-Sync. */
 class CollectionSuggestModal extends FuzzySuggestModal<CollectionConfig> {

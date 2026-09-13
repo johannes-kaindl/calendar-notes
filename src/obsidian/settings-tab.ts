@@ -26,8 +26,8 @@ import { t } from "../i18n/strings";
 import { FolderSuggest } from "../vendor/kit-obsidian/folder-suggest";
 import { settingBodyHost } from "../vendor/kit-obsidian/settings_walker";
 import { JsonModal } from "./json-modal";
-import type { SecretStore } from "./secrets";
 import { profileFromTaskNotes, readTaskNotes } from "./tasknotes";
+import type { SecretStore } from "../vendor/kit/secrets";
 
 /** Was der Tab vom Plugin braucht — als Interface, damit Tests eine Attrappe geben können. */
 export interface SettingsHost {

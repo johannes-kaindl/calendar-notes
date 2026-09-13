@@ -9,7 +9,7 @@ import { defaultSettings, type PluginSettings } from "../../src/core/settings";
 import type { Account, CollectionConfig } from "../../src/core/settings";
 import type { RunInfo } from "../../src/core/state/collection-state";
 import type { DiscoveryResult } from "../../src/core/dav/discovery";
-import type { SecretStore } from "../../src/obsidian/secrets";
+import type { SecretStore } from "../../src/vendor/kit/secrets";
 import { initI18n, t } from "../../src/i18n/strings";
 
 initI18n("de");
@@ -26,6 +26,7 @@ function fakeHost(settings: PluginSettings): SettingsHost & { saved: PluginSetti
     get: (id) => secretValues.get(id) ?? null,
     set: (id, v) => { secretWrites.push([id, v]); secretValues.set(id, v); },
     has: (id) => (secretValues.get(id) ?? "") !== "",
+    delete: (id) => { secretValues.delete(id); },
   };
   const host = {
     settings,

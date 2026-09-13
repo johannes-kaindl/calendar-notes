@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { obsidianSecretStore, MemorySecretStore } from "../../src/obsidian/secrets";
+import { obsidianSecretStore } from "../../src/vendor/kit-obsidian/secrets";
+import { MemorySecretStore } from "../../src/vendor/kit/secrets";
 import type { App } from "obsidian";
 
 function fakeApp(opts?: { setSecret?: (id: string, v: string) => void }): App {
@@ -62,12 +63,15 @@ describe("obsidianSecretStore", () => {
     expect(() => s.set("id1", "geheim")).toThrow("Obsidian SecretStorage did not persist id1");
   });
 
-  it("an empty secret counts as missing (has() is false)", () => {
+  it("an empty secret counts as missing (has() is false, get() is null)", () => {
+    // Kit-Fassung (0.35.0) normalisiert einen leeren Wert bei get() zusätzlich auf null
+    // (vorher: der rohe Leerstring) — Verhaltensänderung durch das Vendoring, keine bei
+    // secretIdFor (die ist per Test in tests/core/settings.test.ts byte-gleich verriegelt).
     const app = fakeApp();
     const s = obsidianSecretStore(app);
     s.set("id1", "");
     expect(s.has("id1")).toBe(false);
-    expect(s.get("id1")).toBe("");
+    expect(s.get("id1")).toBeNull();
   });
 
   it("strips a trailing newline before persisting (pbcopy < datei artifact)", () => {

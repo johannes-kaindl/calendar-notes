@@ -2,6 +2,6 @@
   "source": "obsidian-kit",
   "version": "0.28.0",
   "sha": "2ab1bb5",
-  "modules": "frontmatter.ts, vault-path.ts",
-  "note": "Verbatim snapshot aus der Git-Ref 0.28.0 (CORE-META-22: feste Ref, nicht Arbeitsstand). Never hand-edit. Re-vendor via tools/sync-kit.sh."
+  "modules": "frontmatter.ts, vault-path.ts + secrets.ts@0.35.0",
+  "note": "Verbatim snapshot aus der Git-Ref 0.28.0 (CORE-META-22: feste Ref, nicht Arbeitsstand). Never hand-edit. Re-vendor via tools/sync-kit.sh. secrets.ts liegt in diesem Verzeichnis auf einer EIGENEN, neueren Ref: obsidian-kit@0.35.0 (e7e3e19) — s. eigener Datei-Header, nicht diese Basis-Version."
 }

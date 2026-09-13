@@ -21,6 +21,12 @@ KIT=${KIT_DIR:-../obsidian-kit}
 CODEKIT=${CODEKIT_DIR:-/Users/Shared/code/code-kit}
 KIT_REF=${KIT_REF:-0.28.0}
 CODEKIT_REF=${CODEKIT_REF:-0.1.0}
+# secrets liegt bewusst auf einer EIGENEN, neueren Ref als der restliche obsidian-kit-Bestand
+# (Kit-Regel „Staffelung ist der Normalfall", Dach-AGENTS.md § obsidian-kit). Ein Versuch, am
+# 2026-09-13 KIT_REF fuer ALLE Module auf 0.35.0 zu heben, brach tests/vendor/kit/obsidian-mock.ts
+# unter tsconfig.test.json (vier TS2532 aus neuem Editor-Double-Code, unabhaengig von secrets) —
+# deshalb bleibt der Rest auf 0.28.0 und nur secrets zieht separat nach.
+SECRETS_REF=${SECRETS_REF:-0.35.0}
 
 # `^{commit}` ist Pflicht, nicht Kosmetik: beide Repos taggen ANNOTIERT (gemessen 2026-09-04,
 # `git cat-file -t` sagt `tag`), ohne die Peelung landet das Tag-OBJEKT in VENDOR.json. Diese
@@ -37,16 +43,20 @@ ver_von() { git -C "$1" describe --tags --abbrev=0 "$2"; }
 
 git -C "$KIT" rev-parse --verify --quiet "$KIT_REF^{commit}" >/dev/null \
   || { echo "FEHLER: Ref '$KIT_REF' existiert nicht in $KIT." >&2; exit 1; }
+git -C "$KIT" rev-parse --verify --quiet "$SECRETS_REF^{commit}" >/dev/null \
+  || { echo "FEHLER: Ref '$SECRETS_REF' existiert nicht in $KIT." >&2; exit 1; }
 git -C "$CODEKIT" rev-parse --verify --quiet "$CODEKIT_REF^{commit}" >/dev/null \
   || { echo "FEHLER: Ref '$CODEKIT_REF' existiert nicht in $CODEKIT." >&2; exit 1; }
 
 K_SHA=$(sha_von "$KIT" "$KIT_REF");          K_VER=$(ver_von "$KIT" "$KIT_REF")
+SEC_SHA=$(sha_von "$KIT" "$SECRETS_REF");    SEC_VER=$(ver_von "$KIT" "$SECRETS_REF")
 CK_SHA=$(sha_von "$CODEKIT" "$CODEKIT_REF"); CK_VER=$(ver_von "$CODEKIT" "$CODEKIT_REF")
 
 CK_PURE="timeout sha256 filename-template settings i18n"
 K_PURE="frontmatter vault-path"
 K_OBS="settings_walker folder-suggest confirm"
 K_TEST="obsidian-mock"
+K_SECRETS="secrets"
 
 # VORPRUEFUNG, bevor irgendetwas geschrieben wird.
 #
@@ -73,6 +83,12 @@ done
 for f in $K_TEST; do
   git -C "$KIT" cat-file -e "$KIT_REF:src/testing/$f.ts" 2>/dev/null \
     || fehlend="$fehlend obsidian-kit@$KIT_REF:src/testing/$f.ts"
+done
+for f in $K_SECRETS; do
+  git -C "$KIT" cat-file -e "$SECRETS_REF:src/pure/$f.ts" 2>/dev/null \
+    || fehlend="$fehlend obsidian-kit@$SECRETS_REF:src/pure/$f.ts"
+  git -C "$KIT" cat-file -e "$SECRETS_REF:src/obsidian/$f.ts" 2>/dev/null \
+    || fehlend="$fehlend obsidian-kit@$SECRETS_REF:src/obsidian/$f.ts"
 done
 if [ -n "$fehlend" ]; then
   echo "FEHLER: Quellen fehlen:$fehlend" >&2
@@ -117,21 +133,42 @@ for f in $K_PURE; do
 done
 for f in $K_OBS; do
   vendor "src/vendor/kit-obsidian/$f.ts" "$KIT" "$KIT_REF" "$K_VER" obsidian-kit "src/obsidian/$f.ts"
+  # Import-Umschreibung: obsidian-kit haelt die reinen Module unter src/pure/, dieser Konsument
+  # vendort sie sibling zu src/vendor/kit-obsidian/ unter src/vendor/kit/ — ein Import
+  # "../pure/x" aus der Kit-Quelle muss deshalb auf "../kit/x" zeigen (gleiche relative Tiefe,
+  # nur anderer Ordnername). Betrifft z. B. secrets.ts (importiert ../pure/secrets).
+  sed -i.bak 's#from "\.\./pure/#from "../kit/#g' "src/vendor/kit-obsidian/$f.ts"
+  rm -f "src/vendor/kit-obsidian/$f.ts.bak"
 done
 for f in $K_TEST; do
   vendor "tests/vendor/kit/$f.ts" "$KIT" "$KIT_REF" "$K_VER" obsidian-kit "src/testing/$f.ts"
 done
+for f in $K_SECRETS; do
+  vendor "src/vendor/kit/$f.ts" "$KIT" "$SECRETS_REF" "$SEC_VER" obsidian-kit "src/pure/$f.ts"
+  vendor "src/vendor/kit-obsidian/$f.ts" "$KIT" "$SECRETS_REF" "$SEC_VER" obsidian-kit "src/obsidian/$f.ts"
+  sed -i.bak 's#from "\.\./pure/#from "../kit/#g' "src/vendor/kit-obsidian/$f.ts"
+  rm -f "src/vendor/kit-obsidian/$f.ts.bak"
+done
 
-# write_vendor_json <verzeichnis> <quell-repo> <version> <sha> <modul-liste>
+# write_vendor_json <verzeichnis> <quell-repo> <version> <sha> <modul-liste> [zusatz-note]
+#
+# Der "note"-Text traegt optional einen Staffel-Hinweis: das Verzeichnis kann Module aus ZWEI
+# Refs enthalten (Kit-Regel „Staffelung ist Normalfall"). Die einzelne Datei ist dabei die
+# verbindliche Wahrheit (eigener Header je Modul), dieses JSON ist nur die Aggregat-Ansicht
+# fuer die Basis-Ref — Dach-AGENTS.md: „Der Ordner ist die Absicht, der Header ist die Wahrheit."
 write_vendor_json() {
-  printf '{\n  "source": "%s",\n  "version": "%s",\n  "sha": "%s",\n  "modules": "%s",\n  "note": "Verbatim snapshot aus der Git-Ref %s (CORE-META-22: feste Ref, nicht Arbeitsstand). Never hand-edit. Re-vendor via tools/sync-kit.sh."\n}\n' \
-    "$2" "$3" "$4" "$5" "$3" > "$1/VENDOR.json"
+  zusatz=""
+  if [ -n "${6:-}" ]; then zusatz=" $6"; fi
+  printf '{\n  "source": "%s",\n  "version": "%s",\n  "sha": "%s",\n  "modules": "%s",\n  "note": "Verbatim snapshot aus der Git-Ref %s (CORE-META-22: feste Ref, nicht Arbeitsstand). Never hand-edit. Re-vendor via tools/sync-kit.sh.%s"\n}\n' \
+    "$2" "$3" "$4" "$5" "$3" "$zusatz" > "$1/VENDOR.json"
 }
 liste() { printf '%s.ts, ' $1 | sed 's/, $//'; }
 
+SEC_NOTE="secrets.ts liegt in diesem Verzeichnis auf einer EIGENEN, neueren Ref: obsidian-kit@$SEC_VER ($SEC_SHA) — s. eigener Datei-Header, nicht diese Basis-Version."
+
 write_vendor_json src/vendor/code-kit    code-kit     "$CK_VER" "$CK_SHA" "$(liste "$CK_PURE")"
-write_vendor_json src/vendor/kit         obsidian-kit "$K_VER"  "$K_SHA"  "$(liste "$K_PURE")"
-write_vendor_json src/vendor/kit-obsidian obsidian-kit "$K_VER" "$K_SHA"  "$(liste "$K_OBS")"
+write_vendor_json src/vendor/kit         obsidian-kit "$K_VER"  "$K_SHA"  "$(liste "$K_PURE") + secrets.ts@$SEC_VER" "$SEC_NOTE"
+write_vendor_json src/vendor/kit-obsidian obsidian-kit "$K_VER" "$K_SHA"  "$(liste "$K_OBS") + secrets.ts@$SEC_VER" "$SEC_NOTE"
 write_vendor_json tests/vendor/kit       obsidian-kit "$K_VER"  "$K_SHA"  "$(liste "$K_TEST")"
 
-echo "vendored: code-kit@$CK_VER ($CK_SHA) → $CK_PURE | obsidian-kit@$K_VER ($K_SHA) → $K_PURE $K_OBS $K_TEST"
+echo "vendored: code-kit@$CK_VER ($CK_SHA) → $CK_PURE | obsidian-kit@$K_VER ($K_SHA) → $K_PURE $K_OBS $K_TEST | obsidian-kit@$SEC_VER ($SEC_SHA) → $K_SECRETS (separat gepinnt)"
