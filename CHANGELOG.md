@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+- Schlüsselbund-Modul aus obsidian-kit 0.35.0 vendored (vorher eigene Kopie); Verhalten unverändert.
+
 ## [0.2.0] — 2026-09-05
 
 - **Aufgaben aus dem Kalender werden als Notizen gespiegelt.** Wer seine Aufgaben in Thunderbird, der iOS-Erinnerungen-App oder einem anderen CalDAV-Client führt, findet sie jetzt im Vault wieder — mit Fälligkeit, Status, Priorität und Kategorien im Frontmatter, in der Schreibweise, die TaskNotes erwartet. Ein Knopf in den Einstellungen liest die Statusnamen **aus der TaskNotes-Installation dieses Vaults** aus und trägt sie ins Profil ein; mitgelieferte Vorgaben wären falsch, weil die Namen frei umbenennbar sind. Aufgaben und Termine liegen bei den meisten Anbietern in getrennten Kalendern — das erkennt das Plugin jetzt selbst und weist das passende Profil zu.
