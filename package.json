@@ -20,7 +20,7 @@
     "preflight": "test -f ../tools/release/preflight.mjs || { echo \"FEHLER: ../tools/release/ fehlt.\" >&2; exit 1; }; node ../tools/release/preflight.mjs",
     "smoke:gui": "esbuild scripts/gui-smoke.ts --bundle --platform=node --format=esm --outfile=.gui-smoke.mjs --log-level=warning && node .gui-smoke.mjs",
     "shots": "esbuild scripts/shots.ts --bundle --platform=node --format=esm --outfile=.shots.mjs --log-level=warning && node .shots.mjs",
-    "shots:check": "test -f ../../_docs/readme/readme_lint.py && python3 ../../_docs/readme/readme_lint.py . || echo 'readme_lint.py nicht gefunden (maintainer-lokal) — uebersprungen'",
+    "shots:check": "D=\"${DOCS_ROOT:-$HOME/Projects/jkaindl/workspace/_docs}\"; test -f \"$D/readme/readme_lint.py\" || D=../../_docs; if test -f \"$D/readme/readme_lint.py\"; then python3 \"$D/readme/readme_lint.py\" .; else echo 'shots:check uebersprungen: readme_lint.py weder unter DOCS_ROOT bzw. ~/Projects/jkaindl/workspace/_docs noch unter ../../_docs (maintainer-lokal)'; fi",
     "kit:sync": "sh tools/sync-kit.sh"
   },
   "keywords": [
