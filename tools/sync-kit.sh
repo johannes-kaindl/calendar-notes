@@ -18,7 +18,7 @@
 # bei jedem Lauf einen Diff und machte die Probe unmoeglich. Was der Stand ist, sagt die Ref.
 set -e
 KIT=${KIT_DIR:-../obsidian-kit}
-CODEKIT=${CODEKIT_DIR:-/Users/Shared/code/code-kit}
+CODEKIT=${CODEKIT_DIR:-"$HOME/Projects/jkaindl/libs/code-kit"}
 KIT_REF=${KIT_REF:-0.28.0}
 CODEKIT_REF=${CODEKIT_REF:-0.1.0}
 # secrets liegt bewusst auf einer EIGENEN, neueren Ref als der restliche obsidian-kit-Bestand
