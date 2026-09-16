@@ -173,7 +173,7 @@ appear under their German names instead.
 
 ### Configuration
 
-<a href="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/settings.png"><img src="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/thumbs/settings.png" width="380" alt="The settings tab with one account (name, server URL, username, password stored on this device), the discovered collection group and the two default profiles"></a><br><sub>Click the preview for full size</sub>
+<a href="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/settings.png"><img src="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/thumbs/settings.png" width="380" alt="The settings tab with one account (name, server URL, username, password stored on this device) and the discovered collection group with a toggle each for calendar, tasks and contacts"></a><br><sub>Click the preview for full size</sub>
 
 | Setting | What it does | Default |
 |---|---|---|

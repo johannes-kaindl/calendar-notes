@@ -180,7 +180,7 @@ Die mittlere Spalte ist, was in der Befehlspalette getippt wird.
 
 ### Konfiguration
 
-<a href="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/settings.png"><img src="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/thumbs/settings.png" width="380" alt="Der Einstellungen-Tab mit einem Konto (Name, Server-URL, Benutzername, Passwort auf diesem Gerät hinterlegt), der gefundenen Sammlungsgruppe und den zwei Standard-Profilen"></a><br><sub>Vorschau anklicken für volle Größe</sub>
+<a href="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/settings.png"><img src="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/thumbs/settings.png" width="380" alt="Der Einstellungen-Tab mit einem Konto (Name, Server-URL, Benutzername, Passwort auf diesem Gerät hinterlegt) und der gefundenen Sammlungsgruppe mit je einem Schalter für Kalender, Aufgaben und Kontakte"></a><br><sub>Vorschau anklicken für volle Größe</sub>
 
 | Einstellung | Was sie tut | Standard |
 |---|---|---|
