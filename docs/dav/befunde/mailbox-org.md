@@ -508,3 +508,73 @@ lief während der Messung nicht.
 
 Collection-Pfade sind hier bewusst nicht ausgeschrieben — sie folgen der Maskierungs-Konvention
 weiter oben (`/caldav/<base64-artig>/` bzw. `/caldav/<zahl>/`).
+
+## CalDAV mit echten Daten — B6 und B7 nachgeholt, zwei Zählfallen (2026-09-16, aus Teilprojekt ④)
+
+Seit dem Umzug der Termine liegen in zwei Kalender-Sammlungen des Kontos echte Daten (eine mit
+gut tausend Ressourcen, eine mit einigen Dutzend). Damit ließ sich nachholen, was oben seit dem
+2026-08-29 als offen steht. Collection-Pfade weiterhin maskiert.
+
+### B6 — `calendar-query` mit `time-range`: inhaltlich belegt
+
+Drei Läufe gegen **dieselbe befüllte** Sammlung, Komponente `VEVENT`:
+
+```
+Fenster über mehrere Jahre, das den Bestand trifft   -> HTTP 207, Treffer: mehrere Hundert
+Fenster Jahre hinter dem jüngsten Termin             -> HTTP 207, Treffer: 0
+Fenster über einen einzelnen Monat                   -> HTTP 207, Treffer: 2
+```
+
+Der Filter hat einmal gefunden und einmal nicht — das ist die Beweisform, die für CardDAV
+schon galt. **B6 ist damit für beide Seiten erledigt.**
+
+### B7 — `calendar-multiget`: beantwortet, inklusive Negativtest
+
+```
+REPORT calendar-multiget, 3 echte + 1 garantiert nicht existierende URL -> HTTP 207
+  3x status 200 mit getetag und calendar-data
+  1x status 404 im Multistatus — die fehlende URL wird gemeldet, nicht verschwiegen
+```
+
+Dasselbe Verhalten wie bei `addressbook-multiget`. **B7 ist für beide Seiten erledigt.**
+
+### Zählfalle 1 — eine Ressource je UID, nicht je `VEVENT`
+
+Importiert wurden `N` `VEVENT`-Blöcke; die Sammlung führt danach **drei Ressourcen weniger**.
+Kein Verlust: Die drei überzähligen Blöcke sind Ausnahmen von Serienterminen
+(`RECURRENCE-ID`) und tragen die UID ihres Masters. Der Server legt **eine Ressource je UID** an
+und führt die Ausnahmen darin mit — so, wie RFC 4791 es für ein Kalenderobjekt vorsieht.
+Gegenprobe: Zahl der verschiedenen UIDs in der Quelldatei = Zahl der Ressourcen, echte
+UID-Dubletten 0.
+
+**Für einen Client heißt das:** Wer Ressourcen zählt und mit einer `VEVENT`-Zahl vergleicht,
+sieht bei jeder Serie mit Ausnahmen eine scheinbare Lücke. Verglichen wird UID gegen Ressource.
+
+### Zählfalle 2 — `VALARM` trägt eine eigene `UID:`-Zeile
+
+Ein zeilenweises `^UID:` über eine `.ics` zählt die Alarme mit: in der Quelldatei ergab das
+mehr als doppelt so viele UIDs wie Termine. Die Termin-UID steht im `VEVENT` **vor** dem ersten
+`BEGIN:VALARM`; gezählt werden muss je Block, nach aufgelöster Zeilenfaltung (RFC 5545 §3.1).
+Für einen Parser, der UIDs aus Rohtext zieht statt aus einem Komponentenbaum, ist das eine echte
+Fehlerquelle.
+
+### Warnung für einen späteren Erinnerungen-Import — „Geplante Erinnerungen" ist keine Quelle
+
+Apples Kalender-App zeigt eine Sammlung *Geplante Erinnerungen*, die per AppleScript als
+**schreibbar** gemeldet wird und sich als `.ics` exportieren lässt. Sie ist trotzdem **kein
+Kalender**, sondern eine synthetische Ansicht der Erinnerungen-App: Alle exportierten Einträge
+tragen `X-APPLE-CREATOR-IDENTITY:com.apple.calendar.calaccessd`, und ihre Zahl entspricht genau
+den Erinnerungen **mit Fälligkeitsdatum** — Erinnerungen ohne Datum fehlen vollständig. Ein
+Export davon liefert `VEVENT`-Kopien eines Ausschnitts, nicht die Erinnerungen.
+
+Stand beim Nutzer: Die Erinnerungen bleiben vorerst bei Apple. Ein späterer Umzug in die
+`VTODO`-Sammlung ist gewünscht — mit dem Ziel, sie über dieses Plugin zu nutzen —, fällt aber
+nicht vor Teilprojekt ⑤ an. **Die `VTODO`-Sammlung bleibt bis dahin leer**; der Befund „es
+existiert keine echte Aufgabe" aus dem Abschnitt oben gilt weiter.
+
+### Wie das gemessen wurde
+
+Wie oben: `skripte/dav.py` der mailbox-org-Werkstatt, ausschließlich `PROPFIND`/`REPORT`/
+`OPTIONS`, Applikationspasswort aus dem Schlüsselbund. Die Quelldateien wurden lokal gelesen und
+nicht weitergegeben. Kanonisch im Vault unter *mailbox-org → Clients* und im Protokoll
+`erhebung/groupware-umzug-2026-08-23.md` der Werkstatt.
