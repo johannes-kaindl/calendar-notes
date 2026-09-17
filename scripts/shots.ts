@@ -80,6 +80,10 @@ const RADICALE_PORT = 5299;
 const ACCOUNT_ID = "acc-shots";
 const ACCOUNT_NAME = "Demo";
 const SECRET_ID = `calendar-notes-${ACCOUNT_ID}`;
+// `settings.accounts.collectionsHeading` aus src/i18n/strings.ts, DE + EN — dasselbe Muster
+// wie `scripts/gui-smoke.ts::COLLECTION_PICKER_LABELS`, hier lokal, weil die beiden Treiber
+// keine gemeinsame Konstantendatei teilen.
+const COLLECTION_PICKER_LABELS = ["Found — what should be mirrored?", "Gefunden — was soll gespiegelt werden?"];
 
 // --- Rezept ------------------------------------------------------------------
 
@@ -279,17 +283,60 @@ const SHOTS: Shot[] = [
 async function settingsBild(port: number, opts: ShotOptions): Promise<string> {
   const werkspace = await attachTo("workspace", port, REPO_NAME);
   if (!werkspace) return "settings.png — kein Werkstatt-Fenster gefunden";
+  // Mutation und Wartephase getrennt (Muster aus obsidian-plugins/AGENTS.md, Referenz
+  // paperless-storage/scripts/gui-smoke.ts:201): dieser Aufruf loest nur das Oeffnen aus,
+  // keine feste Frist mehr. Vorher stand hier `await new Promise((r) => setTimeout(r, 900))` —
+  // reichte bei einem bereits existierenden Demo-Konto nicht, bis die Discovery-Zeilen
+  // ("Gefunden — was soll gespiegelt werden?") gerendert waren; das Bild zeigte nur den
+  // Konto-Teil, ohne die drei Schalter.
   await werkspace.evaluate(`
     app.setting.open();
     app.setting.openTabById(${JSON.stringify(PLUGIN_ID)});
-    await new Promise((r) => setTimeout(r, 900));
     return true;
   `);
   werkspace.close();
-  const fenster = await attachTo("settings", port, REPO_NAME);
+  // Das Einstellungen-Fenster entsteht asynchron — eigene Wartephase fuer die
+  // Fensterexistenz, getrennt von der Wartephase fuer den Inhalt weiter unten (Muster wie
+  // scripts/gui-smoke.ts::checkP8SettingsUi).
+  const fenster = await (async () => {
+    const deadline = Date.now() + 10_000;
+    while (Date.now() < deadline) {
+      const c = await attachTo("settings", port, REPO_NAME).catch(() => null);
+      if (c) return c;
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    return null;
+  })();
   if (!fenster) return "settings.png — kein Einstellungen-Fenster gefunden";
   try {
     await requireVisible(fenster);
+    // `.vertical-tab-content` scrollt bei Standardgroesse intern — `getBoundingClientRect`
+    // liefert dann nur die SICHTBARE Hoehe (`clientHeight`), nicht `scrollHeight`. Ohne diese
+    // Zeile schnitt der Screenshot die Discovery-Zeilen still ab, selbst wenn sie laengst
+    // gerendert waren — gemessen an dieser Gegenprobe: mit reiner Timing-Korrektur, aber ohne
+    // Resize, zeigte settings.png weiterhin nur den Konto-Teil. Muster + Wert aus
+    // `3d-codeblocks/scripts/shots.ts::settingsBild` (dort seit 0.4.0 fuer denselben Effekt).
+    await setWindowSize(fenster, 1100, 1500);
+    await new Promise((r) => setTimeout(r, 600));
+    // Wartephase: bis die Discovery-Zeilen (Checkbox je Sammlung) unter der Ueberschrift
+    // gerendert sind — dasselbe Kriterium wie P8 in scripts/gui-smoke.ts.
+    const gerendert = await pollUntil<boolean>(
+      fenster,
+      `
+      const pickerLabels = ${JSON.stringify(COLLECTION_PICKER_LABELS)};
+      const items = [...document.querySelectorAll(".setting-item")];
+      const nameOf = (el) => (el.querySelector(".setting-item-name")?.textContent ?? "").trim();
+      const heading = items.find((el) => pickerLabels.includes(nameOf(el)));
+      if (!heading) return false;
+      for (let n = heading.nextElementSibling; n && !n.classList.contains("setting-item-heading"); n = n.nextElementSibling) {
+        if (n.querySelector(".checkbox-container")) return true;
+      }
+      return false;
+    `,
+      10_000,
+      300,
+    );
+    if (!gerendert) return "settings.png — Discovery-Zeilen nicht gerendert (Timeout)";
     const box = await boxOf(fenster, ".vertical-tab-content", 0)
       ?? await boxOf(fenster, ".modal-content", 0);
     if (!box) return "settings.png — kein Inhaltsbereich im Einstellungen-Fenster";
