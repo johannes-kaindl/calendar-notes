@@ -1749,6 +1749,41 @@ async function main(): Promise<void> {
   const cleanupFns: { label: string; run: () => Promise<void> }[] = [];
   let radicale: RunningServer | undefined;
 
+  // Dieselbe Aufraeumarbeit wie im `finally` unten — als eigene Funktion, damit der
+  // SIGINT/SIGTERM-Handler sie aufrufen kann, ohne Code zu duplizieren. Ein Ctrl-C mitten
+  // im Lauf ueberspringt das `finally` NICHT (try/catch-Semantik), sondern beendet den
+  // Node-Prozess sofort — ohne eigenen Handler blieben Radicale, das Smoke-Konto, veraenderte
+  // Vault-Notizen und State-Dateien stehen (gemessen: der naechste Lauf liest das Konto als
+  // "vorheriger Stand" und snapshottet es mit statt es zu entfernen — s. P0 oben).
+  const cleanupState = async (): Promise<void> => {
+    if (radicale) {
+      await radicale.stop().catch(() => undefined);
+      console.log("Radicale gestoppt.");
+    }
+    for (const c of cleanupFns) {
+      try {
+        await c.run();
+      } catch (e) {
+        console.log(`Aufraeumen (${c.label}) fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    if (focus) await releaseAlwaysOnTop(cdp).catch(() => undefined);
+  };
+
+  let signalCleanupRunning = false;
+  const onAbortSignal = (signal: NodeJS.Signals) => {
+    if (signalCleanupRunning) return;
+    signalCleanupRunning = true;
+    void (async () => {
+      console.log(`\n\nAbbruch durch ${signal} — raeume Smoke-Zustand auf...`);
+      await cleanupState();
+      cdp.close();
+      process.exit(130);
+    })();
+  };
+  process.on("SIGINT", onAbortSignal);
+  process.on("SIGTERM", onAbortSignal);
+
   try {
     const pluginPresent = await cdp.evaluate<boolean>( `return !!app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];`);
     if (!pluginPresent) throw new Error(`Plugin "${PLUGIN_ID}" ist im Fenster "${vault}" nicht geladen — deployt & aktiviert?`);
@@ -1780,6 +1815,34 @@ async function main(): Promise<void> {
       return (after === before ? "unveraendert (verdaechtig)" : "frisch geladen") + ", Version " + after.manifest.version;
     `);
     console.log(`Plugin neu geladen: ${reloaded}`);
+
+    // Das Smoke-Konto traegt IMMER die feste id `acc-smoke` (ACCOUNT_ID oben) — ein Rest aus
+    // einem per SIGINT/SIGTERM abgebrochenen frueheren Lauf ist daran erkennbar, BEVOR dieser
+    // Lauf `settingsSnapshot` erfasst. Ohne diesen Punkt wuerde der liegen gebliebene Zustand
+    // als "vorheriger Stand" mitgesnapshotted und am Ende dieses Laufs wiederhergestellt statt
+    // entfernt — die Aufraeumfunktion haette dann den falschen Zielzustand.
+    const leftoverAccount = await cdp.evaluate<boolean>(`
+      const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      return (plugin.settings.accounts ?? []).some((a) => a.id === ${JSON.stringify(ACCOUNT_ID)});
+    `);
+    record(
+      "P0",
+      "Kein liegen gebliebenes Smoke-Konto aus einem abgebrochenen frueheren Lauf",
+      !leftoverAccount,
+      leftoverAccount
+        ? `Konto "${ACCOUNT_ID}" gefunden und entfernt — vermutlich Ctrl-C/Crash im vorigen Lauf vor dessen Aufraeumen; dieser Lauf faehrt normal weiter`
+        : "kein Rest in den Settings",
+    );
+    if (leftoverAccount) {
+      await cdp.evaluate(`
+        const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+        plugin.settings.accounts = (plugin.settings.accounts ?? []).filter((a) => a.id !== ${JSON.stringify(ACCOUNT_ID)});
+        plugin.settings.collections = (plugin.settings.collections ?? []).filter((c) => c.accountId !== ${JSON.stringify(ACCOUNT_ID)});
+        await plugin.saveSettings();
+        app.secretStorage.setSecret(${JSON.stringify(SECRET_ID)}, "");
+        return true;
+      `);
+    }
 
     const settingsSnapshot = await cdp.evaluate<string>( `return JSON.stringify(app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}].settings);`);
     const vaultSnapshot = await snapshotVault(cdp);
@@ -1872,18 +1935,10 @@ async function main(): Promise<void> {
   } catch (e) {
     record("FEHLER", "Lauf abgebrochen", false, e instanceof Error ? e.message : String(e));
   } finally {
-    if (radicale) {
-      await radicale.stop();
-      console.log("Radicale gestoppt.");
-    }
-    for (const c of cleanupFns) {
-      try {
-        await c.run();
-      } catch (e) {
-        console.log(`Aufraeumen (${c.label}) fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`);
-      }
-    }
-    if (focus) await releaseAlwaysOnTop(cdp);
+    // Dieselbe Funktion wie der SIGINT/SIGTERM-Handler oben — kein Doppelcode.
+    process.off("SIGINT", onAbortSignal);
+    process.off("SIGTERM", onAbortSignal);
+    await cleanupState();
     cdp.close();
   }
 
