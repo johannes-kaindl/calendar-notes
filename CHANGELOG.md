@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- `authorUrl` im Manifest zeigt wieder auf das GitHub-Profil.
 - Schlüsselbund-Modul aus obsidian-kit 0.35.0 vendored (vorher eigene Kopie); Verhalten unverändert.
 
 ## [0.2.0] — 2026-09-05

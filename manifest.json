@@ -5,6 +5,6 @@
   "minAppVersion": "1.13.0",
   "description": "Mirror CalDAV events and tasks and CardDAV contacts as notes; the server stays the source of truth.",
   "author": "Johannes Kaindl",
-  "authorUrl": "https://jkaindl.de",
+  "authorUrl": "https://github.com/johannes-kaindl",
   "isDesktopOnly": false
 }
