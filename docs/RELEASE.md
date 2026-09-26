@@ -1,21 +1,18 @@
 # Release
 
-> ## ⚠️ Stand 2026-09-04: der GitHub-Weg ist stillgelegt
+> ## Stand 2026-09-26: Release mit GitHub, Store-Weg wieder offen
 >
-> `npm run release` fährt fest mit `--no-github` (im `package.json` verdrahtet), und das
-> `github`-Remote ist **entfernt**. Verteilt wird über den **Forgejo-Release** (Assets inkl.
-> `checksums.sha256`) und den [AnySource-Sideloader](https://git.jkaindl.de/jkaindl/anysource-sideloader)-Katalog.
-> Grund: das GitHub-Konto ist geflaggt, anonym antwortet es mit 404 — der Mirror wäre nicht
-> kaputt, sondern **wirkungslos**, und damit fällt auch das Store-Listing weg (Dach-`AGENTS.md`,
-> § Store-Einreichung).
+> Seit der Entscheidung vom 2026-09-24 (das GitHub-Konto ist wieder frei) läuft ein Release wieder
+> über beide Forges: `origin` (Forgejo) und `github` (`johannes-kaindl/calendar-notes`) sind als
+> Remotes gesetzt, `npm run release` trägt **kein** `--no-github` mehr, und das Repo steht nicht
+> mehr in `mirror_drift_check.AUSNAHMEN`. Gemessen 2026-09-26: `git remote -v`, `package.json`,
+> `tools/mirror_drift_check.py`. `release.mjs` pusht Branch und Tag per Dual-Push nach GitHub, der
+> Tag triggert `.github/workflows/release.yml`. Der Forgejo-Push-Mirror ist gelöscht — GitHub
+> bekommt Branch und Tag **nur** vom Release, ein normaler Push auf `origin` erreicht es nicht
+> (Dach-`AGENTS.md`, § Store-Einreichung).
 >
-> **Wer das Remote wieder einrichtet, muss `--no-github` VORHER aus dem `package.json` nehmen** —
-> ohne das Flag ist ein fehlendes `github`-Remote ein harter Abbruch von `release.mjs`; in dieser
-> Reihenfolge, sonst zerstört man die Releases.
->
-> Alles unten mit GitHub-Bezug beschreibt damit den **historischen** Ablauf. Es bleibt stehen,
-> weil es das Verfahren dokumentiert, falls der Weg je zurückkommt — handlungsleitend ist es
-> nicht mehr. Die Stellen, an denen der Unterschied zählt, sind unten einzeln markiert.
+> Die Abschnitte unten, die den Ausstieg vom 2026-09-04 beschreiben, sind als **historisch**
+> markiert. Handlungsleitend ist dieser Block.
 
 Release-Infrastruktur ist nach dem Dach-Standard (`obsidian-plugins/AGENTS.md`,
 Skill `plugin-release-setup`) vorbereitet: `.github/workflows/release.yml` (vendored,
@@ -60,11 +57,10 @@ Für `calendar-notes` entsprechend:
 
 1. Forgejo-Repo `jkaindl/calendar-notes` anlegen (leer).
 2. GitHub-Repo `johannes-kaindl/calendar-notes` anlegen (leer, Mirror-Ziel).
-3. Remotes setzen — **heute nur `origin`** (s. Statusblock oben; die `github`-Zeile steht als
-   historischer Beleg da und ist nicht auszuführen):
+3. Remotes setzen:
    ```
    git remote add origin git@git.jkaindl.de:jkaindl/calendar-notes.git
-   # historisch: git remote add github git@github.com:johannes-kaindl/calendar-notes.git
+   git remote add github git@github.com:johannes-kaindl/calendar-notes.git
    git push -u origin main
    ```
 4. `~/.forgejo-token` muss existieren (API-Token für den Forgejo-Release).
@@ -78,22 +74,17 @@ npm run release -- 0.1.0 --dry-run   # vorher trocken prüfen
 npm run release 0.1.0
 ```
 
-Der Lauf **heute**: 3-File-Bump (`package.json`/`manifest.json`/`versions.json`) → CHANGELOG →
-`preflight` → Commit → Tag → Push (Forgejo) → Build → **`--no-github`: Mirror und Store-Release
-werden übersprungen** → Forgejo-Release mit `main.js`/`manifest.json`/`styles.css`/`checksums.sha256`.
+Der Lauf: 3-File-Bump (`package.json`/`manifest.json`/`versions.json`) → CHANGELOG →
+`preflight` → Commit → Tag → Push (Forgejo) → Build → Dual-Push von Branch und Tag nach GitHub →
+Forgejo-Release mit `main.js`/`manifest.json`/`styles.css`/`checksums.sha256`. Der GitHub-Tag
+triggert `.github/workflows/release.yml` → Attestation + GitHub-Release.
 
-*Historisch* folgte an der übersprungenen Stelle GitHub-Mirror + Verifikation, und der
-GitHub-Tag triggerte `.github/workflows/release.yml` → Attestation + GitHub-Release. Die
-Workflow-Datei liegt weiter im Repo (byte-identisch zum Template, `template_drift_check`
-erwartet sie dort) — sie feuert nur nicht mehr, weil kein Tag mehr nach GitHub geht.
+*Historisch (2026-09-04 bis 2026-09-24):* `npm run release` fuhr mit `--no-github`, das `github`-Remote war entfernt, und der Workflow feuerte nicht.
 
 ### 3. Registrieren + verifizieren
 
-- `python3 ../tools/mirror_drift_check.py` — **für dieses Repo gegenstandslos**: es steht seit
-  2026-09-04 in dessen `AUSNAHMEN` („GitHub-Ausstieg"), der fehlende Mirror ist hier der
-  Zielzustand. *Historisch* prüfte er Tags **und** den `main`-Branch Forgejo→GitHub (nicht nur
-  Tags — ein toter Mirror fiel an Tags gerade nicht auf, weil `release.mjs` sie per Dual-Push
-  ohnehin selbst nachtrug).
+- `python3 ../tools/mirror_drift_check.py` — prüft, ob GitHub-`main` den Commit des höchsten
+  SemVer-Tags trägt; steht es dahinter, ist der Release-Push gescheitert.
 - **Stattdessen anonym nachmessen, was Nutzer wirklich sehen** — mit Token verdeckt man genau
   den Fall, um den es geht:
   ```
@@ -119,9 +110,8 @@ erwartet sie dort) — sie feuert nur nicht mehr, weil kein Tag mehr nach GitHub
 
 ### 4. Community-Store einreichen
 
-> **Entfällt seit 2026-09-04.** Der Store-Prüfer liest anonym von GitHub; ohne erreichbares
-> Repo gibt es weder Scan noch Listing (das bestehende wurde bereits entfernt). Der Abschnitt
-> bleibt als Verfahren stehen, falls der Weg zurückkommt.
+> **Gilt wieder seit 2026-09-24.** Das Plugin steht in `community-plugins.json` (gemessen
+> 2026-09-26). Updates brauchen keine Einreichung; Rescans stößt der Maintainer im Dashboard an.
 
 **Der `obsidianmd/obsidian-releases`-PR-Flow ist seit Mai 2026 retired.** Einreichung
 läuft über das **Developer Dashboard** auf `community.obsidian.md`:
