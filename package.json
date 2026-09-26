@@ -1,6 +1,6 @@
 {
   "name": "calendar-notes",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Mirror CalDAV events and CardDAV contacts as notes; the server stays the source of truth.",
   "type": "module",
   "scripts": {
