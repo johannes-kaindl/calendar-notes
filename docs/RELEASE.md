@@ -93,9 +93,8 @@ triggert `.github/workflows/release.yml` → Attestation + GitHub-Release.
   ```
   Erwartet: `200`, und die Assets enthalten `checksums.sha256`.
 - `python3 ../tools/template_drift_check.py` — vendorte Dateien synchron zum Template.
-- *Historisch:* GitHub-Actions-Tab manuell prüfen (Action lief asynchron, `release.mjs`
-  konnte das nicht feststellen). **Entfällt** — es wird kein Tag mehr nach GitHub gepusht.
-  Die Konsistenzprüfung selbst bleibt sinnvoll: Tag, `package.json`, `manifest.json` und
+- GitHub-Actions-Tab manuell prüfen (die Action läuft asynchron, `release.mjs` kann das
+  nicht feststellen). Außerdem: Tag, `package.json`, `manifest.json` und
   `versions.json` müssen dieselbe Version tragen.
 - **Gotcha (Dach-`AGENTS.md`):** meldet `release.mjs` „Store-Release entsteht erst nach
   manuellem Push", zuerst `git ls-remote --tags github` prüfen, bevor von Hand
