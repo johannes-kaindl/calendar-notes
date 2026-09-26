@@ -24,6 +24,7 @@ import { collectionSupports, effectiveProfile, newId, secretIdFor, sourceOf, typ
 import type { RunInfo } from "../core/state/collection-state";
 import { t } from "../i18n/strings";
 import { FolderSuggest } from "../vendor/kit-obsidian/folder-suggest";
+import { githubHelpUrls, helpSettingDefinition } from "../vendor/kit-obsidian/help-setting";
 import { settingBodyHost } from "../vendor/kit-obsidian/settings_walker";
 import { JsonModal } from "./json-modal";
 import { profileFromTaskNotes, readTaskNotes } from "./tasknotes";
@@ -64,6 +65,16 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
   // ── Die eine Wahrheit ────────────────────────────────────────────────────
   getSettingDefinitions(): SettingDefinitionItem[] {
     return [
+      // UI-STANDARD §8 help row: always the first element, before the intro and every group.
+      helpSettingDefinition({
+        ...githubHelpUrls("calendar-notes"),
+        texts: {
+          name: t("settings.help.name"),
+          desc: t("settings.help.desc"),
+          openDocs: t("settings.help.openDocs"),
+          reportIssue: t("settings.help.reportIssue"),
+        },
+      }),
       { name: t("settings.accounts.intro"), desc: t("settings.accounts.introDesc") },
       this.accountsGroup(),
       this.collectionsGroup(),

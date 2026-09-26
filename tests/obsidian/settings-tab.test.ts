@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { App, Plugin, Setting } from "obsidian";
 // Direkt aus dem Mock, nicht aus "obsidian": `instances`/`choose` sind Testhilfen, die es in
 // den echten Typings nicht gibt — `tsc -p tsconfig.test.json` prueft gegen die echten.
@@ -72,9 +72,11 @@ describe("CalendarNotesSettingTab.getSettingDefinitions", () => {
     const host = fakeHost(withAccountAndCollections());
     const tab = newTab(host);
     const defs = tab.getSettingDefinitions() as any[];
-    // Erstes Element ist die Einleitung ohne Ueberschrift (erklaert, was das Plugin ueberhaupt tut).
-    expect(defs[0].heading).toBeUndefined();
-    expect(defs[0].desc.length).toBeGreaterThan(0);
+    // Erstes Element ist die Hilfe-Zeile (UI-STANDARD §8), zweites die Einleitung ohne Ueberschrift
+    // (erklaert, was das Plugin ueberhaupt tut).
+    expect(typeof defs[0].render).toBe("function");
+    expect(defs[1].heading).toBeUndefined();
+    expect(defs[1].desc.length).toBeGreaterThan(0);
     expect(defs.map((d) => d.heading).filter(Boolean)).toEqual([
       "Konten",
       "Kalender & Adressbücher",
@@ -370,5 +372,37 @@ describe("Konto-Unterseite: Auswahl der Sammlungen (B1)", () => {
     const expected = t("settings.accounts.collectionsEmpty");
     expect(expected.length).toBeGreaterThan(10);
     expect(texts.join(" ")).toContain(expected);
+  });
+});
+
+describe("CalendarNotesSettingTab Hilfe-Zeile (UI-STANDARD §8)", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+  type Rec = { name: string; docsLabel: string; icon: string; docs: () => void; issue: () => void };
+  const fake = () => {
+    const rec: Rec = { name: "", docsLabel: "", icon: "", docs: () => {}, issue: () => {} };
+    const s = {
+      setName(n: string) { rec.name = n; return s; },
+      setDesc() { return s; },
+      addButton(cb: (b: unknown) => unknown) { const b = { setButtonText(x: string) { rec.docsLabel = x; return b; }, onClick(f: () => void) { rec.docs = f; return b; } }; cb(b); return s; },
+      addExtraButton(cb: (b: unknown) => unknown) { const b = { setIcon(x: string) { rec.icon = x; return b; }, setTooltip() { return b; }, onClick(f: () => void) { rec.issue = f; return b; } }; cb(b); return s; },
+    };
+    return { s, rec };
+  };
+  it("ist das erste Element, vor der Einleitung und allen Gruppen", () => {
+    const defs = newTab(fakeHost(withAccountAndCollections())).getSettingDefinitions() as any[];
+    expect(typeof defs[0].render).toBe("function");
+    expect(defs[0].type).not.toBe("group");
+    expect(defs[0].name).toBe("Hilfe");
+  });
+  it("öffnet Doku-Index und Issues dieses Repos", () => {
+    const open = vi.fn(); vi.stubGlobal("window", { open });
+    const defs = newTab(fakeHost(withAccountAndCollections())).getSettingDefinitions() as any[];
+    const { s, rec } = fake(); defs[0].render(s);
+    expect(rec.docsLabel).toBe("Dokumentation öffnen"); expect(rec.icon).toBe("bug");
+    rec.docs(); rec.issue();
+    expect(open.mock.calls.map((c) => c[0])).toEqual([
+      "https://github.com/johannes-kaindl/calendar-notes/blob/main/docs/README.md",
+      "https://github.com/johannes-kaindl/calendar-notes/issues",
+    ]);
   });
 });

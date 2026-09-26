@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Help row at the top of the settings with links to the documentation and the issue tracker.
+
 ## [0.2.1] — 2026-09-24
 
 ### Changed

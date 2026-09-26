@@ -27,6 +27,9 @@ CODEKIT_REF=${CODEKIT_REF:-0.1.0}
 # unter tsconfig.test.json (vier TS2532 aus neuem Editor-Double-Code, unabhaengig von secrets) —
 # deshalb bleibt der Rest auf 0.28.0 und nur secrets zieht separat nach.
 SECRETS_REF=${SECRETS_REF:-0.35.0}
+# help-setting (Hilfe-Zeile, UI-STANDARD 8) kam mit Kit 0.43.0, haengt an keinem anderen Modul und
+# steht deshalb auf einem DRITTEN Pin — der Rest bleibt unberuehrt.
+HELP_REF=${HELP_REF:-0.43.0}
 
 # `^{commit}` ist Pflicht, nicht Kosmetik: beide Repos taggen ANNOTIERT (gemessen 2026-09-04,
 # `git cat-file -t` sagt `tag`), ohne die Peelung landet das Tag-OBJEKT in VENDOR.json. Diese
@@ -45,11 +48,14 @@ git -C "$KIT" rev-parse --verify --quiet "$KIT_REF^{commit}" >/dev/null \
   || { echo "FEHLER: Ref '$KIT_REF' existiert nicht in $KIT." >&2; exit 1; }
 git -C "$KIT" rev-parse --verify --quiet "$SECRETS_REF^{commit}" >/dev/null \
   || { echo "FEHLER: Ref '$SECRETS_REF' existiert nicht in $KIT." >&2; exit 1; }
+git -C "$KIT" rev-parse --verify --quiet "$HELP_REF^{commit}" >/dev/null \
+  || { echo "FEHLER: Ref '$HELP_REF' existiert nicht in $KIT." >&2; exit 1; }
 git -C "$CODEKIT" rev-parse --verify --quiet "$CODEKIT_REF^{commit}" >/dev/null \
   || { echo "FEHLER: Ref '$CODEKIT_REF' existiert nicht in $CODEKIT." >&2; exit 1; }
 
 K_SHA=$(sha_von "$KIT" "$KIT_REF");          K_VER=$(ver_von "$KIT" "$KIT_REF")
 SEC_SHA=$(sha_von "$KIT" "$SECRETS_REF");    SEC_VER=$(ver_von "$KIT" "$SECRETS_REF")
+HELP_SHA=$(sha_von "$KIT" "$HELP_REF");        HELP_VER=$(ver_von "$KIT" "$HELP_REF")
 CK_SHA=$(sha_von "$CODEKIT" "$CODEKIT_REF"); CK_VER=$(ver_von "$CODEKIT" "$CODEKIT_REF")
 
 CK_PURE="timeout sha256 filename-template settings i18n"
@@ -57,6 +63,7 @@ K_PURE="frontmatter vault-path"
 K_OBS="settings_walker folder-suggest confirm"
 K_TEST="obsidian-mock"
 K_SECRETS="secrets"
+K_HELP="help-setting"
 
 # VORPRUEFUNG, bevor irgendetwas geschrieben wird.
 #
@@ -89,6 +96,10 @@ for f in $K_SECRETS; do
     || fehlend="$fehlend obsidian-kit@$SECRETS_REF:src/pure/$f.ts"
   git -C "$KIT" cat-file -e "$SECRETS_REF:src/obsidian/$f.ts" 2>/dev/null \
     || fehlend="$fehlend obsidian-kit@$SECRETS_REF:src/obsidian/$f.ts"
+done
+for f in $K_HELP; do
+  git -C "$KIT" cat-file -e "$HELP_REF:src/obsidian/$f.ts" 2>/dev/null \
+    || fehlend="$fehlend obsidian-kit@$HELP_REF:src/obsidian/$f.ts"
 done
 if [ -n "$fehlend" ]; then
   echo "FEHLER: Quellen fehlen:$fehlend" >&2
@@ -149,6 +160,9 @@ for f in $K_SECRETS; do
   sed -i.bak 's#from "\.\./pure/#from "../kit/#g' "src/vendor/kit-obsidian/$f.ts"
   rm -f "src/vendor/kit-obsidian/$f.ts.bak"
 done
+for f in $K_HELP; do
+  vendor "src/vendor/kit-obsidian/$f.ts" "$KIT" "$HELP_REF" "$HELP_VER" obsidian-kit "src/obsidian/$f.ts"
+done
 
 # write_vendor_json <verzeichnis> <quell-repo> <version> <sha> <modul-liste> [zusatz-note]
 #
@@ -165,10 +179,11 @@ write_vendor_json() {
 liste() { printf '%s.ts, ' $1 | sed 's/, $//'; }
 
 SEC_NOTE="secrets.ts liegt in diesem Verzeichnis auf einer EIGENEN, neueren Ref: obsidian-kit@$SEC_VER ($SEC_SHA) — s. eigener Datei-Header, nicht diese Basis-Version."
+HELP_NOTE="help-setting.ts steht auf einer DRITTEN Ref: obsidian-kit@$HELP_VER ($HELP_SHA) — s. eigener Datei-Header."
 
 write_vendor_json src/vendor/code-kit    code-kit     "$CK_VER" "$CK_SHA" "$(liste "$CK_PURE")"
 write_vendor_json src/vendor/kit         obsidian-kit "$K_VER"  "$K_SHA"  "$(liste "$K_PURE") + secrets.ts@$SEC_VER" "$SEC_NOTE"
-write_vendor_json src/vendor/kit-obsidian obsidian-kit "$K_VER" "$K_SHA"  "$(liste "$K_OBS") + secrets.ts@$SEC_VER" "$SEC_NOTE"
+write_vendor_json src/vendor/kit-obsidian obsidian-kit "$K_VER" "$K_SHA"  "$(liste "$K_OBS") + secrets.ts@$SEC_VER + help-setting.ts@$HELP_VER" "$SEC_NOTE $HELP_NOTE"
 write_vendor_json tests/vendor/kit       obsidian-kit "$K_VER"  "$K_SHA"  "$(liste "$K_TEST")"
 
 echo "vendored: code-kit@$CK_VER ($CK_SHA) → $CK_PURE | obsidian-kit@$K_VER ($K_SHA) → $K_PURE $K_OBS $K_TEST | obsidian-kit@$SEC_VER ($SEC_SHA) → $K_SECRETS (separat gepinnt)"

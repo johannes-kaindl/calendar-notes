@@ -2,6 +2,6 @@
   "source": "obsidian-kit",
   "version": "0.28.0",
   "sha": "2ab1bb5",
-  "modules": "settings_walker.ts, folder-suggest.ts, confirm.ts + secrets.ts@0.35.0",
-  "note": "Verbatim snapshot aus der Git-Ref 0.28.0 (CORE-META-22: feste Ref, nicht Arbeitsstand). Never hand-edit. Re-vendor via tools/sync-kit.sh. secrets.ts liegt in diesem Verzeichnis auf einer EIGENEN, neueren Ref: obsidian-kit@0.35.0 (e7e3e19) — s. eigener Datei-Header, nicht diese Basis-Version."
+  "modules": "settings_walker.ts, folder-suggest.ts, confirm.ts + secrets.ts@0.35.0 + help-setting.ts@0.43.0",
+  "note": "Verbatim snapshot aus der Git-Ref 0.28.0 (CORE-META-22: feste Ref, nicht Arbeitsstand). Never hand-edit. Re-vendor via tools/sync-kit.sh. secrets.ts liegt in diesem Verzeichnis auf einer EIGENEN, neueren Ref: obsidian-kit@0.35.0 (e7e3e19) — s. eigener Datei-Header, nicht diese Basis-Version. help-setting.ts steht auf einer DRITTEN Ref: obsidian-kit@0.43.0 (bcd1805) — s. eigener Datei-Header."
 }
