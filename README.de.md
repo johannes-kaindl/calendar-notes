@@ -1,15 +1,17 @@
 # Calendar and Contact Notes
 
-> [🇬🇧 English](README.md) · 🇩🇪 Deutsch
+> [🇬🇧 English](https://github.com/johannes-kaindl/calendar-notes/blob/main/README.md) · 🇩🇪 Deutsch
 
 **Spiegelt CalDAV-Termine, CalDAV-Aufgaben und CardDAV-Kontakte als Notizen im Vault — der
 Server bleibt die Wahrheit, und jede Änderung zurück auf den Server läuft über ein explizites
 Kommando.**
 
-[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](https://github.com/johannes-kaindl/calendar-notes/blob/main/LICENSE)
+[![Doku: CC BY-SA 4.0](https://img.shields.io/badge/docs-CC%20BY--SA%204.0-lightgrey.svg)](https://github.com/johannes-kaindl/calendar-notes/blob/main/LICENSE-DOCS)
+[![Release](https://img.shields.io/github/v/release/johannes-kaindl/calendar-notes?label=release)](https://github.com/johannes-kaindl/calendar-notes/releases)
 ![Obsidian](https://img.shields.io/badge/obsidian-1.13.0%2B%20·%20desktop%20%26%20mobile-7c3aed)
 
-<p align="center"><img src="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/event-note.png" width="820" alt="Eine gespiegelte Termin-Notiz im Lesemodus: Frontmatter mit type, dav_uid, dav_source, dav_etag, dav_state, title, start, end, all_day, online und rrule"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/event-note.png" width="820" alt="Eine gespiegelte Termin-Notiz im Lesemodus: Frontmatter mit type, dav_uid, dav_source, dav_etag, dav_state, title, start, end, all_day, online und rrule"></p>
 
 Kalender, Aufgaben und Kontakte liegen normalerweise auf einem Server, den man aus Obsidian
 heraus nie sieht — nicht verlinkbar, nicht auswertbar, nicht Teil des Vaults. Dieses Plugin
@@ -54,7 +56,7 @@ hinzufügen — jedes mit einer Diff-Vorschau, bevor irgendetwas gesendet wird.
 - **Eine Lese-/Schreib-API für andere Plugins**
   (`app.plugins.plugins["calendar-notes"].api`, versioniert) — Termine/Kontakte als Daten,
   Kommandos als LLM-Tool-Definitionen, ein `plan()`→`execute()`-Schritt für alles Schreibende.
-  Siehe [`docs/API.md`](docs/API.md).
+  Siehe [`docs/API.md`](https://github.com/johannes-kaindl/calendar-notes/blob/main/docs/API.md).
 - **Kein eingebauter Mailversand.** Eine Einladung geht über das eigene Scheduling des Servers
   (RFC 6638), falls vorhanden, sonst über ein Mail-Plugin, das sich bei `calendar-notes`
   registriert, sonst als `.ics`-Datei zum Kopieren oder Speichern.
@@ -72,47 +74,26 @@ hinzufügen — jedes mit einer Diff-Vorschau, bevor irgendetwas gesendet wird.
 
 ## Installation
 
-Repository: [git.jkaindl.de/jkaindl/calendar-notes](https://git.jkaindl.de/jkaindl/calendar-notes)
+### Über den Community-Plugin-Browser (empfohlen)
 
-> **Hinweis (2026-09-04):** Calendar and Contact Notes ist derzeit **nicht im
-> Community-Plugin-Browser gelistet**. Das GitHub-Konto, auf dem der Mirror lag, ist nicht
-> verfügbar, und damit entfiel auch der Store-Eintrag. Das Plugin selbst ist davon unberührt
-> und wird weiter gepflegt — die Releases erscheinen auf Forgejo, und die Wege unten
-> funktionieren heute.
+1. **Einstellungen → Community-Plugins → Durchsuchen**, nach **„Calendar and Contact Notes“** suchen, **Installieren** wählen.
+2. **Aktivieren.**
 
-### Mit dem AnySource Sideloader (empfohlen)
+Updates kommen dann wie bei jedem Community-Plugin.
 
-Der [AnySource Sideloader](https://git.jkaindl.de/jkaindl/anysource-sideloader) installiert und
-aktualisiert Plugins aus beliebigen Git-Forges, unabhängig vom Community Store.
+### Mit dem AnySource Sideloader
 
-1. AnySource Sideloader installieren und aktivieren. (Seine eigene Erstinstallation ist manuell
-   — unabhängig vom Store zu sein ist ja der Punkt —, aber sie fällt nur einmal an; danach hält
-   er sich und alles andere selbst aktuell.)
-2. Dieses Repository als Quelle eintragen:
-   `https://git.jkaindl.de/jkaindl/calendar-notes`
-3. **Calendar and Contact Notes** installieren und aktivieren.
-
-Updates kommen danach wie bei jedem anderen Plugin.
+Der [AnySource Sideloader](https://git.jkaindl.de/jkaindl/anysource-sideloader) installiert und aktualisiert Plugins aus beliebigen Git-Forges, unabhängig vom Community Store. Dieses Repository als Quelle eintragen: `https://git.jkaindl.de/jkaindl/calendar-notes`, dann **Calendar and Contact Notes** installieren und aktivieren.
 
 ### Manuelle Installation
 
-`main.js`, `manifest.json` und `styles.css` aus dem
-[letzten Forgejo-Release](https://git.jkaindl.de/jkaindl/calendar-notes/releases/latest)
-herunterladen und in den Vault kopieren. Ab 0.1.10 liegt jedem Release zusätzlich
-`checksums.sha256` bei — damit lässt sich das Heruntergeladene mit
-`shasum -a 256 -c checksums.sha256` prüfen.
+`main.js`, `manifest.json` und `styles.css` aus dem [letzten Forgejo-Release](https://git.jkaindl.de/jkaindl/calendar-notes/releases/latest) herunterladen und in den Vault kopieren. Ab 0.1.10 liegt jedem Release zusätzlich `checksums.sha256` bei — damit lässt sich das Heruntergeladene mit `shasum -a 256 -c checksums.sha256` prüfen.
 
 ```bash
 cp main.js manifest.json styles.css "<dein-vault>/.obsidian/plugins/calendar-notes/"
 ```
 
-Danach: Obsidian → **Einstellungen → Community-Plugins → neu laden** → **Calendar and Contact
-Notes** aktivieren.
-
-### Über den Community-Plugin-Browser
-
-Wieder verfügbar, sobald der Store-Eintrag zurück ist: **Einstellungen → Community-Plugins →
-Durchsuchen**, nach **Calendar and Contact Notes** suchen, installieren und aktivieren.
+Danach: Obsidian → **Einstellungen → Community-Plugins → neu laden** → **Calendar and Contact Notes** aktivieren.
 
 ### Aus dem Quelltext
 
@@ -122,33 +103,34 @@ cd calendar-notes && npm install && npm run build
 # main.js manifest.json styles.css → <vault>/.obsidian/plugins/calendar-notes/
 ```
 
+Repository: [git.jkaindl.de/jkaindl/calendar-notes](https://git.jkaindl.de/jkaindl/calendar-notes)
+
 ## Verwendung
 
 ### Einrichtung: Konto → Discovery → Sammlungen → Profil
 
-<img src="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/preview.png" width="584" alt="Das Vorschau-Modal nach dem Trockenlauf: Kalender 3 neu, Kontakte 2 neu, noch nichts geschrieben — Schließen oder Jetzt ausführen">
+<img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/preview.png" width="584" alt="Das Vorschau-Modal nach dem Trockenlauf: Kalender 3 neu, Kontakte 2 neu, noch nichts geschrieben — Schließen oder Jetzt ausführen">
 
 1. **Einstellungen → Calendar and Contact Notes → Konten → Konto hinzufügen.** Name,
-   Server-Basis-URL und Benutzername eintragen, dann **Verbindung testen & Sammlungen
-   finden**. Das Passwort landet im eigenen Schlüsselbund von Obsidian — siehe
+   Server-Basis-URL und Benutzername eintragen, dann **Verbindung prüfen und Kalender suchen**. Das Passwort landet im eigenen Schlüsselbund von Obsidian — siehe
    [Sicherheit](#sicherheit--datenschutz).
 2. Eine erfolgreiche Discovery trägt jeden vom Server gemeldeten Kalender und jedes
-   Adressbuch unter **Sammlungen** ein, jeweils mit einem **Spiegeln**-Schalter (standardmäßig
+   Adressbuch unter **Kalender & Adressbücher** ein, jeweils mit einem **Als Notizen spiegeln**-Schalter (standardmäßig
    aus) und einem **Profil**-Dropdown. Die gewünschten Sammlungen einschalten.
 3. Jede Sammlung nutzt ein **Zuordnungsprofil** — welche Frontmatter-Felder geschrieben
    werden, welcher Ordner, welches Dateinamensmuster. Zwei Standardprofile sind vorhanden
    (`Contacts (default)`, `Events (default)`, schreiben nach `Contacts/`/`Events/`); unter
    **Profile** lässt sich eines als JSON bearbeiten, im-/exportieren, oder aus einer
-   bestehenden Notiz ableiten (**Zuordnungsprofil aus aktueller Notiz erzeugen**) — praktisch,
+   bestehenden Notiz ableiten (**Aus Notiz erzeugen**, oder das Kommando **Zuordnungsprofil aus aktueller Notiz erzeugen**) — praktisch,
    wenn der Vault bereits eine eigene Kontakt-/Termin-Struktur hat.
-4. **Alle Sammlungen synchronisieren** ausführen (oder das Intervall abwarten), um die erste
-   Charge Notizen zu holen. **Synchronisation als Vorschau (Trockenlauf)** zeigt jederzeit, was
+4. **Alle Sammlungen synchronisieren** ausführen (oder **Jetzt alles abgleichen** unter **Aktionen**, oder das Intervall abwarten), um die erste
+   Charge Notizen zu holen. **Synchronisation als Vorschau (Trockenlauf)** (in den Einstellungen: **Vorschau: was würde ein Abgleich ändern?**) zeigt jederzeit, was
    passieren würde — Neu/Aktualisiert/Archiviert/Gelöscht je Sammlung —, ohne etwas zu
    schreiben.
 
 ### Adoption: bestehende Notizen verknüpfen statt duplizieren
 
-<img src="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/adoption.png" width="584" alt="Das Adoptions-Modal schlägt vor, die bestehende Notiz 2026-09-01 Zahnärztin mit dem Server-Eintrag Zahnärztin Dr. Müller zu verknüpfen (start+title, likely 0,75) — mit Alle sicheren übernehmen, Abbrechen und Verknüpfen">
+<img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/adoption.png" width="584" alt="Das Adoptions-Modal schlägt vor, die bestehende Notiz 2026-09-01 Zahnärztin mit dem Server-Eintrag Zahnärztin Dr. Müller zu verknüpfen (start+title, likely 0,75) — mit Alle sicheren übernehmen, Abbrechen und Verknüpfen">
 
 Liegen im Zielordner einer Sammlung bereits Notizen — aus einem anderen System migriert, von
 Hand geschrieben —, **Bestehende Notizen verknüpfen…** ausführen (oder den Button neben der
@@ -161,7 +143,7 @@ ein Duplikat zu erzeugen.
 
 ### Kommandos
 
-<a href="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/command-form.png"><img src="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/thumbs/command-form.png" width="380" alt="Das aus dem Schema erzeugte Formular „Termin anlegen“: Titel, Start, Ende, Ganztägig, Ort, Beschreibung und URL — geschrieben wird erst mit Speichern"></a><br><sub>Vorschau anklicken für volle Größe</sub>
+<a href="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/command-form.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/thumbs/command-form.png" width="380" alt="Das aus dem Schema erzeugte Formular „Termin anlegen“: Titel, Start, Ende, Ganztägig, Ort, Beschreibung und URL — geschrieben wird erst mit Speichern"></a><br><sub>Vorschau anklicken für volle Größe</sub>
 
 Die mittlere Spalte ist, was in der Befehlspalette getippt wird.
 
@@ -176,24 +158,25 @@ Die mittlere Spalte ist, was in der Befehlspalette getippt wird.
 | Neuer Termin | `Neuer Termin…` | Legt einen Termin auf dem Server an (und seine Notiz) über ein Formular |
 | Neuer Kontakt | `Neuer Kontakt…` | Legt einen Kontakt auf dem Server an (und seine Notiz) über ein Formular |
 | Rückgängig | `Letzte Änderung rückgängig machen` | Nimmt die letzte protokollierte Änderung des Ziels zurück |
+| Aufgaben abgleichen | `Aufgaben mit dem Server abgleichen` | Zeigt jeden Unterschied zwischen deinen Aufgaben-Notizen und dem Server und fragt je Zeile, welche Seite gewinnt |
 | Handänderungen übertragen | `Handänderungen auf den Server übertragen` | Vergleicht manuelle Frontmatter-Änderungen mit dem Server und bietet an, sie zu schreiben |
 
 ### Konfiguration
 
-<a href="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/settings.png"><img src="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/thumbs/settings.png" width="380" alt="Der Einstellungen-Tab mit einem Konto (Name, Server-URL, Benutzername, Passwort auf diesem Gerät hinterlegt) und der gefundenen Sammlungsgruppe mit je einem Schalter für Kalender, Aufgaben und Kontakte"></a><br><sub>Vorschau anklicken für volle Größe</sub>
+<a href="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/settings.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/thumbs/settings.png" width="380" alt="Der Einstellungen-Tab mit einem Konto (Name, Server-URL, Benutzername, Passwort auf diesem Gerät hinterlegt) und der gefundenen Sammlungsgruppe mit je einem Schalter für Kalender, Aufgaben und Kontakte"></a><br><sub>Vorschau anklicken für volle Größe</sub>
 
 | Einstellung | Was sie tut | Standard |
 |---|---|---|
 | Konten | Server-URL, Benutzername; Passwort im Schlüsselbund von Obsidian | — |
-| Sammlungen → Spiegeln | Ob ein gefundener Kalender/Adressbuch synchronisiert wird | aus |
-| Sammlungen → Profil | Welches Zuordnungsprofil eine Sammlung nutzt | das passende Standardprofil |
-| Sammlungen → Ordner-Override | Überschreibt den Ordner des Profils nur für diese Sammlung | Ordner des Profils |
-| Intervall (Desktop) | Minuten zwischen automatischen Syncs | 15 |
-| Intervall (Mobil) | Minuten zwischen automatischen Syncs auf Mobilgeräten | 60 |
+| Kalender & Adressbücher → Als Notizen spiegeln | Ob ein gefundener Kalender/Adressbuch synchronisiert wird | aus |
+| Kalender & Adressbücher → Profil | Welches Zuordnungsprofil eine Sammlung nutzt | das passende Standardprofil |
+| Kalender & Adressbücher → Abweichender Zielordner | Überschreibt den Ordner des Profils nur für diese Sammlung | Ordner des Profils |
+| Abstand zwischen zwei Läufen (Desktop, Minuten) | Minuten zwischen automatischen Syncs | 15 |
+| Abstand zwischen zwei Läufen (Mobil, Minuten) | Minuten zwischen automatischen Syncs auf Mobilgeräten | 60 |
 | Tage zurück | Wie weit rückwirkend Termine gespiegelt werden (ältere werden archiviert, nicht gelöscht) | 90 |
 | Tage voraus | Wie weit vorausschauend Termine gespiegelt werden | 365 |
-| Startverzögerung | Sekunden nach dem Laden von Obsidian bis zum ersten Sync | 10 |
-| Sprache | UI-Sprache: Automatisch (folgt Obsidian), Englisch, Deutsch | Automatisch |
+| Wartezeit nach dem Start (Sekunden) | Sekunden nach dem Laden von Obsidian bis zum ersten Sync | 10 |
+| Sprache der Plugin-Texte | UI-Sprache: Automatisch (folgt Obsidian), Englisch, Deutsch | Automatisch |
 
 ## Wie es denkt
 
@@ -222,7 +205,7 @@ Andere Plugins können Termine/Kontakte lesen, die Kommandos des Plugins als LLM
 Definitionen bekommen und über denselben `plan()`→`execute()`-Schritt schreiben, den auch die
 Oberfläche nutzt — nie an der Diff-Vorschau vorbei, und die API selbst öffnet nie ein Modal
 (Bestätigung ist Sache des Aufrufers). Vollständige Referenz, Versionierungsregeln und ein
-Mail-Transport-Vertrag: [`docs/API.md`](docs/API.md).
+Mail-Transport-Vertrag: [`docs/API.md`](https://github.com/johannes-kaindl/calendar-notes/blob/main/docs/API.md).
 
 ## Sicherheit & Datenschutz
 
@@ -266,18 +249,26 @@ npm test        # nur Unit-Tests
 npm run test:integration   # startet ein wegwerfbares Radicale per uvx, fährt Integrationstests
 ```
 
-Architektur, Meilenstein-Stand und der manuelle Smoke-Ablauf: [`AGENTS.md`](AGENTS.md).
+Architektur, Meilenstein-Stand und der manuelle Smoke-Ablauf: [`AGENTS.md`](https://github.com/johannes-kaindl/calendar-notes/blob/main/AGENTS.md).
 GUI-Smoke-Checkliste (läuft gegen ein laufendes Obsidian per CDP):
-[`docs/SMOKE.md`](docs/SMOKE.md).
+[`docs/SMOKE.md`](https://github.com/johannes-kaindl/calendar-notes/blob/main/docs/SMOKE.md).
+
+## Dokumentation
+
+- [Dokumentations-Index](https://github.com/johannes-kaindl/calendar-notes/blob/main/docs/README.md) (Englisch)
+- [Getting started](https://github.com/johannes-kaindl/calendar-notes/blob/main/docs/getting-started.md) — von der Installation zur ersten gespiegelten Termin-Notiz
+- [Troubleshooting](https://github.com/johannes-kaindl/calendar-notes/blob/main/docs/troubleshooting.md) — die Meldungen, die auftreten können, was sie bedeuten und was zu tun ist
+- [Plugin-API](https://github.com/johannes-kaindl/calendar-notes/blob/main/docs/API.md) — für Plugin-Autoren
 
 ## Lizenz
 
-- **Code:** AGPL-3.0-or-later ([`LICENSE`](LICENSE)).
+- **Code:** AGPL-3.0-or-later ([`LICENSE`](https://github.com/johannes-kaindl/calendar-notes/blob/main/LICENSE)).
+- **Dokumentation:** CC BY-SA 4.0 ([`LICENSE-DOCS`](https://github.com/johannes-kaindl/calendar-notes/blob/main/LICENSE-DOCS)).
 - **Fremdcode:** [`ical.js`](https://github.com/kewisch/ical.js) (MPL-2.0, iCalendar-/
   vCard-Parsing), [`fast-xml-parser`](https://github.com/NaturalIntelligence/fast-xml-parser)
   (MIT, WebDAV-Multistatus-Parsing).
-- Vollständige Drittlizenz-Hinweise: [`THIRD-PARTY.md`](THIRD-PARTY.md). Eine kommerzielle
+- Vollständige Drittlizenz-Hinweise: [`THIRD-PARTY.md`](https://github.com/johannes-kaindl/calendar-notes/blob/main/THIRD-PARTY.md). Eine kommerzielle
   Lizenz ist auf Anfrage erhältlich, falls das AGPL-3.0-Copyleft nicht passt:
-  [`LICENSING.md`](LICENSING.md).
+  [`LICENSING.md`](https://github.com/johannes-kaindl/calendar-notes/blob/main/LICENSING.md).
 
 Copyright © 2026 Johannes Kaindl.

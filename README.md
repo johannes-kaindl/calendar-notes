@@ -1,14 +1,16 @@
 # Calendar and Contact Notes
 
-> 🇬🇧 English · [🇩🇪 Deutsch](README.de.md)
+> 🇬🇧 English · [🇩🇪 Deutsch](https://github.com/johannes-kaindl/calendar-notes/blob/main/README.de.md)
 
 **Mirror CalDAV events and tasks and CardDAV contacts as notes in your vault — the server
 stays the source of truth, and every change back to it goes through an explicit command.**
 
-[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](https://github.com/johannes-kaindl/calendar-notes/blob/main/LICENSE)
+[![Docs: CC BY-SA 4.0](https://img.shields.io/badge/docs-CC%20BY--SA%204.0-lightgrey.svg)](https://github.com/johannes-kaindl/calendar-notes/blob/main/LICENSE-DOCS)
+[![Release](https://img.shields.io/github/v/release/johannes-kaindl/calendar-notes?label=release)](https://github.com/johannes-kaindl/calendar-notes/releases)
 ![Obsidian](https://img.shields.io/badge/obsidian-1.13.0%2B%20·%20desktop%20%26%20mobile-7c3aed)
 
-<p align="center"><img src="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/event-note.png" width="820" alt="A mirrored event note in reading view: frontmatter with type, dav_uid, dav_source, dav_etag, dav_state, title, start, end, all_day, online and rrule"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/event-note.png" width="820" alt="A mirrored event note in reading view: frontmatter with type, dav_uid, dav_source, dav_etag, dav_state, title, start, end, all_day, online and rrule"></p>
 
 Calendars, tasks and contacts usually live on a server you never see from inside Obsidian —
 not linkable, not queryable, not part of your vault. This plugin mirrors CalDAV calendars and
@@ -52,7 +54,7 @@ phone number, add an attendee — each shown as a diff before anything is sent.
   shows a diff, and writes only once you confirm.
 - **A read/write API for other plugins** (`app.plugins.plugins["calendar-notes"].api`,
   versioned) — events/contacts as data, commands as LLM tool definitions, a `plan()` →
-  `execute()` step for anything that writes. See [`docs/API.md`](docs/API.md).
+  `execute()` step for anything that writes. See [`docs/API.md`](https://github.com/johannes-kaindl/calendar-notes/blob/main/docs/API.md).
 - **No mail sending built in.** An invitation goes out via the server's own scheduling
   (RFC 6638) if it has one, otherwise via a mail plugin that registers itself with
   `calendar-notes`, otherwise as an `.ics` file you copy or save yourself.
@@ -69,45 +71,26 @@ phone number, add an attendee — each shown as a diff before anything is sent.
 
 ## Install
 
-Repository: [git.jkaindl.de/jkaindl/calendar-notes](https://git.jkaindl.de/jkaindl/calendar-notes)
+### From Obsidian's Community plugins browser (recommended)
 
-> **Note (2026-09-04):** Calendar and Contact Notes is currently **not listed in the Community
-> plugins browser**. The GitHub account that hosted the mirror is unavailable, which also
-> removed the store listing. The plugin itself is unaffected and fully maintained — releases
-> are published on Forgejo, and the routes below both work today.
+1. **Settings → Community plugins → Browse**, search for **"Calendar and Contact Notes"**, select **Install**.
+2. **Enable** it.
 
-### With AnySource Sideloader (recommended)
+Updates then arrive like any other community plugin update.
 
-[AnySource Sideloader](https://git.jkaindl.de/jkaindl/anysource-sideloader) installs and
-updates plugins from any git forge, independent of the Community Store.
+### With AnySource Sideloader
 
-1. Install and enable AnySource Sideloader. (Its own first install is manual — being
-   independent of the store is the point — but it only has to be done once, and it then
-   keeps itself and everything else updated.)
-2. Add this repository as a source:
-   `https://git.jkaindl.de/jkaindl/calendar-notes`
-3. Install **Calendar and Contact Notes** and enable it.
-
-Updates then arrive the same way any other plugin update does.
+[AnySource Sideloader](https://git.jkaindl.de/jkaindl/anysource-sideloader) installs and updates plugins from any git forge, independent of the Community Store. Add this repository as a source: `https://git.jkaindl.de/jkaindl/calendar-notes`, then install **Calendar and Contact Notes** and enable it.
 
 ### Manual install
 
-Download `main.js`, `manifest.json` and `styles.css` from the
-[latest Forgejo release](https://git.jkaindl.de/jkaindl/calendar-notes/releases/latest) and
-copy them into your vault. Releases from 0.1.10 on also ship `checksums.sha256`, so you can
-verify what you downloaded with `shasum -a 256 -c checksums.sha256`.
+Download `main.js`, `manifest.json` and `styles.css` from the [latest Forgejo release](https://git.jkaindl.de/jkaindl/calendar-notes/releases/latest) and copy them into your vault. Releases from 0.1.10 on also ship `checksums.sha256`, so you can verify what you downloaded with `shasum -a 256 -c checksums.sha256`.
 
 ```bash
 cp main.js manifest.json styles.css "<your-vault>/.obsidian/plugins/calendar-notes/"
 ```
 
-Then: Obsidian → **Settings → Community plugins → reload** → enable **Calendar and Contact
-Notes**.
-
-### From Obsidian's Community plugins browser
-
-Available again once the store listing returns: open **Settings → Community plugins →
-Browse**, search for **Calendar and Contact Notes**, install and enable it.
+Then: Obsidian → **Settings → Community plugins → reload** → enable **Calendar and Contact Notes**.
 
 ### From source
 
@@ -117,31 +100,33 @@ cd calendar-notes && npm install && npm run build
 # main.js manifest.json styles.css → <vault>/.obsidian/plugins/calendar-notes/
 ```
 
+Repository: [git.jkaindl.de/jkaindl/calendar-notes](https://git.jkaindl.de/jkaindl/calendar-notes)
+
 ## Usage
 
 ### Setup: account → discovery → collections → profile
 
-<img src="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/preview.png" width="584" alt="The dry-run preview modal after discovery: Kalender 3 new, Kontakte 2 new, nothing written yet — Close or Run now">
+<img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/preview.png" width="584" alt="The dry-run preview modal after discovery: Kalender 3 new, Kontakte 2 new, nothing written yet — Close or Run now">
 
 1. **Settings → Calendar and Contact Notes → Accounts → Add account.** Enter a name, the
-   server's base URL and your username, then **Test connection & find collections**. The
+   server's base URL and your username, then **Test connection and find calendars**. The
    password goes into Obsidian's own secret storage — see [Security](#security--privacy).
 2. Successful discovery adds every calendar and address book the server reports under
-   **Collections**, each with a **Mirror** toggle (off by default) and a **Profile** dropdown.
+   **Calendars & address books**, each with a **Mirror as notes** toggle (off by default) and a **Profile** dropdown.
    Turn on the ones you want mirrored.
 3. Each collection uses a **mapping profile** — which frontmatter fields to write, which
    folder, which filename pattern. Two defaults ship (`Contacts (default)`, `Events
    (default)`, writing to `Contacts/`/`Events/`); under **Profiles** you can edit one as JSON,
-   import/export, or generate one from an existing note's frontmatter shape (**Create mapping
-   profile from active note**) — handy if your vault already has a contact/event structure you
+   import/export, or generate one from an existing note's frontmatter shape (**Create from note**,
+   or the command **Create mapping profile from active note**) — handy if your vault already has a contact/event structure you
    want to keep.
-4. Run **Sync all collections** (or wait for the interval) to pull the first batch of notes.
-   **Preview sync (dry run)** shows what would happen — creates/updates/archives/deletes per
+4. Run **Sync all collections** (or **Sync everything now** under **Actions**, or wait for the interval) to pull the first batch of notes.
+   **Preview sync (dry run)** (in the settings: **Preview: what would a sync change?**) shows what would happen — creates/updates/archives/deletes per
    collection — without writing anything, any time.
 
 ### Adoption: link existing notes instead of duplicating them
 
-<img src="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/adoption.png" width="584" alt="The adoption modal proposing to link the existing note 2026-09-01 Zahnärztin to the server entry Zahnärztin Dr. Müller (start+title, likely 0.75), with Adopt all sure matches, Cancel and Link buttons">
+<img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/adoption.png" width="584" alt="The adoption modal proposing to link the existing note 2026-09-01 Zahnärztin to the server entry Zahnärztin Dr. Müller (start+title, likely 0.75), with Adopt all sure matches, Cancel and Link buttons">
 
 If a collection's target folder already has notes — migrated from another system, written by
 hand — run **Adopt existing notes…** (or the button next to a collection). The plugin proposes
@@ -153,7 +138,7 @@ generating a duplicate.
 
 ### Commands
 
-<a href="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/command-form.png"><img src="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/thumbs/command-form.png" width="380" alt="The schema-generated New event form: title, start, end, all-day toggle, location, description and URL — nothing is written until Save"></a><br><sub>Click the preview for full size</sub>
+<a href="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/command-form.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/thumbs/command-form.png" width="380" alt="The schema-generated New event form: title, start, end, all-day toggle, location, description and URL — nothing is written until Save"></a><br><sub>Click the preview for full size</sub>
 
 The middle column is what you type in the command palette; on a German Obsidian the commands
 appear under their German names instead.
@@ -169,24 +154,25 @@ appear under their German names instead.
 | New event | `New event…` | Creates an event on the server (and its note) via a form |
 | New contact | `New contact…` | Creates a contact on the server (and its note) via a form |
 | Undo | `Undo last change` | Reverts the target's last recorded change |
+| Sync tasks | `Sync tasks with the server` | Shows every difference between your task notes and the server and asks per row which side wins |
 | Push hand edits | `Write hand edits to the server` | Diffs your manual frontmatter edits against the server and offers to write them |
 
 ### Configuration
 
-<a href="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/settings.png"><img src="https://git.jkaindl.de/jkaindl/calendar-notes/raw/branch/main/docs/images/thumbs/settings.png" width="380" alt="The settings tab with one account (name, server URL, username, password stored on this device) and the discovered collection group with a toggle each for calendar, tasks and contacts"></a><br><sub>Click the preview for full size</sub>
+<a href="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/settings.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/thumbs/settings.png" width="380" alt="The settings tab with one account (name, server URL, username, password stored on this device) and the discovered collection group with a toggle each for calendar, tasks and contacts"></a><br><sub>Click the preview for full size</sub>
 
 | Setting | What it does | Default |
 |---|---|---|
 | Accounts | Server URL, username; password in Obsidian's secret storage | — |
-| Collections → Mirror | Whether a discovered calendar/address book is synced | off |
-| Collections → Profile | Which mapping profile a collection uses | the matching default profile |
-| Collections → Folder override | Overrides the profile's folder for this collection only | profile's folder |
-| Sync interval (desktop) | Minutes between automatic syncs | 15 |
-| Sync interval (mobile) | Minutes between automatic syncs on mobile | 60 |
+| Calendars & address books → Mirror as notes | Whether a discovered calendar/address book is synced | off |
+| Calendars & address books → Profile | Which mapping profile a collection uses | the matching default profile |
+| Calendars & address books → Different target folder | Overrides the profile's folder for this collection only | profile's folder |
+| Gap between runs (desktop, minutes) | Minutes between automatic syncs | 15 |
+| Gap between runs (mobile, minutes) | Minutes between automatic syncs on mobile | 60 |
 | Days back | How far into the past events are mirrored (older ones are archived, not deleted) | 90 |
 | Days ahead | How far into the future events are mirrored | 365 |
-| Startup delay | Seconds after Obsidian loads before the first sync runs | 10 |
-| Language | UI language: Automatic (follows Obsidian), English, German | Automatic |
+| Wait after startup (seconds) | Seconds after Obsidian loads before the first sync runs | 10 |
+| Language of the plugin's texts | UI language: Automatic (follows Obsidian), English, German | Automatic |
 
 ## How it works
 
@@ -212,7 +198,7 @@ have one (see [Limits](#limits)).
 Other plugins can read events/contacts, get the plugin's commands as LLM tool definitions, and
 write through the same `plan()` → `execute()` step the UI uses — never bypassing the diff, and
 the API itself never opens a modal (confirmation is the caller's job). Full reference,
-versioning rules and a mail-transport integration contract: [`docs/API.md`](docs/API.md).
+versioning rules and a mail-transport integration contract: [`docs/API.md`](https://github.com/johannes-kaindl/calendar-notes/blob/main/docs/API.md).
 
 ## Security & privacy
 
@@ -258,16 +244,24 @@ npm run test:integration   # starts a disposable Radicale via uvx, runs integrat
 ```
 
 Architecture, milestone-by-milestone status and the manual smoke procedure:
-[`AGENTS.md`](AGENTS.md). GUI smoke checklist (runs against a live, running Obsidian via CDP):
-[`docs/SMOKE.md`](docs/SMOKE.md).
+[`AGENTS.md`](https://github.com/johannes-kaindl/calendar-notes/blob/main/AGENTS.md). GUI smoke checklist (runs against a live, running Obsidian via CDP):
+[`docs/SMOKE.md`](https://github.com/johannes-kaindl/calendar-notes/blob/main/docs/SMOKE.md).
+
+## Documentation
+
+- [Documentation index](https://github.com/johannes-kaindl/calendar-notes/blob/main/docs/README.md)
+- [Getting started](https://github.com/johannes-kaindl/calendar-notes/blob/main/docs/getting-started.md) — from the install to your first mirrored event note
+- [Troubleshooting](https://github.com/johannes-kaindl/calendar-notes/blob/main/docs/troubleshooting.md) — the messages you may see, what they mean and what to do
+- [Plugin API](https://github.com/johannes-kaindl/calendar-notes/blob/main/docs/API.md) — for plugin authors (in German)
 
 ## License
 
-- **Code:** AGPL-3.0-or-later ([`LICENSE`](LICENSE)).
+- **Code:** AGPL-3.0-or-later ([`LICENSE`](https://github.com/johannes-kaindl/calendar-notes/blob/main/LICENSE)).
+- **Documentation:** CC BY-SA 4.0 ([`LICENSE-DOCS`](https://github.com/johannes-kaindl/calendar-notes/blob/main/LICENSE-DOCS)).
 - **Third-party:** [`ical.js`](https://github.com/kewisch/ical.js) (MPL-2.0, iCalendar/vCard
   parsing), [`fast-xml-parser`](https://github.com/NaturalIntelligence/fast-xml-parser) (MIT,
   WebDAV multistatus parsing).
-- Full third-party notices: [`THIRD-PARTY.md`](THIRD-PARTY.md). A commercial license is
-  available on request if AGPL-3.0's copyleft doesn't fit your use case: [`LICENSING.md`](LICENSING.md).
+- Full third-party notices: [`THIRD-PARTY.md`](https://github.com/johannes-kaindl/calendar-notes/blob/main/THIRD-PARTY.md). A commercial license is
+  available on request if AGPL-3.0's copyleft doesn't fit your use case: [`LICENSING.md`](https://github.com/johannes-kaindl/calendar-notes/blob/main/LICENSING.md).
 
 Copyright © 2026 Johannes Kaindl.
