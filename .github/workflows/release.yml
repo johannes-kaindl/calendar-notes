@@ -73,6 +73,13 @@ jobs:
             exit 1
           fi
 
+      # Bootstrap-ZIP (<id>.zip) und checksums.sha256 — dieselbe Logik wie der Forgejo-Weg
+      # (tools/release/lib/plugin-zip.mjs, hier als scripts/plugin-zip.mjs vendored): das Archiv
+      # ist reproduzierbar, gleicher Stand ergibt gleiche Bytes. Die Erstinstallation braucht so
+      # einen Download statt drei Einzeldateien in einen selbst angelegten Ordner.
+      - name: Build zip and checksums
+        run: node scripts/build-release-assets.mjs release-assets
+
       # Build-Provenance gibt es bei GitHub NICHT fuer private Repos eines
       # Nutzer-Accounts ("Feature not available for user-owned private
       # repositories"). Ohne diese Bedingung bricht der Schritt ab, BEVOR das
@@ -88,6 +95,7 @@ jobs:
             main.js
             manifest.json
             styles.css
+            release-assets/*
 
       - name: Create or update release
         env:
@@ -97,7 +105,7 @@ jobs:
           notes=$(awk -v t="## [$TAG]" 'index($0,t)==1{f=1;next} /^## \[/{f=0} f' CHANGELOG.md)
           [ -z "$notes" ] && notes="Release $TAG"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" main.js manifest.json styles.css --clobber
+            gh release upload "$TAG" main.js manifest.json styles.css release-assets/* --clobber
           else
-            gh release create "$TAG" main.js manifest.json styles.css --title "$TAG" --notes "$notes"
+            gh release create "$TAG" main.js manifest.json styles.css release-assets/* --title "$TAG" --notes "$notes"
           fi
