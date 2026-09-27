@@ -1,0 +1,16 @@
+{
+  "sources": {
+    "obsidian-kit": { "ref": "0.28.0" },
+    "code-kit": { "ref": "0.1.0" }
+  },
+  "targets": [
+    { "dir": "src/vendor/code-kit", "source": "code-kit", "from": "src/ts/pure", "modules": ["timeout", "sha256", "filename-template", "settings", "i18n"] },
+    { "dir": "src/vendor/kit", "source": "obsidian-kit", "from": "src/pure", "modules": ["frontmatter", "vault-path", { "name": "secrets", "ref": "0.35.0" }] },
+    {
+      "dir": "src/vendor/kit-obsidian", "source": "obsidian-kit", "from": "src/obsidian",
+      "modules": ["settings_walker", "folder-suggest", "confirm", { "name": "secrets", "ref": "0.35.0" }, { "name": "help-setting", "ref": "0.43.0" }],
+      "rewrite": [["../pure/", "../kit/"]]
+    },
+    { "dir": "tests/vendor/kit", "source": "obsidian-kit", "from": "src/testing", "modules": ["obsidian-mock"] }
+  ]
+}

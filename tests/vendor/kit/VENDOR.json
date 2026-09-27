@@ -3,5 +3,6 @@
   "version": "0.28.0",
   "sha": "2ab1bb5",
   "modules": "obsidian-mock.ts",
-  "note": "Verbatim snapshot aus der Git-Ref 0.28.0 (CORE-META-22: feste Ref, nicht Arbeitsstand). Never hand-edit. Re-vendor via tools/sync-kit.sh."
+  "note": "Verbatim snapshot aus der Git-Ref 0.28.0 (CORE-META-22: feste Ref, nicht Arbeitsstand). Never hand-edit. Re-vendor via tools/sync-kit.sh.",
+  "vendored": "obsidian-mock.ts"
 }
