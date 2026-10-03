@@ -5,7 +5,7 @@
 Zeilen 322–333). Die meisten Kandidaten unten sind darüber bereits erfasst — siehe Zuordnung
 je Zeile. Diese Datei ist ab jetzt eine **Kontrollliste**, nicht mehr die primäre Quelle;
 `../REGISTRY.md` wird von dieser Aufgabe **nicht** editiert (Übergabe an die nächste
-Registry-Pflege-Session bzw. Jay).
+Registry-Pflege-Session bzw. the maintainer).
 
 ## Bereits in ../REGISTRY.md erfasst (keine Aktion nötig)
 

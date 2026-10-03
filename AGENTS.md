@@ -1,7 +1,7 @@
 # AGENTS — calendar-notes
 
 CalDAV-Termine und CardDAV-Kontakte als Notiz-Spiegel; der Server ist die Wahrheit, geschrieben wird nur
-über Kommandos. Spec: `docs/superpowers/specs/2026-08-22-calendar-notes-design.md`. Pläne: `docs/superpowers/plans/`.
+über Kommandos. Spec: Vault-Cockpit `_SDD/2026-08-22-calendar-notes-design.md`. Pläne: Vault-Cockpit `_SDD/`.
 
 > **Workspace-Standards (maintainer-lokal):** Die verbindliche Leitkonvention steht in `_docs/CONVENTIONS.md`
 > im Multi-Projekt-Workspace des Maintainers, `../../_docs` relativ zu diesem Repo — nicht Teil dieses Repos,
@@ -11,7 +11,8 @@ CalDAV-Termine und CardDAV-Kontakte als Notiz-Spiegel; der Server ist die Wahrhe
 - Kit-Module nur über `tools/sync-kit.sh` (Herkunfts-Header), nie von Hand.
 - `eslint.config.mjs` + `scripts/check-no-inline-disables.mjs` sind Template-Kopien (Dach `tools/release-template/`).
 - Tests: `npm test` (unit) · `npm run test:integration` (startet Radicale per `uvx`, s. `scripts/dav-server.ts`).
-- DAV-Befunde echter Server: `docs/dav/befunde/` (ohne Zugangsdaten); Erhebungsliste `docs/dav/erhebung-anforderungen.md`.
+- DAV-Befunde echter Server und Erhebungsliste: Vault-Cockpit `_Intern/` (`dav-befund-mailbox-org.md`, `erhebung-anforderungen.md`; ohne Zugangsdaten).
+- Specs und Pläne liegen im Vault-Cockpit unter `_SDD/` (CORE-META-14), interne Doku (Release, Store, Erhebungen, Registry-Kandidaten) unter `_Intern/`.
 - Dach-Regeln gelten: `../AGENTS.md` (Kit-first, Release über `../tools/release/`, Store-Flow).
 
 ## Transport: `requestUrl` folgt Weiterleitungen selbst
@@ -88,7 +89,7 @@ versteht skalare Top-Level-Keys — für `type` und das Source-Feld genügt das,
 Die Spec führte `VTODO/Aufgaben (→ TaskNotes)` als Nicht-Ziel. Die Klammer nannte den
 **Zuständigen**, wurde aber als Verbot gelesen — *TaskNotes verwaltet Aufgaben* wurde zu
 *calendar-notes fasst Aufgaben nicht an*. Aufgehoben am 2026-09-02 (Anlass und Zuschnitt:
-`docs/superpowers/specs/2026-09-02-vtodo-aufgaben-design.md`). Aufgaben zwischen zwei Klienten
+Vault-Cockpit `_SDD/2026-09-02-vtodo-aufgaben-design.md`). Aufgaben zwischen zwei Klienten
 desselben Servers zu bewegen ist Transport, nicht Verwaltung — genau die Aufgabe dieses Plugins.
 
 **Die Grenze verläuft an der Schreibhoheit, nicht am Datentyp.** Gelesen wird ausschließlich
@@ -215,12 +216,12 @@ ohne Fehler und ohne Symptom außer fehlenden Aufgaben.
   `versions.json`, `package.json`-Scripts `release`/`version-bump`/`preflight`
   (delegieren an `../tools/release/`), `LICENSE` (AGPL-3.0-or-later) + `LICENSING.md` +
   `THIRD-PARTY.md`, `docs/AUDIT.md` (npm-audit-Einordnung).
-- Store-Vorbereitung: `docs/STORE.md` (Scorecard-Vorschau, Netzwerk-Erklärung für den
-  Review, Einreichungs-Checkliste), `docs/RELEASE.md` (Maintainer-Handover für Remotes +
+- Store-Vorbereitung: Vault-Cockpit `_Intern/STORE.md` (Scorecard-Vorschau, Netzwerk-Erklärung für den
+  Review, Einreichungs-Checkliste), `_Intern/RELEASE.md` (Maintainer-Handover für Remotes +
   Erst-Release + Dashboard/Rescan).
 - **Veröffentlicht (2026-08-23):** README-Bilder aufgenommen (`npm run shots`), Remotes
   `origin` (Forgejo `jkaindl/calendar-notes`) + `github` (`johannes-kaindl/calendar-notes`),
-  Releases 0.1.0 (Action rot — CI-Gate, s. `docs/RELEASE.md`), 0.1.1, 0.1.2 (Name ohne `&`),
+  Releases 0.1.0 (Action rot — CI-Gate, s. `_Intern/RELEASE.md`), 0.1.1, 0.1.2 (Name ohne `&`),
   **0.1.3 im Community Store: Scorecard „Passed", 0 Warnings.** Updates laufen über
   `npm run release <version>` + Rescan im Developer Dashboard.
 - **Stand 2026-08-25: 0.1.7, Rescan „Passed" / 0 Warnings.** 0.1.4–0.1.7 sind vier
@@ -231,7 +232,7 @@ ohne Fehler und ohne Symptom außer fehlenden Aufgaben.
   Folge nach 0.1.3 und 0.1.7). Fünfter Fix derselben
   Sorte: eine Server-Eigenschaft wurde erhoben, aber nicht ausgewertet (VTODO-Sammlungen,
   s. Abschnitt „Sammlungen" oben). Auffällig geworden ist er nicht am Code, sondern an einer
-  Erhebung gegen den echten Server (`docs/dav/befunde/mailbox-org.md`, 2026-08-29) — dieselbe
+  Erhebung gegen den echten Server (Vault-Cockpit `_Intern/dav-befund-mailbox-org.md`, 2026-08-29) — dieselbe
   Lehre wie bei 0.1.4–0.1.7, nur eine Stufe später in der Kette.
 - **Stand 2026-08-29 (abends): 0.1.9, Rescan „Passed" / 0 Warnings** — vierte Höchstwertung
   in Folge. Sechster Fix derselben Sorte und der bislang heikelste, weil er **ausschließlich
@@ -262,11 +263,11 @@ das ist M6b (Spec § 11).
 - `collectionSupports(col, kind)` löst `holdsEvents()` ab: die Prüfung hängt an der
   **Paarung** aus Sammlung und Profil, nicht an der Sammlung allein. mailbox.org führt VEVENT
   und VTODO in getrennten Sammlungen, die beide `kind === "calendar"` sind (gemessen, s.
-  `docs/dav/befunde/mailbox-org.md`).
+  Vault-Cockpit `_Intern/dav-befund-mailbox-org.md`).
 - Ableitungs-Knopf in den Einstellungen: liest TaskNotes' In-Process-API einmalig aus und
   **friert das Ergebnis im Profil ein** — keine Laufzeit-Kopplung. Nur `model`/`catalog`
   lesen, nie `api.tasks.*`: sonst verwaltet calendar-notes Aufgaben, und das ist TaskNotes'
-  Zuständigkeit. Messbefund zur fremden API: `docs/tasknotes-api.md`.
+  Zuständigkeit. Messbefund zur fremden API: Vault-Cockpit `_Intern/tasknotes-api.md`.
 - 609 Unit-Tests + 5 Integrationstests, GUI-Smoke `--section todo` 9/9 mit Gegenprobe.
 
 ### Zwei Sätze, die eine spätere Session braucht
@@ -338,7 +339,7 @@ Notiz auflöst, die weder im Profil-Index noch im State steht, nennt ihren Pfad 
 
 ## Release-Checkliste
 
-Kurzfassung — Details in `docs/RELEASE.md` (Ablauf) und `docs/STORE.md` (Scorecard-
+Kurzfassung — Details in Vault-Cockpit `_Intern/RELEASE.md` (Ablauf) und `_Intern/STORE.md` (Scorecard-
 Vorschau + Checkliste vor dem Erst-Release):
 
 1. `npm run gate && npm run test:integration && npm run typecheck:scripts` grün.
