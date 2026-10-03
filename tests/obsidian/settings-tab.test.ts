@@ -299,7 +299,7 @@ describe("Passwort-Zeile eines Kontos (SecretComponent)", () => {
 });
 
 // ── B1: die Auswahl „was spiegeln?" lebt beim Konto ───────────────────────────
-// Entschieden 2026-08-30 aus dem Erstkontakt-Befund (docs/ux/2026-08-29-*, B1): die gefundenen
+// Entschieden 2026-08-30 aus dem Erstkontakt-Befund (Vault-Cockpit _SDD/2026-08-29-*, B1): die gefundenen
 // Sammlungen erschienen NUR unter „Kalender & Adressbücher", eine Ebene tief hinter einer Seite,
 // die den KONTOnamen trägt — der Erstkontakt las das als „ich habe nur eine Sammlung". Die
 // Auswahl gehört deshalb direkt unter den Discovery-Button; die Feineinstellung (Profil, Ordner,

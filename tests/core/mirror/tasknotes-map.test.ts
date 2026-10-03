@@ -4,7 +4,7 @@ import { suggestStatusMap, suggestPriorityMap } from "../../../src/core/mirror/t
 const S = (value: string, isCompleted: boolean, order: number) => ({ value, isCompleted, order });
 const P = (value: string, weight: number) => ({ value, weight });
 
-// Gemessene Standardkonfiguration (docs/tasknotes-api.md): ein `none`-Eintrag pro Liste, der
+// Gemessene Standardkonfiguration (Vault-Cockpit _Intern/tasknotes-api.md): ein `none`-Eintrag pro Liste, der
 // *nicht gesetzt* bedeutet, kein Arbeitszustand — und ohne `defaults` faelschlich gewaehlt wuerde.
 const STANDARD_STATUSES = [S("none", false, 0), S("open", false, 1), S("in-progress", false, 2), S("done", true, 3)];
 const STANDARD_PRIORITIES = [P("none", 0), P("low", 1), P("normal", 2), P("high", 3)];

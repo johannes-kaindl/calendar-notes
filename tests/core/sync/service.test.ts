@@ -358,7 +358,7 @@ describe("SyncService", () => {
   });
 
   // mailbox.org fuehrt VEVENT und VTODO in GETRENNTEN Collections; die Aufgaben-Collection
-  // nimmt keine Termine an (Befund docs/dav/befunde/mailbox-org.md, 2026-08-29). Ohne diese
+  // nimmt keine Termine an (Befund Vault-Cockpit _Intern/dav-befund-mailbox-org.md, 2026-08-29). Ohne diese
   // Pruefung sieht ein Nutzer sie als gewoehnlichen Kalender, aktiviert sie, und der Sync
   // laeuft still ins Leere (kein VEVENT zu finden) bzw. der erste Schreibversuch in einen
   // Serverfehler. `components` wurde bis dahin erhoben, aber nirgends ausgewertet.

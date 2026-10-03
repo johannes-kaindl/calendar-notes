@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readTaskNotes, profileFromTaskNotes } from "../../src/obsidian/tasknotes";
 import { defaultTodoProfile, validateProfile } from "../../src/core/mirror/profile";
 
-// Form aus docs/tasknotes-api.md (gemessen gegen TaskNotes 4.12.5). Weicht die gemessene Form
+// Form aus Vault-Cockpit _Intern/tasknotes-api.md (gemessen gegen TaskNotes 4.12.5). Weicht die gemessene Form
 // ab, ist DIESES Objekt anzupassen — nicht der Test.
 const fakeApp = (over: Record<string, unknown> = {}): unknown => ({
   plugins: { plugins: { tasknotes: { api: {

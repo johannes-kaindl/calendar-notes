@@ -37,7 +37,7 @@ export interface CollectionConfig {
  * Passt diese Sammlung zu einem Profil dieser Sorte? Nur `supported-calendar-component-set`
  * beantwortet das fuer Kalender — die Ressourcentyp-Angabe (`<c:calendar/>`) tut es NICHT:
  * mailbox.org fuehrt VEVENT und VTODO in getrennten Collections, die beide `calendar` sind
- * (Befund `docs/dav/befunde/mailbox-org.md`, Punkt 3).
+ * (Befund Vault-Cockpit `_Intern/dav-befund-mailbox-org.md`, Punkt 3).
  *
  * Sagt der Server nichts (Feld fehlt — Radicale etwa liefert es nicht zwingend), wird nichts
  * angenommen und die Paarung gilt als moeglich.

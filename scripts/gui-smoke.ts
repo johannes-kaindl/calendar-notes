@@ -62,7 +62,7 @@ const SECRET_ID = `calendar-notes-${ACCOUNT_ID}`;
 // actionsGroup) — aus src/i18n/strings.ts, Schluessel `settings.*.heading`, DE und EN, weil
 // `initI18n` in main.ts auf `getLanguage()` faellt (systemabhaengig, im Treiber nicht erzwingbar).
 //
-// Stand 0.1.9 (Settings-Ueberarbeitung aus dem Erstkontakt-Befund, docs/ux/2026-08-29-*):
+// Stand 0.1.9 (Settings-Ueberarbeitung aus dem Erstkontakt-Befund, Vault-Cockpit _SDD/2026-08-29-*):
 // sechs Gruppen statt fuenf, und drei sind umbenannt. Diese Listen sind bewusst woertlich —
 // P1 SOLL rot werden, wenn sich die Oberfläche aendert; er hat es getan, nur hat den Lauf
 // zwischen dem 23.08. und heute niemand gefahren. Wer eine Ueberschrift aendert, zieht hier nach.

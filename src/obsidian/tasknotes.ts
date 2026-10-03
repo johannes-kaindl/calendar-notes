@@ -1,5 +1,5 @@
 // Liest die TaskNotes-Plugin-API (fremd, optional) EIN EINZIGES MAL beim Ableiten eines Profils —
-// s. docs/tasknotes-api.md fuer die gemessene Form. Der Sync selbst konsultiert TaskNotes nie
+// s. Vault-Cockpit _Intern/tasknotes-api.md fuer die gemessene Form. Der Sync selbst konsultiert TaskNotes nie
 // wieder (Spec § 5): das Profil ist danach ein gewoehnliches, eingefrorenes MappingProfile.
 //
 // Jeder Zugriff auf die Fremd-API steckt in try/catch — ein Wurf ergibt `undefined`, nie eine
