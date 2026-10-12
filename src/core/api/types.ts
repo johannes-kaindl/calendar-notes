@@ -119,7 +119,10 @@ export interface MailTransport {
 }
 
 export interface CalendarNotesApi {
+  /** Vertrag der Kit-Anbieter-API (Form-Guard). */
   version: 1;
+  /** Plugin-eigene Versionszaehlung, derselbe Wert wie `version` — Fremdplugins pruefen eines von beiden. */
+  apiVersion: 1;
 
   /** Termine aus allen (oder einer) Sammlung(en), deren Profil `kind: "event"` ist. */
   events(q?: EventsQuery): Promise<ApiEvent[] | ApiError>;

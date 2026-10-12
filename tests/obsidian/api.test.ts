@@ -247,6 +247,13 @@ describe("createPluginApi — version", () => {
     const f = makeFakes();
     expect(api(f).version).toBe(CALENDAR_NOTES_API_VERSION);
   });
+
+  it("apiVersion traegt dieselbe Zahl wie version (plugin-eigene Zaehlung, Welle 19)", () => {
+    const f = makeFakes();
+    const a = api(f);
+    expect(a.apiVersion).toBe(CALENDAR_NOTES_API_VERSION);
+    expect(a.apiVersion).toBe(a.version);
+  });
 });
 
 describe("createPluginApi — events/contacts/get", () => {

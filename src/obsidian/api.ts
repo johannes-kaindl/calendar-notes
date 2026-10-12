@@ -166,6 +166,7 @@ export function createPluginApi(host: PluginApiHost): CalendarNotesApi {
 
   return {
     version: CALENDAR_NOTES_API_VERSION,
+    apiVersion: CALENDAR_NOTES_API_VERSION,
 
     async events(q?: EventsQuery): Promise<ApiEvent[] | ApiError> {
       try {

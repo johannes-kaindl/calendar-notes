@@ -13,7 +13,7 @@ Muster: `vault-rag/src/plugin_api.ts` (Anbieter-Seite), `koda-agent/src/obsidian
 
 ```ts
 const cn = app.plugins.plugins["calendar-notes"]?.api;
-if (cn?.version === 1) {
+if (cn?.apiVersion === 1 || cn?.version === 1) {
   const events = await cn.events({ from: "2026-09-01", to: "2026-09-30" });
 }
 ```
@@ -23,7 +23,7 @@ if (cn?.version === 1) {
 1. **Bei jedem Aufruf frisch lesen, nie beim Laden cachen.** `calendar-notes` kann zur
    Laufzeit deaktiviert werden — der Zugriff über `app.plugins.plugins[...]` ist nur ein
    Objekt-Lookup, kein teurer Vorgang.
-2. **`version` prüfen, bevor du dich auf die Form verlässt.** `version: 1` erhöht sich bei
+2. **`apiVersion` (oder `version`) prüfen, bevor du dich auf die Form verlässt.** Beide tragen dieselbe Zahl; `version: 1` erhöht sich bei
    jeder brechenden Änderung. Ein Konsument, der eine andere Version sieht, behandelt die
    API als nicht vorhanden statt zu raten.
 3. **Typen kopieren statt importieren, mit Herkunftsstempel.** `calendar-notes` und der
@@ -167,7 +167,7 @@ keine Plugin-ID von mailstone:
 
 ```ts
 const cn = app.plugins.plugins["calendar-notes"]?.api;
-if (cn?.version === 1) cn.registerMailTransport(transport);
+if (cn?.apiVersion === 1 || cn?.version === 1) cn.registerMailTransport(transport);
 // beim Entladen:
 cn?.unregisterMailTransport(transport.id);
 ```
@@ -231,6 +231,8 @@ nie eine Ausnahme. `ApiError = { error: string }`. Ausnahme: `get()` liefert zus
 
 ## Versionierung
 
+**Zwei Felder, dieselbe Zahl, feste Bedeutung (Entscheidung 2026-10-12):** `version` ist der Kit-Vertrag (Form-Guard der Anbieter-API v1, REGISTRY „Anbieter-API v1"), `apiVersion` die plugin-eigene Zählung dieser API. Beide stehen im API-Objekt und tragen heute `1`; ein Konsument prüft eines davon (neuere Konsumenten `apiVersion`, ältere weiter `version`). `version` bleibt, damit ausgelieferte Konsumenten nicht brechen.
+
 `version: 1` ist Teil jeder Antwort/des API-Objekts. Eine brechende Änderung (Feld entfernt/
 umbenannt, Fehlerform geändert, ein Aufruf öffnet neu doch ein Modal) erhöht die Zahl; ein
 altes `version === 1`-Objekt bleibt für bereits ausgelieferte Plugin-Versionen unverändert
@@ -238,5 +240,5 @@ erreichbar, solange `calendar-notes` beide Formen anbietet — oder die Major-Ve
 angehoben und alte Konsumenten sehen `version !== 1` und behandeln die API als fehlend.
 
 Intern kommt der Wert aus `CALENDAR_NOTES_API_VERSION` (`src/core/api/types.ts`) — `src/
-obsidian/api.ts` setzt `version` darüber, kein Literal `1` (Fix-Runde 1, Punkt 3): eine
+obsidian/api.ts` setzt `version` und `apiVersion` darüber, kein Literal `1` (Fix-Runde 1, Punkt 3): eine
 künftige Versionserhöhung ändert genau EINE Konstante.

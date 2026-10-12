@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- The plugin API now also carries `apiVersion` (same number as `version`, currently `1`). `version` stays; other plugins can check either field.
+
 ## [0.3.1] — 2026-10-03
 
 ### Added
