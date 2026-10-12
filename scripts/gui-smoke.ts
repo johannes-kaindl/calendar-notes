@@ -3,32 +3,32 @@
  * `docs/SMOKE.md` gegen ein LAUFENDES Obsidian ueber CDP — echtes Vault, echtes DAV
  * (Radicale, lokal gestartet), echtes `app.secretStorage`, echte Frontmatter-Schreibpfade.
  *
- * ⚠️ **Zuerst pruefen, wer sonst an Obsidian haengt.** Obsidian ist Single-Instance — ein
- * `quit` trifft die Instanz, an der moeglicherweise eine andere Session arbeitet, und zerstoert
- * deren Zustand. Der eigene Lauf ist danach sauber gruen; der Schaden entsteht woanders und
- * faellt nicht auf.
+ * Der Port ist PFLICHT (`--port <n>`, dokumentierter Wert dieses Rezepts: 9384); der Treiber hat keinen
+ * Default und fasst die regulaere Instanz nie an. Gemessen wird in einer ZWEITINSTANZ (eigenes Profil,
+ * eigener Port) — nie in der Instanz, an der eine andere Session haengt, und nie mit `quit`:
  *
  * ```bash
- * lsof -nP -iTCP:9222 -sTCP:LISTEN >/dev/null && echo "laeuft bereits — NICHT beenden"
+ * UD=/tmp/obs-test-calendar-notes; mkdir -p "$UD"
+ * lsof -nP -iTCP:9384 -sTCP:LISTEN; pgrep -f "user-data-dir=$UD"      # beides leer, sonst ausweichen
+ * # (a) aktuelle Version statt gebuendelter (nachsehen: ls ~/Library/Application\ Support/obsidian/*.asar)
+ * cp ~/Library/Application\ Support/obsidian/obsidian-<version>.asar "$UD"/
+ * # Vault "$STAGING_VAULTS_DIR/calendar-notes" und "language":"en" in "$UD/obsidian.json" eintragen
+ * OBSIDIAN_PLUGIN_DIR="$STAGING_VAULTS_DIR/calendar-notes/.obsidian/plugins/calendar-notes" npm run deploy
+ * /Applications/Obsidian.app/Contents/MacOS/Obsidian --user-data-dir="$UD" --remote-debugging-port=9384 &
+ * python3 ~/.claude/hooks/obsidian-cdp-lock.py acquire --label calendar-notes --intent "GUI-Smoke :9384" --exclusive focus --port 9384 --ttl 300
  * ```
  *
- * Hoert der Port schon, dann **mitnutzen statt neu starten**: ein eigenes Fenster per
- * `vault-open` ueber IPC oeffnen, dann `attachTo("workspace", port, vault)` — der Vault-Name
- * waehlt, nicht die Reihenfolge. ⚠️ Die Port-Pruefung ersetzt die Frage nicht: sie zeigt aktive
- * CDP-Treiber, aber nicht, wer ein Fenster offen haelt oder auf den Port wartet.
- *
- * Erst wenn nichts laeuft — oder nach Absprache mit dem, der es benutzt — gilt das Rezept unten.
- *
- * Voraussetzung (der eine Handgriff, der Handarbeit bleibt):
- *   osascript -e 'quit app "Obsidian"'; open -a Obsidian --args --remote-debugging-port=9222
- *   OBSIDIAN_PLUGIN_DIR="<vault>/.obsidian/plugins/calendar-notes" npm run deploy
+ * Vertrauensdialog und Restricted Mode erledigt der Treiber selbst (`bereiteInstanzVor`); einen
+ * Prozessneustart je Messlauf vorausgesetzt (eine Zweitinstanz altert). Bilanz in vier Zustaenden
+ * (CORE-TEST-19, `createBilanz`): die Soll-Liste je Abschnitt ist der Nenner, ein nie erreichter Punkt
+ * zaehlt als „nichts gemessen" (Exit 1), ein Abbruch ist Exit 2.
  *
  * Aufruf:
- *   npm run smoke:gui -- --setup                  # baut den Staging-Vault aus dem Fixture neu
- *   npm run smoke:gui -- --section generic         # Standard-Profile (Contacts/Events)
- *   npm run smoke:gui -- --section pallas          # Profile aus Pallas-Notizen + Adoption
- *   npm run smoke:gui -- --section todo            # Aufgaben-Spiegel + Rueckschreiben (M6a/M6b)
- *   npm run smoke:gui -- --section generic --focus # zusaetzlich P8 (Settings-UI, Screenshot)
+ *   npm run smoke:gui -- --port 9384 --setup                # baut den Staging-Vault aus dem Fixture neu
+ *   npm run smoke:gui -- --port 9384 --section generic         # Standard-Profile (Contacts/Events)
+ *   npm run smoke:gui -- --port 9384 --section pallas          # Profile aus Pallas-Notizen + Adoption
+ *   npm run smoke:gui -- --port 9384 --section todo            # Aufgaben-Spiegel + Rueckschreiben (M6a/M6b)
+ *   npm run smoke:gui -- --port 9384 --section generic --focus # zusaetzlich P8 (Settings-UI, Screenshot)
  *
  * Jeder Lauf legt ein eigenes Konto + zwei Sammlungen an, benutzt Radicale auf Port 5298
  * (die produktive Kollisionsgefahr mit einem laufenden Port-5232-Radicale entfaellt damit),
@@ -42,12 +42,14 @@ import { Buffer } from "node:buffer";
 import {
   Cdp,
   attachTo,
+  bereiteInstanzVor,
   notices,
   pollUntil,
   releaseAlwaysOnTop,
   requireUntil,
   requireVisible,
 } from "../../tools/obsidian-cdp/cdp.js";
+import { createBilanz, parseArgs, runDriver, type Bilanz } from "../../tools/obsidian-cdp/bilanz.js";
 import { buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
 import { capture, writeShot } from "../../tools/obsidian-cdp/shot.js";
 import { startRadicale, type RunningServer } from "./dav-server.js";
@@ -110,35 +112,72 @@ const ZAHN_PATH = "Pallas/30_Chronos/70_Termine/10_Anstehend/2026-09-01 Zahnärz
 const KONTAKTE_FOLDER = "Pallas/50_Ressourcen/10_Reference/10_Kontakte";
 const ANSTEHEND_FOLDER = "Pallas/30_Chronos/70_Termine/10_Anstehend";
 
-interface Check {
-  id: string;
-  name: string;
-  passed: boolean;
-  detail: string;
-}
-const checks: Check[] = [];
-function record(id: string, name: string, passed: boolean, detail: string): void {
-  checks.push({ id, name, passed, detail });
-  console.log(`${passed ? "✔" : "✘"} ${id} ${name} — ${detail}`);
+// Soll-Liste (Nenner) ueber ALLE Abschnitte; die ID ist Teil des Namens (`kurz` der Bilanz zeigt sie
+// in der Rot-Zeile). Ein Lauf misst nur die Punkte seines Abschnitts, `sollFuer` liefert den Nenner.
+const PUNKT = {
+  P0: "P0 Kein liegen gebliebenes Smoke-Konto aus einem abgebrochenen frueheren Lauf",
+  P1: "P1 Laden",
+  P2b: "P2b Konto ueber die Oberflaeche eingerichtet: Discovery antwortet (207, nicht 401)",
+  P2a: "P2a Gegenprobe: falsches Passwort scheitert (401)",
+  P2: "P2 Konto+Discovery",
+  P3: "P3 Adoption (pallas)",
+  P3b: "P3b Sync nach Adoption aktualisiert statt neu anzulegen",
+  P4a: "P4a Trockenlauf (3+2 creates)",
+  P4b: "P4b Sync legt Dateien mit Frontmatter an",
+  P5: "P5 Update-Pfad (Server-PUT → Frontmatter+Body neu, handEdited leer)",
+  P9: "P9 Notices nach P5 ohne Fehler",
+  P6: "P6 Loeschung (Papierkorb, delete:trash im Plan)",
+  P7: "P7 Zweiter Discovery-Lauf haelt aktivierte Sammlungen (Merge-Regel)",
+  P10: "P10 Kommando via API (event.move)",
+  P12: "P12 Undo (Letzte Änderung zurücknehmen) — DTSTART zurueck auf Vor-P10-Stand",
+  P11: "P11 Einladung ohne Scheduling/Transport (Route ics)",
+  P13: "P13 API-Lesen (events/contacts/tools==commands, keine Punkte in Tool-Namen)",
+  P20: "P20 Aufgaben-Sammlung erkannt und aktivierbar",
+  P21: "P21 Aufgaben-Profil automatisch zugewiesen",
+  P22: "P22 Sync legt Notiz fuer die offene Aufgabe an",
+  P23: "P23 Frontmatter traegt den ABGEBILDETEN Status",
+  P24: "P24 Notiz traegt die Sichtbarkeitsmarkierung",
+  P25: "P25 Kommando nur bei aktiver Aufgaben-Sammlung anbietbar",
+  P26: "P26 Modal fuehrt genau die geaenderte Notiz unter „im Vault geaendert“",
+  P30: "P30 Senden-Knopf zaehlt mit — bei Einzelwahl und Sammelknopf",
+  P27: "P27 Senden schreibt auf den Server und zieht die Notiz nach",
+  P28: "P28 Im Vault entstandene Aufgabe wird angelegt UND gehoert danach dem Server",
+  P29: "P29 Titel-Aenderung an einer ABGEBROCHENEN Aufgabe laesst CANCELLED stehen",
+  P8: "P8 Settings-UI (Konto-Unterseite: SecretComponent, Discovery-Button, Sammlungs-Auswahl)",
+} as const;
+type PunktId = keyof typeof PUNKT;
+type PunktName = (typeof PUNKT)[PunktId];
+
+const GRUND: PunktId[] = ["P0", "P1", "P2b", "P2a", "P2"];
+const SOLL_JE_ABSCHNITT: Record<Section, readonly PunktId[]> = {
+  generic: [...GRUND, "P4a", "P4b", "P5", "P9", "P6", "P7", "P10", "P12", "P11", "P13"],
+  pallas: [...GRUND, "P3", "P3b"],
+  todo: [...GRUND, "P21", "P20", "P22", "P23", "P24", "P25", "P26", "P30", "P27", "P28", "P29"],
+};
+/** Nenner eines Laufs: die Punkte des Abschnitts, mit `--focus` zusaetzlich P8. */
+function sollFuer(section: Section, focus: boolean): readonly PunktName[] {
+  const ids = focus ? [...SOLL_JE_ABSCHNITT[section], "P8" as const] : SOLL_JE_ABSCHNITT[section];
+  return ids.map((id) => PUNKT[id]);
 }
 
-// Fuer Pruefpunkte, die (noch) keinen programmatischen Pfad haben — zaehlt NICHT in
-// checks/exitCode mit (kein Rot fuer etwas, das strukturell fehlt statt kaputt zu sein),
-// erscheint aber sichtbar im Protokoll. Seit Fix-Runde 1 (Punkt 0) hat P12 selbst wieder
-// einen programmatischen Pfad (`checkP12`) und ruft das hier nicht mehr auf — bleibt als
-// Infrastruktur fuer kuenftige Pruefpunkte ohne headless-Pfad stehen.
-function recordSkip(id: string, name: string, reason: string): void {
-  console.log(`⚠ ${id} ${name} — übersprungen: ${reason}`);
+// Die Bilanz entsteht in `main()`, sobald der Abschnitt bekannt ist (der Nenner haengt an ihm).
+let bilanz: Bilanz<PunktName>;
+function record(id: PunktId, passed: boolean, detail: string): void {
+  bilanz.record(PUNKT[id], passed, detail);
 }
+/** Der Gegenstand des Punkts wurde nicht erreicht (Vorbedingung/Zugang fehlt) — „nichts gemessen“, nicht rot. */
+function unmeasured(id: PunktId, grund: string): void {
+  bilanz.unmeasured(PUNKT[id], grund);
+}
+
+const args = parseArgs(process.argv.slice(2));
 
 function arg(name: string, def: string): string {
-  const i = process.argv.indexOf(`--${name}`);
-  const v = i >= 0 ? process.argv[i + 1] : undefined;
-  return v ?? def;
+  return args.value(name) ?? def;
 }
 
 function flag(name: string): boolean {
-  return process.argv.includes(`--${name}`);
+  return args.has(name);
 }
 
 // Der Ort wird ueber `stagingVaultDir()` aufgeloest, nicht selbst zusammengebaut — Dach-Regel
@@ -341,9 +380,9 @@ async function checkP1(cdp: Cdp): Promise<void> {
     // Punkt, an dem ein VERSEHENTLICH weggefallenes Kommando auffiele. Wer eines hinzufuegt,
     // zieht sie mit — der Baseline-Lauf vor der Erweiterung meldet das von selbst.
     const ok = cmds.length === 11 && headingsOk;
-    record("P1", "Laden", ok, `${cmds.length} Kommandos, benannte Settings-Gruppen: ${JSON.stringify(named)} (erwartet DE ${JSON.stringify(SETTING_HEADINGS_DE)} oder EN ${JSON.stringify(SETTING_HEADINGS_EN)})`);
+    record("P1", ok, `${cmds.length} Kommandos, benannte Settings-Gruppen: ${JSON.stringify(named)} (erwartet DE ${JSON.stringify(SETTING_HEADINGS_DE)} oder EN ${JSON.stringify(SETTING_HEADINGS_EN)})`);
   } catch (e) {
-    record("P1", "Laden", false, e instanceof Error ? e.message : String(e));
+    unmeasured("P1", e instanceof Error ? e.message : String(e));
   }
 }
 
@@ -503,14 +542,11 @@ async function checkP2bUiAuth(cdp: Cdp, radicale: RunningServer): Promise<void> 
       return { threw, msg, collections, secretId: account.secretId || "" };
     `);
     const ok = !r.threw && r.collections > 0 && r.secretId !== "";
-    record(
-      "P2b",
-      "Konto ueber die Oberflaeche eingerichtet: Discovery antwortet (207, nicht 401)",
-      ok,
+    record("P2b", ok,
       `warf=${r.threw}${r.msg ? `, Meldung: ${JSON.stringify(r.msg.slice(0, 160))}` : ""}, Sammlungen=${r.collections}, secretId=${JSON.stringify(r.secretId)}, Secret hinterlegt=${secretGesetzt}`,
     );
   } catch (e) {
-    record("P2b", "Konto ueber die Oberflaeche eingerichtet: Discovery antwortet (207, nicht 401)", false, e instanceof Error ? e.message : String(e));
+    unmeasured("P2b", e instanceof Error ? e.message : String(e));
   } finally {
     // Aufraeumen im Pruefpunkt selbst, nicht erst am Laufende: das UI-Konto brauchte eine
     // eigene ID, und ein zweites Konto mit denselben Sammlungen wuerde P2 und alles danach
@@ -581,9 +617,9 @@ async function checkP2aAuth(cdp: Cdp, radicale: RunningServer): Promise<void> {
       return { threw, msg };
     `);
     const nennt401 = /401/.test(r.msg);
-    record("P2a", "Gegenprobe: falsches Passwort scheitert (401)", r.threw && nennt401, `warf=${r.threw}, Meldung nennt 401=${nennt401}, Meldung: ${JSON.stringify(r.msg.slice(0, 200))}`);
+    record("P2a", r.threw && nennt401, `warf=${r.threw}, Meldung nennt 401=${nennt401}, Meldung: ${JSON.stringify(r.msg.slice(0, 200))}`);
   } catch (e) {
-    record("P2a", "Gegenprobe: falsches Passwort scheitert (401)", false, e instanceof Error ? e.message : String(e));
+    unmeasured("P2a", e instanceof Error ? e.message : String(e));
   }
 }
 
@@ -593,8 +629,8 @@ async function checkP2(info: DiscoverInfo, variant: Section): Promise<void> {
   // ausgeschrieben und nicht als >= 2, damit eine im Fixture verlorene Sammlung auffaellt.
   const ok = info.collections === 3 && info.warnings === 0
     && info.calendarId !== "" && info.addressbookId !== "" && info.todoId !== "";
-  record("P2", `Konto+Discovery (${variant})`, ok,
-    `${info.collections} Sammlungen, ${info.warnings} Warnungen, Aufgaben-Sammlung ${info.todoId ? "erkannt" : "FEHLT"}`);
+  record("P2", ok,
+    `(${variant}) ${info.collections} Sammlungen, ${info.warnings} Warnungen, Aufgaben-Sammlung ${info.todoId ? "erkannt" : "FEHLT"}`);
 }
 
 // ── P3: Adoption (nur --section pallas) ─────────────────────────────────
@@ -691,10 +727,7 @@ async function checkP3(cdp: Cdp, info: DiscoverInfo): Promise<void> {
   const noErrors = !/fail|fehlgeschlagen|failed/i.test(noticesAfterContacts) && !/fail|fehlgeschlagen|failed/i.test(noticesAfterEvents);
 
   const ok = alexLinked && zahnLinked && adacUntouched && noErrors;
-  record(
-    "P3",
-    "Adoption (pallas)",
-    ok,
+  record("P3", ok,
     `Alex verknuepft=${alexLinked}, Zahnärztin verknuepft=${zahnLinked}, ADAC unberuehrt=${adacUntouched}; ` +
       `Notices: "${noticesAfterContacts}" | "${noticesAfterEvents}"`,
   );
@@ -751,10 +784,7 @@ async function checkP3(cdp: Cdp, info: DiscoverInfo): Promise<void> {
   const noExtraFileForLinked = kontakteDelta + anstehendDelta === sync.created;
   const bodyKept = after.zahnBody.includes("Vorbereitung");
   const syncOk = sync.ok && sync.updated >= 2 && noExtraFileForLinked && bodyKept;
-  record(
-    "P3b",
-    "Sync nach Adoption aktualisiert statt neu anzulegen",
-    syncOk,
+  record("P3b", syncOk,
     `created=${sync.created} updated=${sync.updated}, Dateizahl Kontakte ${before.kontakteCount}→${after.kontakteCount} (Δ${kontakteDelta}), ` +
       `Anstehend ${before.anstehendCount}→${after.anstehendCount} (Δ${anstehendDelta}), Summe Δ == created=${noExtraFileForLinked}, ` +
       `Body "Vorbereitung…" erhalten=${bodyKept}`,
@@ -770,7 +800,7 @@ async function checkP4(cdp: Cdp): Promise<void> {
     return { created: r.collections.reduce((n, c) => n + c.counts.created, 0), ok: r.collections.every((c) => c.ok) };
   `,
   );
-  record("P4a", "Trockenlauf (3+2 creates)", dry.created === 5 && dry.ok, `${dry.created} creates im Trockenlauf`);
+  record("P4a", dry.created === 5 && dry.ok, `${dry.created} creates im Trockenlauf`);
 
   const real = await cdp.evaluate<{ created: number; ok: boolean }>(
     `
@@ -788,10 +818,7 @@ async function checkP4(cdp: Cdp): Promise<void> {
   `,
   );
   const ok = real.created === 5 && real.ok && files.events === 3 && files.contacts === 2;
-  record(
-    "P4b",
-    "Sync legt Dateien mit Frontmatter an",
-    ok,
+  record("P4b", ok,
     `${real.created} creates, Events/=${files.events} Contacts/=${files.contacts}, FM-Keys: ${files.fmKeys.join(", ")}`,
   );
 }
@@ -846,7 +873,7 @@ END:VCALENDAR
 async function checkP5(cdp: Cdp, radicale: RunningServer): Promise<void> {
   const status = await davPut(radicale, "test/kalender/simple-1.ics", UPDATED_SIMPLE_1, "text/calendar; charset=utf-8");
   if (status < 200 || status >= 300) {
-    record("P5", "Update-Pfad (Server-PUT)", false, `PUT simple-1.ics → HTTP ${status}`);
+    unmeasured("P5", `Vorbedingung: PUT simple-1.ics → HTTP ${status}`);
     return;
   }
   const before = await cdp.evaluate<{ etag: string; body: string } | null>(
@@ -897,20 +924,17 @@ async function checkP5(cdp: Cdp, radicale: RunningServer): Promise<void> {
   const bodyChanged = !!before && !!after && before.body !== after.body && /NEU/.test(after.body);
   const noErrorNotices = !/EXCEPTION|ERROR|fehlgeschlagen|failed/i.test(noticesAfter);
   const ok = !!etagSettled && !!after && etagChanged && bodyChanged && after.updated >= 1 && after.handEdited === 0 && noErrorNotices;
-  record(
-    "P5",
-    "Update-Pfad (Server-PUT → Frontmatter+Body neu, handEdited leer)",
-    ok,
+  record("P5", ok,
     `etagSettled(pollUntil)=${!!etagSettled}, etag ${before?.etag ?? "?"} → ${after?.etag ?? "?"}, updated=${after?.updated ?? "?"}, handEdited=${after?.handEdited ?? "?"}, Notices: "${noticesAfter}"`,
   );
-  record("P9", "Notices nach P5 ohne Fehler", noErrorNotices, `"${noticesAfter}"`);
+  record("P9", noErrorNotices, `"${noticesAfter}"`);
 }
 
 async function checkP6(cdp: Cdp, radicale: RunningServer): Promise<void> {
   const before = await cdp.evaluate<number>( `return app.vault.getMarkdownFiles().filter((f) => f.path.startsWith("Events/") && f.basename !== "_index").length;`);
   const status = await davDelete(radicale, "test/kalender/allday-1.ics");
   if (status < 200 || status >= 300) {
-    record("P6", "Loeschung (Server-DELETE)", false, `DELETE allday-1.ics → HTTP ${status}`);
+    unmeasured("P6", `Vorbedingung: DELETE allday-1.ics → HTTP ${status}`);
     return;
   }
   const planned = await cdp.evaluate<boolean>(
@@ -929,7 +953,7 @@ async function checkP6(cdp: Cdp, radicale: RunningServer): Promise<void> {
   );
   const after = await cdp.evaluate<number>( `return app.vault.getMarkdownFiles().filter((f) => f.path.startsWith("Events/") && f.basename !== "_index").length;`);
   const ok = planned && before - after === 1;
-  record("P6", "Loeschung (Papierkorb, delete:trash im Plan)", ok, `Events/ ${before} → ${after}, delete:trash im Trockenlauf-Plan=${planned}`);
+  record("P6", ok, `Events/ ${before} → ${after}, delete:trash im Trockenlauf-Plan=${planned}`);
 }
 
 async function checkP7(cdp: Cdp): Promise<void> {
@@ -949,7 +973,7 @@ async function checkP7(cdp: Cdp): Promise<void> {
   // des Pruefpunkts ist enabledBefore === enabledAfter — die Sammlungszahl steht daneben,
   // damit ein veraendertes Fixture hier auffaellt und nicht in der Merge-Regel gesucht wird.
   const ok = result.collections === 3 && result.enabledBefore === result.enabledAfter && result.enabledAfter === 2;
-  record("P7", "Zweiter Discovery-Lauf haelt aktivierte Sammlungen (Merge-Regel)", ok,
+  record("P7", ok,
     `aktiviert vorher=${result.enabledBefore} nachher=${result.enabledAfter}, Sammlungen=${result.collections}`);
 }
 
@@ -985,10 +1009,7 @@ async function checkP10(cdp: Cdp, radicale: RunningServer, source: string): Prom
     200,
   );
   const ok = result.planOk && result.execOk && serverMoved && !!fmMoved;
-  record(
-    "P10",
-    "Kommando via API (event.move)",
-    ok,
+  record("P10", ok,
     `plan=${result.planOk} exec=${result.execOk}${result.execError ? ` (${result.execError})` : ""}, Server-GET moved=${serverMoved} (HTTP ${get.status}), Frontmatter moved=${!!fmMoved}`,
   );
 }
@@ -1039,10 +1060,7 @@ async function checkP11(cdp: Cdp, radicale: RunningServer, source: string): Prom
     !!result.icsHasAttendee &&
     serverHasAttendee;
   if (!ok) console.log("DEBUG P11 icsSample:\n" + (result.icsSample ?? "") + "\nDEBUG P11 server body:\n" + get.body);
-  record(
-    "P11",
-    "Einladung ohne Scheduling/Transport (Route ics)",
-    ok,
+  record("P11", ok,
     `plan.inviteRoute=${result.inviteRoute}, exec.invite.route=${result.route}, METHOD:REQUEST=${result.icsHasMethod}, ATTENDEE kim im .ics=${result.icsHasAttendee}, Server hat ATTENDEE=${serverHasAttendee}${result.execError ? `, execError=${result.execError}` : ""}`,
   );
 }
@@ -1106,10 +1124,7 @@ async function checkP12(cdp: Cdp, radicale: RunningServer, source: string, befor
     console.log(`DEBUG P12 beforeDatePrefix=${beforeDatePrefix} fm=` + dbg);
   }
   const ok = result.planOk && result.execOk && serverRestored && !!fmRestored;
-  record(
-    "P12",
-    "Undo (Letzte Änderung zurücknehmen) — DTSTART zurueck auf Vor-P10-Stand",
-    ok,
+  record("P12", ok,
     `plan=${result.planOk} exec=${result.execOk}${result.execError ? ` (${result.execError})` : ""}, Server-GET restored=${serverRestored} (HTTP ${get.status}), Frontmatter restored=${!!fmRestored}`,
   );
 }
@@ -1143,10 +1158,7 @@ async function checkP13(cdp: Cdp): Promise<void> {
     result.toolCount === result.commandCount &&
     result.toolCount > 0 &&
     !result.toolNamesHaveDot;
-  record(
-    "P13",
-    "API-Lesen (events/contacts/tools==commands, keine Punkte in Tool-Namen)",
-    ok,
+  record("P13", ok,
     `events hat simple-1=${result.eventsHasSimple1}, contacts hat Florian Brandes=${result.contactsHasBrandes}, tools=${result.toolCount} commands=${result.commandCount}, Tool-Name mit Punkt=${result.toolNamesHaveDot}`,
   );
 }
@@ -1184,7 +1196,7 @@ async function checkP20(cdp: Cdp, info: DiscoverInfo): Promise<void> {
   `,
   );
   const ok = st.found && st.enabled && st.kind === "calendar" && st.components.some((x) => x.toUpperCase() === "VTODO");
-  record("P20", "Aufgaben-Sammlung erkannt und aktivierbar", ok,
+  record("P20", ok,
     st.found ? `kind=${st.kind}, components=[${st.components.join(", ")}], enabled=${st.enabled}` : "Sammlung nicht in den Einstellungen");
 }
 
@@ -1200,7 +1212,7 @@ async function checkP21(cdp: Cdp, info: DiscoverInfo): Promise<void> {
   // Die zweite Haelfte ist die Gegenprobe innerhalb des Pruefpunkts: bekaeme JEDE
   // Kalender-Sammlung "default-todo", saehe der erste Vergleich genauso gruen aus.
   const ok = got.profileId === "default-todo" && got.calProfileId === "default-event";
-  record("P21", "Aufgaben-Profil automatisch zugewiesen", ok,
+  record("P21", ok,
     `Aufgaben=${got.profileId || "—"}, Termine=${got.calProfileId || "—"}`);
 }
 
@@ -1260,21 +1272,21 @@ async function checkP22to24(cdp: Cdp, note: TodoNote): Promise<void> {
   // P22 haengt die Zusicherung an dav_uid, nicht an die Anzahl der Notizen: ob die ERLEDIGTE
   // Fixture-Aufgabe mitgespiegelt wird, entscheidet `todoInWindow` am heutigen Datum
   // (COMPLETED liegt im August 2026) — eine Zahl waere hier ein Prueferfolg mit Ablaufdatum.
-  record("P22", "Sync legt Notiz fuer die offene Aufgabe an", note.path !== "" && note.uid === TODO_UID_OPEN,
+  record("P22", note.path !== "" && note.uid === TODO_UID_OPEN,
     note.path
       ? `${note.path} (dav_uid=${note.uid}), ${note.total} Notiz(en) in Tasks/`
       : `keine Notiz mit dav_uid=${TODO_UID_OPEN}; Tasks/=${note.total}, Sync: ok=${note.syncOk} created=${note.created} — ${note.syncDetail}`);
 
   // DER Pruefpunkt dieses Abschnitts. Der Server sagt NEEDS-ACTION, das Profil bildet auf
   // "open" ab. Steht hier der Rohwert, ist die Abbildung ausgefallen.
-  record("P23", "Frontmatter traegt den ABGEBILDETEN Status", note.status === "open",
+  record("P23", note.status === "open",
     `status=${JSON.stringify(note.status)} (Server: NEEDS-ACTION, erwartet: "open")`);
 
   // Die Sichtbarkeitsmarkierung ist `type`, nicht `tags`: das Profil setzt sie ueber
   // onCreate ({ type: "task" }), waehrend `tags` auf das Server-Feld CATEGORIES gemappt ist
   // und bei dieser Aufgabe "Finanzen, Privat" traegt.
   const tagsInfo = Array.isArray(note.tags) ? `[${(note.tags as string[]).join(", ")}]` : JSON.stringify(note.tags);
-  record("P24", "Notiz traegt die Sichtbarkeitsmarkierung", note.type === "task",
+  record("P24", note.type === "task",
     `type=${JSON.stringify(note.type)}, tags=${tagsInfo}`);
 }
 
@@ -1489,7 +1501,7 @@ async function checkP25(cdp: Cdp): Promise<void> {
     }
     return { vorhanden: true, mit, ohne };
   `);
-  record("P25", "Kommando nur bei aktiver Aufgaben-Sammlung anbietbar", r.vorhanden && r.mit && !r.ohne,
+  record("P25", r.vorhanden && r.mit && !r.ohne,
     r.vorhanden ? `mit Sammlung=${r.mit}, ohne Sammlung=${r.ohne} (erwartet: true/false)` : `Kommando ${TODO_CMD} nicht registriert`);
 }
 
@@ -1505,8 +1517,7 @@ async function checkP26P30P27(cdp: Cdp, radicale: RunningServer, notePath: strin
   const sicht = await oeffneTodoModal(cdp);
   const imVault = zeilenVon(sicht, GRUPPE.vaultOnly);
   const uebrige = zeilenVon(sicht, GRUPPE.neu).length + zeilenVon(sicht, GRUPPE.konflikt).length;
-  record("P26", "Modal fuehrt genau die geaenderte Notiz unter „im Vault geaendert“",
-    imVault.length === 1 && imVault[0]?.path === notePath && uebrige === 0,
+  record("P26", imVault.length === 1 && imVault[0]?.path === notePath && uebrige === 0,
     `vault-only=[${imVault.map((z) => `${z.path} (${z.felder})`).join(" | ")}], neu+konflikt=${uebrige}, `
       + `Gruppen=[${sicht.gruppen.map((g) => g.label).join(" | ")}]`);
 
@@ -1519,8 +1530,7 @@ async function checkP26P30P27(cdp: Cdp, radicale: RunningServer, notePath: strin
   await klickeImModal(cdp, /alle auswählen|alle auswaehlen|select all/i, "Alle auswaehlen");
   const nachAlle = await leseTodoModal(cdp);
   const zeileNachAlle = zeilenVon(nachAlle, GRUPPE.vaultOnly)[0];
-  record("P30", "Senden-Knopf zaehlt mit — bei Einzelwahl und Sammelknopf",
-    start === 1 && nachSkip === 0 && ctaZahl(nachAlle.cta) === 1 && zeileNachAlle?.wahl === "vault",
+  record("P30", start === 1 && nachSkip === 0 && ctaZahl(nachAlle.cta) === 1 && zeileNachAlle?.wahl === "vault",
     `Start=${start}, nach „Überspringen“=${nachSkip}, nach „Alle auswählen“=${ctaZahl(nachAlle.cta)} `
       + `(Dropdown steht auf "${zeileNachAlle?.wahl ?? "—"}")`);
 
@@ -1536,8 +1546,7 @@ async function checkP26P30P27(cdp: Cdp, radicale: RunningServer, notePath: strin
   // Beide Haelften gehoeren in EINEN Punkt: ein neues ETag ohne Serveraenderung waere ein
   // Resync von irgendetwas, ein COMPLETED ohne neues ETag hiesse, die Notiz kennt den
   // Stand nicht, den sie selbst ausgeloest hat.
-  record("P27", "Senden schreibt auf den Server und zieht die Notiz nach",
-    /STATUS:COMPLETED/.test(body) && etagNeu !== "" && etagNeu !== etagVorher,
+  record("P27", /STATUS:COMPLETED/.test(body) && etagNeu !== "" && etagNeu !== etagVorher,
     `Server: ${(body.match(/STATUS:[A-Z-]+/) ?? ["kein STATUS"])[0]}, dav_etag ${etagVorher || "—"} → ${etagNeu || "—"}`);
 }
 
@@ -1590,8 +1599,7 @@ async function checkP28(cdp: Cdp, radicale: RunningServer): Promise<void> {
     }
     return out;
   `);
-  record("P28", "Im Vault entstandene Aufgabe wird angelegt UND gehoert danach dem Server",
-    inListe && gefunden !== "" && !!fm["dav_uid"] && dubletten.length === 1,
+  record("P28", inListe && gefunden !== "" && !!fm["dav_uid"] && dubletten.length === 1,
     `in Gruppe „neu“=${inListe}, Server-Ressource=${gefunden || "keine"}, `
       + `dav_uid der Ausgangsnotiz=${JSON.stringify(fm["dav_uid"] ?? null)}, Notizen mit diesem Titel=[${dubletten.join(" | ")}]`);
 }
@@ -1627,8 +1635,7 @@ async function checkP29(cdp: Cdp, radicale: RunningServer): Promise<void> {
 
   const body = await warteAufServer(radicale, "test/aufgaben/t3.ics", (b) => b.includes(`SUMMARY:${neuerTitel}`));
   const status = (body.match(/STATUS:[A-Z-]+/) ?? ["kein STATUS"])[0];
-  record("P29", "Titel-Aenderung an einer ABGEBROCHENEN Aufgabe laesst CANCELLED stehen",
-    zeile !== undefined && body.includes(`SUMMARY:${neuerTitel}`) && status === "STATUS:CANCELLED",
+  record("P29", zeile !== undefined && body.includes(`SUMMARY:${neuerTitel}`) && status === "STATUS:CANCELLED",
     `Zeile im Modal=${zeile ? `ja (${zeile.felder})` : "nein"}, Server: ${status}, `
       + `SUMMARY=${(body.match(/SUMMARY:.*/) ?? ["—"])[0].trim()}`);
 }
@@ -1636,7 +1643,7 @@ async function checkP29(cdp: Cdp, radicale: RunningServer): Promise<void> {
 async function checkP8(port: number, vault: string): Promise<void> {
   const workspace = await attachTo("workspace", port, vault);
   if (!workspace) {
-    record("P8", "Settings-UI", false, "Workspace-Fenster nicht gefunden");
+    unmeasured("P8", "Workspace-Fenster nicht gefunden");
     return;
   }
   try {
@@ -1654,7 +1661,7 @@ async function checkP8(port: number, vault: string): Promise<void> {
     return null;
   })();
   if (!settingsCdp) {
-    record("P8", "Settings-UI", false, "Einstellungen-Fenster nicht gefunden");
+    unmeasured("P8", "Einstellungen-Fenster nicht gefunden");
     return;
   }
   try {
@@ -1688,7 +1695,7 @@ async function checkP8(port: number, vault: string): Promise<void> {
       shotDetail = `Screenshot fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`;
     }
     const ok = info.hasPwLabel && info.hasDiscoverBtn && info.hasAccountRow && info.hasCollectionPicker;
-    record("P8", "Settings-UI (Konto-Unterseite: SecretComponent, Discovery-Button, Sammlungs-Auswahl)", ok, `${JSON.stringify(info)}; ${shotDetail}`);
+    record("P8", ok, `${JSON.stringify(info)}; ${shotDetail}`);
   } finally {
     settingsCdp.close();
   }
@@ -1696,12 +1703,19 @@ async function checkP8(port: number, vault: string): Promise<void> {
 
 // ── main ─────────────────────────────────────────────────────────────────
 async function main(): Promise<void> {
-  const port = Number(arg("port", "9222"));
+  // Der Port ist PFLICHT: ein Default 9222 traefe die reguelaere Instanz (Dach-AGENTS § Staging-Vaults).
+  const portArg = args.value("port");
+  if (portArg === undefined || !Number.isInteger(Number(portArg))) {
+    throw new Error("--port <n> fehlt. Dieser Treiber hat keinen Standardport; die Zweitinstanz-Anleitung steht im Dateikopf.");
+  }
+  const port = Number(portArg);
   const vault = arg("vault", "calendar-notes");
   const section = arg("section", "generic") as Section;
+  if (!(section in SOLL_JE_ABSCHNITT)) throw new Error(`Unbekannter --section "${section}" (generic | pallas | todo)`);
   const keep = flag("keep");
   const focus = flag("focus");
   const setup = flag("setup");
+  bilanz = createBilanz({ punkte: sollFuer(section, focus) });
 
   if (setup) {
     await runSetup(port, vault);
@@ -1720,6 +1734,10 @@ async function main(): Promise<void> {
     return;
   }
   if (focus) await requireVisible(cdp);
+  // Frisches Profil: Vertrauensdialog bestaetigen, Restricted Mode aufheben, Plugin laden (nur im
+  // eigenen Staging-Vault; ein fremdes Fenster bleibt unberuehrt und scheitert unten mit Ansage).
+  const instanz = await bereiteInstanzVor(cdp, { pluginIds: [PLUGIN_ID], nurVault: vault, sprache: "en" });
+  console.log(`Instanz vorbereitet: ${instanz.hinweis}`);
 
   // HERKUNFT DES BUILDS, bevor irgendetwas gemessen wird — und bevor der try-Block den ersten
   // Zustand anfasst (Snapshots, Radicale, Sidebars). Ein Abbruch hier hinterlaesst nichts zum
@@ -1786,7 +1804,7 @@ async function main(): Promise<void> {
 
   try {
     const pluginPresent = await cdp.evaluate<boolean>( `return !!app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];`);
-    if (!pluginPresent) throw new Error(`Plugin "${PLUGIN_ID}" ist im Fenster "${vault}" nicht geladen — deployt & aktiviert?`);
+    if (!pluginPresent) throw new Error(`Plugin "${PLUGIN_ID}" ist im Fenster "${vault}" nicht geladen (${instanz.hinweis}) — deployt?`);
 
     // Das Plugin NEU LADEN, bevor irgendetwas gemessen wird. Ein offenes Fenster haelt den
     // Bundle, der beim Oeffnen im Speicher landete — ein frisch deployter `main.js` wird
@@ -1825,10 +1843,7 @@ async function main(): Promise<void> {
       const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
       return (plugin.settings.accounts ?? []).some((a) => a.id === ${JSON.stringify(ACCOUNT_ID)});
     `);
-    record(
-      "P0",
-      "Kein liegen gebliebenes Smoke-Konto aus einem abgebrochenen frueheren Lauf",
-      !leftoverAccount,
+    record("P0", !leftoverAccount,
       leftoverAccount
         ? `Konto "${ACCOUNT_ID}" gefunden und entfernt — vermutlich Ctrl-C/Crash im vorigen Lauf vor dessen Aufraeumen; dieser Lauf faehrt normal weiter`
         : "kein Rest in den Settings",
@@ -1898,7 +1913,9 @@ async function main(): Promise<void> {
       // M6b (Rueckrichtung). Reihenfolge ist Absicht: P26 zaehlt die Zeilen im Modal, also
       // darf die neue Notiz aus P28 zu dem Zeitpunkt noch nicht existieren.
       await checkP25(cdp);
-      if (note.path === "") recordSkip("P26/P27/P30", "Rueckschreiben", "keine gespiegelte Aufgaben-Notiz (s. P22)");
+      if (note.path === "") {
+        for (const id of ["P26", "P30", "P27"] as const) unmeasured(id, "Vorbedingung: keine gespiegelte Aufgaben-Notiz (s. P22)");
+      }
       else await checkP26P30P27(cdp, radicale, note.path);
       await checkP28(cdp, radicale);
       await checkP29(cdp, radicale);
@@ -1932,8 +1949,6 @@ async function main(): Promise<void> {
     }
 
     if (focus) await checkP8(port, vault);
-  } catch (e) {
-    record("FEHLER", "Lauf abgebrochen", false, e instanceof Error ? e.message : String(e));
   } finally {
     // Dieselbe Funktion wie der SIGINT/SIGTERM-Handler oben — kein Doppelcode.
     process.off("SIGINT", onAbortSignal);
@@ -1942,9 +1957,7 @@ async function main(): Promise<void> {
     cdp.close();
   }
 
-  const failed = checks.filter((c) => !c.passed);
-  console.log(`\n${checks.length - failed.length}/${checks.length} Pruefpunkte gruen.`);
-  if (failed.length > 0) process.exitCode = 1;
+  bilanz.abschluss();
 }
 
-await main();
+runDriver(main);

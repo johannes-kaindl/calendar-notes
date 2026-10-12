@@ -6,35 +6,25 @@
  *
  * ## Ablauf
  *
- * ⚠️ **Vor dem Quit koordinieren — Obsidian ist geteilte Infrastruktur.** Dieses Rezept
- * braucht den frischen Start (ein Bild pro Start, jeder Lauf hinterlaesst Zustand); Mitnutzen ist
- * hier keine Alternative. Aber Obsidian ist Single-Instance: der Quit trifft die Instanz, an der
- * moeglicherweise eine andere Session arbeitet, und zerstoert deren Zustand. Der eigene Lauf ist
- * danach sauber gruen; der Schaden faellt nicht auf.
- *
- * ```bash
- * lsof -nP -iTCP:9222 -sTCP:LISTEN >/dev/null && echo "belegt — erst fragen, wem"
- * ```
- *
- * Hoert der Port, haengt jemand dran: **erst fragen, dann quitten.** ⚠️ Und die Pruefung ersetzt die
- * Frage nicht — sie zeigt aktive CDP-Treiber, aber nicht, wer ein Fenster offen haelt oder auf den
- * Port wartet; am 2026-08-30 haette sie einen zwei Stunden alten Reindex nicht gezeigt, denn der
- * hing an Ollama, nicht am Port.
+ * Aufgenommen wird in einer **Zweitinstanz** (eigenes Profil, eigener Port, Oberflaeche Englisch) — nie
+ * in der regulaeren Instanz und nie mit `quit`. Der Port ist PFLICHT (`--port <n>`, dokumentierter Wert
+ * dieses Rezepts: 9384; `SHOTS_PORT` gilt als Ersatz fuer das Flag); es gibt keinen Default.
  *
  * ```bash
  * # STAGING_VAULTS_DIR steht in ~/.zshenv (Ort: obsidian-plugins/AGENTS.md § Staging-Vaults).
- * # Hier bewusst KEIN Beispielwert: ein Beispielort in der Doku ist ein zweiter Ort — genau
- * # diese Kommentar-Zeile war ein Glied der Kopier-Kette, die den Drift vom 2026-08-30 erzeugte.
  * npm run build && OBSIDIAN_PLUGIN_DIR="$STAGING_VAULTS_DIR/calendar-notes/.obsidian/plugins/calendar-notes" npm run deploy
  * npm run shots -- --setup                          # Vault aus dem Fixture bauen
  *
- * osascript -e 'quit app "Obsidian"'                # Handarbeit: Debug-Port
- * open -a Obsidian --args --remote-debugging-port=9222
- * #   ... den Aufnahme-Vault oeffnen und einmalig als vertrauenswuerdig bestaetigen
+ * UD=/tmp/obs-test-calendar-notes; mkdir -p "$UD"
+ * lsof -nP -iTCP:9384 -sTCP:LISTEN; pgrep -f "user-data-dir=$UD"      # beides leer, sonst ausweichen
+ * cp ~/Library/Application\ Support/obsidian/obsidian-<version>.asar "$UD"/
+ * # Vault "$STAGING_VAULTS_DIR/calendar-notes" und "language":"en" in "$UD/obsidian.json" eintragen
+ * /Applications/Obsidian.app/Contents/MacOS/Obsidian --user-data-dir="$UD" --remote-debugging-port=9384 &
+ * python3 ~/.claude/hooks/obsidian-cdp-lock.py acquire --label calendar-notes --intent "Shots :9384" --exclusive focus --port 9384 --ttl 300
  *
- * npm run shots                                     # alles aufnehmen
- * npm run shots -- --only settings.png               # ein Bild nachziehen
- * npm run shots -- --list                            # Vertrag anzeigen
+ * npm run shots -- --port 9384                      # alles aufnehmen
+ * npm run shots -- --port 9384 --only settings.png  # ein Bild nachziehen
+ * npm run shots -- --list                           # Vertrag anzeigen
  * ```
  *
  * Braucht Fensterfokus (`Page.bringToFront`, echte Klicks) — nicht CI-faehig, nie automatisch
@@ -375,22 +365,19 @@ async function main(): Promise<void> {
       console.log(`  ${zeile}`);
     }
     console.log(
-      "\n⚠️  Lief Obsidian waehrend dieses Setups, muss es JETZT neu starten. --setup hat\n" +
-      "   Notizen, Layout und Plugin-Einstellungen ersetzt.\n" +
-      "\n⚠️  Erst prüfen, ob schon ein Obsidian läuft — ein Quit zerstört den Zustand\n" +
-      "    einer fremden Session, und der eigene Lauf ist danach trotzdem grün:\n" +
-      "      lsof -nP -iTCP:9222 -sTCP:LISTEN\n" +
-      "    Hört der Port, hängt jemand dran: erst fragen, dann quitten.\n" +
-      "\nObsidian mit offenem Debug-Port starten und diesen Vault oeffnen:\n" +
-      "  osascript -e 'quit app \"Obsidian\"'\n" +
-      "  open -a Obsidian --args --remote-debugging-port=9222\n" +
-      "Beim ersten Mal fragt Obsidian, ob es dem Vault-Autor vertraut — bestaetigen,\n" +
-      "sonst laeuft das Plugin nicht.",
+      "\nJetzt eine Zweitinstanz mit eigenem Profil und Port starten (Rezept im Dateikopf), den\n" +
+      "Vault dort eintragen und den Vertrauensdialog einmalig bestaetigen — danach:\n" +
+      "  npm run shots -- --port 9384",
     );
     return;
   }
 
-  const port = Number(flag("--port") ?? env.SHOTS_PORT ?? 9222);
+  const portArg = flag("--port") ?? env.SHOTS_PORT;
+  if (portArg === undefined || !Number.isInteger(Number(portArg))) {
+    console.error("--port <n> fehlt (oder SHOTS_PORT). Es gibt keinen Standardport; das Rezept steht im Dateikopf.");
+    exit(1);
+  }
+  const port = Number(portArg);
   const nur = flag("--only");
 
   if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
