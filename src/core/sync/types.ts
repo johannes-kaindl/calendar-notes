@@ -6,7 +6,7 @@ import type { RunInfo } from "../state/collection-state";
 import type { CollectionState } from "../state/collection-state";
 import type { Account, PluginSettings } from "../settings";
 import type { Transport } from "../dav/types";
-import type { BusyGuard } from "./busy";
+import type { BusyGuard } from "../../vendor/code-kit/busy-guard";
 import type { SyncEmitter } from "./events";
 
 /** Strukturelle Verträge, die der SyncService konsumiert — src/core/** bleibt damit
@@ -62,7 +62,7 @@ export interface SyncDeps {
   notify: Notifier;
   now(): Date;
   resolveAttendee?(): AttendeeResolver | undefined; // aus Kontakt-Index (E-Mail -> Pfad)
-  /** Bidirektionaler Busy-Guard (core/sync/busy.ts), geteilt zwischen `SyncService` und
+  /** Bidirektionaler Busy-Guard (vendor/code-kit/busy-guard.ts), geteilt zwischen `SyncService` und
    *  `executeCommandPlan` — egal wer zuerst `tryAcquire()`, die andere Seite sieht `isBusy()`
    *  und bricht busy ab, statt gleichzeitig gegen dasselbe Objekt zu schreiben. */
   busy: BusyGuard;

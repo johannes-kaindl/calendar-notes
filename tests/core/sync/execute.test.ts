@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { executeCommandPlan, executeCommandPlans, resyncObject } from "../../../src/core/sync/execute";
-import { createBusyGuard, type BusyGuard } from "../../../src/core/sync/busy";
+import { createBusyGuard, type BusyGuard } from "../../../src/vendor/code-kit/busy-guard";
 import { createEmitter, type SyncEvents } from "../../../src/core/sync/events";
 import type { SyncDeps, Notifier, PlanExecutor } from "../../../src/core/sync/types";
 import type { NoteLookup } from "../../../src/core/mirror/apply";

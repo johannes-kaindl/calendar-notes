@@ -123,7 +123,7 @@ export default class CalendarNotesPlugin extends Plugin {
         await this.saveSettings();
       },
     });
-    // `deps.busy` (core/sync/busy.ts) wird in `buildSyncDeps` erzeugt und ist bidirektional
+    // `deps.busy` (vendor/code-kit/busy-guard.ts) wird in `buildSyncDeps` erzeugt und ist bidirektional
     // mit `executeCommandPlan` geteilt — SyncService braucht dafuer keine gesonderte Wiring
     // mehr (anders als der fruehere optionale `isBusy?()`).
     // `events` (core/sync/events.ts) wird HIER erzeugt und dem bereits gebauten `deps`

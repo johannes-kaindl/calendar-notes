@@ -32,7 +32,7 @@ licenses that apply to it.
 
 `src/vendor/kit/` and `src/vendor/kit-obsidian/` contain modules copied from
 [`obsidian-kit`](https://git.jkaindl.de/jkaindl/obsidian-kit) — the maintainer's own shared library for
-Obsidian plugins in this workspace (`obsidian-kit@0.28.0`, see `VENDOR.json` next to each
+Obsidian plugins in this workspace (`obsidian-kit@0.57.0`, see `VENDOR.json` next to each
 file for the exact commit and vendoring date; `tools/sync-kit.sh` re-vendors them). Both the
 source library and this plugin are authored by Johannes Kaindl and licensed
 AGPL-3.0-or-later, so no separate license section applies — see [`LICENSE`](LICENSE).
@@ -41,7 +41,7 @@ Files: `src/vendor/kit/vault-path.ts`, `src/vendor/kit/frontmatter.ts`,
 `src/vendor/kit-obsidian/confirm.ts`, `src/vendor/kit-obsidian/settings_walker.ts`,
 `src/vendor/kit-obsidian/folder-suggest.ts`.
 
-`src/vendor/code-kit/` contains modules copied from `code-kit` (`code-kit@0.1.0`, see
+`src/vendor/code-kit/` contains modules copied from `code-kit` (`code-kit@0.24.0`, see
 `src/vendor/code-kit/VENDOR.json` for the exact commit and vendoring date) — the maintainer's
 shared, platform-neutral module library for the whole `code/` workspace (kept locally,
 not published to a public remote at time of writing). Like
@@ -49,7 +49,7 @@ not published to a public remote at time of writing). Like
 `package.json`/`LICENSE`), so no separate license section applies here either — see
 [`LICENSE`](LICENSE).
 
-Files: `src/vendor/code-kit/filename-template.ts`, `src/vendor/code-kit/i18n.ts`,
+Files: `src/vendor/code-kit/busy-guard.ts`, `src/vendor/code-kit/filename-template.ts`, `src/vendor/code-kit/i18n.ts`,
 `src/vendor/code-kit/settings.ts`, `src/vendor/code-kit/sha256.ts`,
 `src/vendor/code-kit/timeout.ts`.
 

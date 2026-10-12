@@ -5,7 +5,7 @@ import type { NoteLookup } from "../core/mirror/apply";
 import type { AttendeeResolver } from "../core/mirror/fields";
 import { fmKeyFor, type MappingProfile } from "../core/mirror/profile";
 import { effectiveProfile, sourceOf, type Account, type PluginSettings } from "../core/settings";
-import { createBusyGuard } from "../core/sync/busy";
+import { createBusyGuard } from "../vendor/code-kit/busy-guard";
 import type { Notifier, SyncDeps } from "../core/sync/types";
 import { t } from "../i18n/strings";
 import type { MailTransport } from "../core/api/types";

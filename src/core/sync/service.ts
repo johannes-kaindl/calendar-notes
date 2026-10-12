@@ -58,7 +58,7 @@ export class SyncService {
 
   constructor(private readonly deps: SyncDeps) {}
 
-  /** Bidirektional mit `executeCommandPlan` geteilt (`deps.busy`, s. core/sync/busy.ts) —
+  /** Bidirektional mit `executeCommandPlan` geteilt (`deps.busy`, s. vendor/code-kit/busy-guard.ts) —
    *  laeuft gerade ein Kommando, meldet sich ein Sync-Lauf hier ebenfalls busy. */
   isRunning(): boolean {
     return this.deps.busy.isBusy();

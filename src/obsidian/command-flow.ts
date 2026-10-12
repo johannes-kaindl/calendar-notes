@@ -488,7 +488,7 @@ export class CommandFlow {
   /** M4 (Review-Runde 3): laeuft jetzt unter `deps.busy` — vorher konnte ein `resyncObject()`
    *  hier PARALLEL zu einem laufenden `SyncService.runAll()` GEGEN denselben Collection-State
    *  schreiben (der Busy-Guard ist bidirektional zwischen SyncService/`executeCommandPlan`
-   *  geteilt, s. `core/sync/busy.ts` — dieser Aufruf hier war die eine Luecke). Busy → Notice
+   *  geteilt, s. `vendor/code-kit/busy-guard.ts` — dieser Aufruf hier war die eine Luecke). Busy → Notice
    *  statt eines racenden Resyncs. */
   private async resolveTargetFresh(file: TFile): Promise<ResolvedTarget | undefined> {
     const first = await this.resolveTarget(file);

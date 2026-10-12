@@ -9,7 +9,7 @@ import type { CommandDescriptor, CommandTarget } from "../../src/core/commands/t
 import { defaultContactProfile, defaultEventProfile, defaultTodoProfile } from "../../src/core/mirror/profile";
 import { DEFAULT_SYNC, type Account, type CollectionConfig, type PluginSettings } from "../../src/core/settings";
 import { createEmitter, type SyncEmitter } from "../../src/core/sync/events";
-import { createBusyGuard, type BusyGuard } from "../../src/core/sync/busy";
+import { createBusyGuard, type BusyGuard } from "../../src/vendor/code-kit/busy-guard";
 import type { SyncDeps, Notifier, PlanExecutor } from "../../src/core/sync/types";
 import type { NoteLookup } from "../../src/core/mirror/apply";
 import type { NotePlan } from "../../src/core/mirror/plan";

@@ -26,8 +26,7 @@ export function filenameSubs(kind: ProfileKind, data: ContactData | EventData | 
 }
 
 export function noteBasename(profile: MappingProfile, data: ContactData | EventData | TodoData): string {
-  const name = buildFilename(profile.filename, filenameSubs(profile.kind, data), { fallbacks: ["{uid}"], lastResort: "dav-object" });
-  return name.length > 120 ? name.slice(0, 120).trim() : name;
+  return buildFilename(profile.filename, filenameSubs(profile.kind, data), { fallbacks: ["{uid}"], lastResort: "dav-object", maxLength: 120 });
 }
 
 export function notePath(profile: MappingProfile, basename: string, suffix?: number): string {

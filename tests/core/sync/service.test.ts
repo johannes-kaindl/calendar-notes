@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { SyncService } from "../../../src/core/sync/service";
-import { createBusyGuard, type BusyGuard } from "../../../src/core/sync/busy";
+import { createBusyGuard, type BusyGuard } from "../../../src/vendor/code-kit/busy-guard";
 import { createEmitter, type SyncEvents } from "../../../src/core/sync/events";
 import type { SyncDeps, Notifier, PlanExecutor } from "../../../src/core/sync/types";
 import type { NoteLookup } from "../../../src/core/mirror/apply";

@@ -4,5 +4,5 @@
   "sha": "004fdb1",
   "modules": "obsidian-mock.ts",
   "note": "Verbatim snapshot aus der Git-Ref 0.28.0 (CORE-META-22: feste Ref, nicht Arbeitsstand). Never hand-edit. Re-vendor via tools/sync-kit.sh.",
-  "vendored": "obsidian-mock.ts"
+  "vendored": "obsidian-mock.ts, window-timers.ts"
 }

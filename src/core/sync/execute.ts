@@ -132,7 +132,7 @@ export async function resyncObject(
 /**
  * Fuehrt einen `CommandPlan` gegen den Server aus (PUT/DELETE mit If-Match /
  * If-None-Match) und synct das betroffene Objekt danach gezielt zurueck
- * (`resyncObject`) — statt eines vollen Sync-Laufs. Haelt `deps.busy` (core/sync/busy.ts)
+ * (`resyncObject`) — statt eines vollen Sync-Laufs. Haelt `deps.busy` (vendor/code-kit/busy-guard.ts)
  * fuer die GESAMTE Dauer (PUT/DELETE + Resync) belegt — bidirektional mit `SyncService`
  * geteilt, ein laufender Sync-Lauf laesst ein Kommando also ebenfalls mit busy abbrechen.
  */
