@@ -1,11 +1,11 @@
-// vendored from code-kit@0.1.0, src/ts/pure/filename-template.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.24.0, src/ts/pure/filename-template.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** Konfigurierbares Dateinamen-Schema: `{platzhalter}` auflösen, das Ergebnis auf
  *  dateisystem- und Obsidian-sichere Zeichen bringen, und über eine Fallback-Kette
  *  absichern, dass kein leerer Dateiname entsteht. Obsidian-frei (PROF-OBS-03/04) und
  *  bewusst **importfrei — auch ohne jeden Intra-Kit-Import**: nur so kann ein Repo genau
  *  diese eine Datei vendorieren, ohne seinen restlichen Vendor-Satz auf dieselbe
- *  Kit-Version zu heben (yijing-oracle steht auf 0.16.0, paperize/letterhead auf 0.26.1;
- *  yijings AGENTS.md warnt ausdrücklich vor diesem Sprung).
+ *  Kit-Version zu heben (welches Repo auf welchem Stand steht, nennt `CONSUMERS.md`,
+ *  nicht dieser Kopf; yijings AGENTS.md warnt ausdrücklich vor dem Sprung).
  *
  *  Kanonische Quelle: `yijing-oracle/src/core/filename.ts` (2026-07-12). Übernommen von
  *  `obsidian-paperize/src/core/filename.ts` (2026-07-16, Header „Adaptiert von
@@ -37,9 +37,10 @@
  *  ⚠️ **Die Zeichenklasse `INVALID` ist load-bearing.** Sie steht byte-identisch in drei
  *  veröffentlichten Plugins; ein zusätzliches oder entferntes Zeichen benennt bestehende
  *  Exporte **still** um — kein Typfehler, kein Testfehler, nur andere Dateinamen. Die
- *  engere Klasse `[\\/:*?"<>|]` der `sanitizeBase`-Familie (epub-exporter, apple-health,
- *  paperless-storage und `obsidian-letterhead/src/obsidian/output.ts`) ist ein **eigener**
- *  Kandidat (REGISTRY-Zeile 143) und darf hier nicht mit hineingezogen werden.
+ *  engere Klasse `[\\/:*?"<>|]` der `sanitizeBase`-Familie ist deshalb **nicht** in `INVALID`
+ *  hineingezogen worden: sie steht seit 0.24.0 als eigene Funktion {@link sanitizeBase} daneben
+ *  (epub-exporter, health-vitals; die Zeichenklasse steht auch in apple-health und paperless-storage,
+ *  `obsidian-letterhead/src/obsidian/output.ts` ersetzt sie dagegen durch `_` und bleibt dort).
  *
  *  ⚠️ **`Object.hasOwn` ist load-bearing, nicht Kosmetik.** Mit `subs[key] ?? …` liefert
  *  eine als Objekt-Literal gebaute `subs`-Map für `{toString}`, `{constructor}`,
@@ -58,15 +59,13 @@
  *  letterhead `"Brief"`). yijing kommt bewusst ohne aus, weil sein Fallback-Template aus
  *  immer gefüllten Feldern besteht — das ist exakt sein heutiges Verhalten.
  *
- *  ⚠️ **Nicht im Kit, absichtlich** — der kleinere Schnitt:
- *  - *Feld-Kappung* (yijings `slugQuestion` auf 48, letterheads `clip` auf 48) wirkt **vor**
- *    der Substitution, also beim Bau der `subs`-Map, und bleibt damit im lokalen Shim.
- *  - *Gesamtlängen-Grenze* (nur letterhead, 120 Zeichen, n=1): letterhead klammert den
- *    Kit-Aufruf mit seinem lokalen `clip(…, TOTAL_MAX)`. Das ist bitgleich zu heute, weil
- *    die Kappung schon dort **nach** der Fallback-Kette lief. Braucht ein zweites Repo eine
- *    Gesamtgrenze, ist `maxLength` eine Ein-Zeilen-Erweiterung — dann mit n=2 statt auf
- *    Verdacht.
- *  - *Repo-Eigenes*: `paperize/hasVersionPlaceholder`, `letterhead/isoDate`,
+ *  ⚠️ **Längen: die Gesamtgrenze ist im Kit, die Feldgrenze nicht.** Seit 0.23.0 (Welle 18,
+ *  Analyse K3, n=2: letterhead 120 und calendar-notes 120) kappt `maxLength` das fertige
+ *  Ergebnis, **nach** Fallback-Kette und `lastResort`. Die *Feld-Kappung* (yijings
+ *  `slugQuestion` auf 48, letterheads `clip` auf 48, mailstone 60) wirkt dagegen **vor** der
+ *  Substitution, beim Bau der `subs`-Map, und bleibt beim Aufrufer — der Wert ist dessen
+ *  Fachentscheidung; geteilt wird nur der Schnitt als {@link clipText}.
+ *  - *Nicht im Kit, absichtlich — Repo-Eigenes*: `paperize/hasVersionPlaceholder`, `letterhead/isoDate`,
  *    `letterhead/migrateFilenameTemplate`, `letterhead/PLACEHOLDERS`, alle
  *    `DEFAULT_FILENAME_TEMPLATE`/`LEGACY_FILENAME_TEMPLATE` und alle
  *    `FilenameValues`-Interfaces. Geprüft: keines davon braucht Kit-Interna.
@@ -94,6 +93,22 @@ export interface FilenameOptions {
    *  Nutzereingabe — und ein Sanitisieren könnte sie auf `""` reduzieren und damit genau
    *  die Zusage brechen, für die es sie gibt. Default: `""`. */
   lastResort?: string;
+  /** Obergrenze für die Länge des **fertigen** Namens (UTF-16-Einheiten), nur in
+   *  {@link buildFilename}. Kappt per {@link clipText} **nach** Fallback-Kette und `lastResort` —
+   *  also auch eine Konstante, die länger ist. Nicht gesetzt, `0` und negative Werte: keine
+   *  Kappung. Gemessen bitgleich zu den zwei Inline-Kopien (letterhead, calendar-notes). */
+  maxLength?: number;
+}
+
+/** Kappt `s` auf höchstens `max` Zeichen (UTF-16-Einheiten) und trimmt den Schnitt, damit kein
+ *  Leerzeichen am Ende stehen bleibt; ein Text bis `max` bleibt **unverändert** (auch mit
+ *  Rand-Leerzeichen). Das ist exakt `s.length > max ? s.slice(0, max).trim() : s` — die Zeile, die
+ *  calendar-notes, obsidian-letterhead und yijing-oracle je einzeln schrieben. Teilt wie `slice`
+ *  ein Surrogatpaar, wenn der Schnitt darin liegt (kein stiller Verhaltenswechsel gegenüber den
+ *  Kopien). Für die Feld-Kappung beim Bau der `subs`-Map; die Gesamtgrenze setzt
+ *  {@link FilenameOptions.maxLength}. */
+export function clipText(s: string, max: number): string {
+  return s.length > max ? s.slice(0, max).trim() : s;
 }
 
 /** Macht einen String als Dateinamen-Bestandteil sicher: ungültige Zeichen je `onInvalid`
@@ -117,6 +132,34 @@ export function sanitizeFilename(
     .trim();
 }
 
+/** Die enge Klasse der `sanitizeBase`-Familie: nur die neun Zeichen, die ein Dateisystem verbietet. */
+const INVALID_BASE = /[\\/:*?"<>|]/g;
+
+/** Entfernt die neun dateisystem-illegalen Zeichen `\ / : * ? " < > |` aus einem Basisnamen, trimmt und liefert
+ *  `fallback`, wenn nichts übrig bleibt. Die Zeile, die epub-exporter (`core/output-path.ts:7`, „Untitled") und
+ *  health-vitals (`core/export-path.ts:15`, „Export") je einzeln schrieben — nur der Fallback unterscheidet sie.
+ *
+ *  ⚠️ **Das ist NICHT {@link sanitizeFilename} und trägt es nicht bitgleich.** Dort ist die Klasse weiter
+ *  (zusätzlich `# ^ [ ]`), `onInvalid` ersetzt standardmäßig durch `_`, und Whitespace-Folgen werden zu einem
+ *  Leerzeichen kollabiert. Hier wird **entfernt** (`Re: A/B` → `Re AB`), `# ^ [ ]` bleiben stehen und innere
+ *  Leerzeichen bleiben, wie sie sind. Ein Umstieg zwischen den beiden benennt still bestehende Exportdateien um —
+ *  jedes Repo nimmt die Funktion, deren Ergebnis seine Nutzer schon auf der Platte haben.
+ *
+ *  Ein dritter Verwandter, `obsidian-letterhead/src/obsidian/output.ts:25`, nutzt dieselbe Klasse, **ersetzt** aber durch
+ *  `_` (Fallback „Brief") — andere Semantik, bleibt dort und wird nicht hierher gezogen.
+ *
+ *  Der `fallback` ist Pflicht und kommt **verbatim** zurück (wie `lastResort`): eine Entwickler-Konstante, keine
+ *  Nutzereingabe. Wer einen leeren Namen will, übergibt `""` ausdrücklich.
+ *
+ *  Kein `(s || "")`-Guard wie in {@link sanitizeFilename}: keiner der beiden Träger hatte ihn, und ein `undefined`
+ *  soll dort weiter werfen statt still `fallback` zu liefern.
+ *
+ *  @example sanitizeBase('Re: A/B', "Brief") // → "Re AB"
+ *  @example sanitizeBase("///", "Export")    // → "Export" */
+export function sanitizeBase(name: string, fallback: string): string {
+  return name.replace(INVALID_BASE, "").trim() || fallback;
+}
+
 /** Löst `{platzhalter}` im Template gegen `subs` auf und sanitisiert das Ergebnis; bleibt
  *  es leer, wird die `fallbacks`-Kette und zuletzt `lastResort` probiert.
  *
@@ -127,7 +170,8 @@ export function sanitizeFilename(
  *    stehen (`"{foo}"`), damit ein Tippfehler im Schema sichtbar wird, statt still zu
  *    wirken. Das gilt ausdrücklich auch für Prototyp-Namen wie `{toString}` — siehe ⚠️ im
  *    Modulkopf.
- *  - Das Ergebnis wird **nicht** gekürzt: Feld- und Gesamtlängen sind Sache des Aufrufers.
+ *  - Das Ergebnis wird nur gekürzt, wenn `maxLength` gesetzt ist (nach Fallback-Kette und
+ *    `lastResort`); Feldlängen sind Sache des Aufrufers ({@link clipText}).
  *  - Rückgabe ist `""`, wenn alles leer rendert und kein `lastResort` gesetzt ist.
  *
  *  @example buildFilename("{date} {title}", { date: "2026-08-19", title: "A/B" })
@@ -157,5 +201,7 @@ export function buildFilename(
     if (out !== "") break;
     out = fill(fallback);
   }
-  return out !== "" ? out : (opts.lastResort ?? "");
+  const name = out !== "" ? out : (opts.lastResort ?? "");
+  const max = opts.maxLength;
+  return max !== undefined && max > 0 ? clipText(name, max) : name;
 }

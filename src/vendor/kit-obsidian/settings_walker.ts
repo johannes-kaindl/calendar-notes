@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.28.0, src/obsidian/settings_walker.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.57.0, src/obsidian/settings_walker.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // obsidian-kit/src/obsidian/settings_walker.ts
 //
 // Der gemeinsame Fallback-Walker fuer zweigleisige deklarative Settings-Tabs
@@ -34,6 +34,54 @@ export function refreshSettingsTab(
   const self = tab as unknown as { update?: () => void };
   if (typeof self.update === "function") self.update();
   else fullRebuild();
+}
+
+/** Haengt einen Refresh-Hook in `renderTab()`, der bei jedem Sichtbarwerden des Tabs neu
+ *  zeichnet -- ohne die Rekursion, die ein naiver Override ausloest, UND ohne sich auf
+ *  Obsidians native `update()`/`renderTab()`-Kombination zu verlassen, die dafuer
+ *  (gemessen) nicht ausreicht.
+ *
+ *  Gemessen an Obsidian 1.14.2 (`app.setting`, yijing-w6 + yijing-w7, per CDP, echter
+ *  Renderer): `openTab()` ruft `hide()` nur auf dem verlassenen Tab; der neu aktive Tab
+ *  bekommt `renderTab()`. Dessen native Implementierung ist ein Cache-Kurzschluss nach
+ *  Laenge -- bei UNVERAENDERTER `settingItems.length` zeichnet sie ueberhaupt nicht neu,
+ *  auch wenn `settingItems` zuvor per `update()` durch ein frisches Array (neue Closures,
+ *  z.B. ein neu installierter LLM Endpoint Manager) ersetzt wurde: `tab.update()` +
+ *  `tab.renderTab()` liessen den zuvor gerenderten DOM-Baum unveraendert (Rekursionstest
+ *  bestaetigte gleichzeitig: dieser Pfad wirft KEINEN `RangeError` mehr, weil unser
+ *  Override den urspruenglichen Rekursionsausloeser -- ein bedingungsloser `update()`-Ruf
+ *  in `renderTab()` -- gar nicht mehr benutzt). Einzig ein manueller `containerEl.empty()`
+ *  + Neuzeichnen ueber den klassischen Setting-API-Walker (`renderSettingDefinitions`,
+ *  also der Fallback-Pfad des Consumers) zeigte den frischen Inhalt zuverlaessig.
+ *
+ *  Der Hook ersetzt `renderTab()` deshalb vollstaendig durch `fullRebuild` -- ruft NIE
+ *  die native Implementierung. Reentrancy-Guard bleibt trotzdem noetig: `fullRebuild`
+ *  ruft ueblicherweise selbst `update()` (haelt `settingItems`/die Einstellungs-Suche
+ *  synchron), und `update()`s native Implementierung ruft intern wieder `renderTab()` des
+ *  aktiven Tabs auf -- ohne Guard waere das erneut `fullRebuild()` in Rekursion. Additiv:
+ *  ein Tab, der den Hook nicht installiert, verhaelt sich wie zuvor. */
+export function installTabRefreshOnOpen(
+  tab: PluginSettingTab & { renderTab?: () => void },
+  fullRebuild: () => void,
+): () => void {
+  const self = tab as unknown as { renderTab?: () => void };
+  const original = self.renderTab;
+  if (typeof original !== "function") return () => {};
+
+  let inProgress = false;
+  self.renderTab = (): void => {
+    if (inProgress) return;
+    inProgress = true;
+    try {
+      fullRebuild();
+    } finally {
+      inProgress = false;
+    }
+  };
+
+  return (): void => {
+    self.renderTab = original;
+  };
 }
 
 /** Rendert eine deklarative Setting-Definition mit der klassischen Setting-API
