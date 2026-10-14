@@ -23,6 +23,7 @@ import { defaultEventProfile, defaultTodoProfile, validateProfile, type MappingP
 import { collectionSupports, effectiveProfile, newId, secretIdFor, sourceOf, type Account, type CollectionConfig, type PluginSettings } from "../core/settings";
 import type { RunInfo } from "../core/state/collection-state";
 import { t } from "../i18n/strings";
+import { confirmAction } from "../vendor/kit-obsidian/confirm";
 import { FolderSuggest } from "../vendor/kit-obsidian/folder-suggest";
 import { githubHelpUrls, helpSettingDefinition } from "../vendor/kit-obsidian/help-setting";
 import { settingBodyHost } from "../vendor/kit-obsidian/settings_walker";
@@ -98,7 +99,7 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
       heading: t("settings.accounts.heading"),
       items,
       emptyState: t("settings.accounts.empty"),
-      onDelete: (index) => this.deleteAccount(accounts[index]!.id),
+      onDelete: (index) => this.confirmDeleteAccount(accounts[index]!.id),
       addItem: { name: t("settings.accounts.add"), action: () => this.addAccount() },
     };
   }
@@ -176,6 +177,21 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
     this.host.settings = { ...this.host.settings, accounts: [...this.host.settings.accounts, account] };
     void this.host.saveSettings();
     this.update();
+  }
+
+  private confirmDeleteAccount(id: string): void {
+    const account = this.host.settings.accounts.find((a) => a.id === id);
+    if (!account) return;
+    const n = this.host.settings.collections.filter((c) => c.accountId === id).length;
+    void confirmAction(this.app, {
+      title: t("settings.accounts.deleteTitle"),
+      message: t("settings.accounts.deleteMessage", account.name || account.baseUrl, n),
+      confirmLabel: t("settings.accounts.deleteConfirm"),
+      cancelLabel: t("adopt.cancel"),
+    }).then((ok) => {
+      if (ok) this.deleteAccount(id);
+      else this.update();
+    });
   }
 
   private deleteAccount(id: string): void {

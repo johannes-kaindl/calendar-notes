@@ -129,7 +129,7 @@ Repository: [git.jkaindl.de/jkaindl/calendar-notes](https://git.jkaindl.de/jkain
 <img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/adoption.png" width="584" alt="The adoption modal proposing to link the existing note 2026-09-01 Zahnärztin to the server entry Zahnärztin Dr. Müller (start+title, likely 0.75), with Adopt all sure matches, Cancel and Link buttons">
 
 If a collection's target folder already has notes — migrated from another system, written by
-hand — run **Adopt existing notes…** (or the button next to a collection). The plugin proposes
+hand — run **Match existing notes…** (or the button next to a collection). The plugin proposes
 matches between server entries and your notes (email/phone exact, name/title fuzzy) at three
 confidence levels — `sure` and `likely` link by default, `weak` is left for you to confirm —
 shown in a table you can override row by row before anything is written. Linked notes get their
@@ -148,7 +148,7 @@ appear under their German names instead.
 | Sync everything | `Sync all collections` | Runs a real sync across every enabled collection |
 | Preview | `Preview sync (dry run)` | Shows planned operations without writing |
 | Sync one collection | `Sync one collection…` | Picks a single collection to sync |
-| Adopt existing notes | `Adopt existing notes…` | Opens the adoption review for a collection |
+| Match existing notes | `Match existing notes…` | Opens the adoption review for a collection |
 | Profile from note | `Create mapping profile from active note` | Derives a mapping profile from the active note's frontmatter |
 | Change event/contact | `Change event/contact…` | Suggests applicable commands for the active note, opens a form, shows a diff |
 | New event | `New event…` | Creates an event on the server (and its note) via a form |

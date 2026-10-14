@@ -102,11 +102,11 @@ class IcsModal extends Modal {
 
   private async saveToVault(): Promise<void> {
     const folder = this.notePath ? vaultDirname(this.notePath) : "";
-    let path = joinVaultPath(folder, `einladung-${this.uid}.ics`);
+    let path = joinVaultPath(folder, `${t("invite.filePrefix")}-${this.uid}.ics`);
     let n = 1;
     while (this.app.vault.getAbstractFileByPath(path)) {
       n += 1;
-      path = joinVaultPath(folder, `einladung-${this.uid}-${n}.ics`);
+      path = joinVaultPath(folder, `${t("invite.filePrefix")}-${this.uid}-${n}.ics`);
     }
     try {
       await this.app.vault.create(path, this.ics);

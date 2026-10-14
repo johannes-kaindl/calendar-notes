@@ -12,6 +12,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Removing an account now asks first, and says what goes (its calendar settings and sync state) and what stays (your notes, the server, the keychain entry).
+- Error notices, the saved invitation file name (`invitation-….ics` / `einladung-….ics`) and the name of the “match existing notes” action no longer mix German into an English interface; the command, the settings button and the dialog title now use the same wording.
+- The language setting now says that a change takes effect after restarting Obsidian.
 - Deriving a profile from a note no longer takes `vcard_uid`, `ical_uid` or `uid` as the identity field when its value is not shaped like a server UID (a UUID or `local@domain`). Before, the later adoption would have overwritten foreign identifiers; the field is now listed as not mapped and `dav_uid` is used.
 
 ## [0.3.2] — 2026-10-12

@@ -197,15 +197,15 @@ export default class CalendarNotesPlugin extends Plugin {
       secrets: this.secrets,
       discover: (account) => this.discoverAccount(account),
       syncNow: (collectionId) => {
-        if (collectionId) this.fireAndForget(this.service.runCollection(collectionId).then((r) => this.recordRun(new Date().toISOString(), [r])), "Sync");
-        else this.fireAndForget(this.runAll(), "Sync");
+        if (collectionId) this.fireAndForget(this.service.runCollection(collectionId).then((r) => this.recordRun(new Date().toISOString(), [r])), t("notice.what.sync"));
+        else this.fireAndForget(this.runAll(), t("notice.what.sync"));
       },
-      preview: () => this.fireAndForget(this.previewSync(), "Vorschau"),
+      preview: () => this.fireAndForget(this.previewSync(), t("notice.what.preview")),
       status: (collectionId) => ({ lastRun: this.lastRunCache.get(collectionId), running: this.service.isRunning() }),
       rand: () => Math.random(),
-      removeState: (source) => this.fireAndForget(this.deps.stateStore.remove(source), "State entfernen"),
-      adopt: (collectionId) => this.fireAndForget(this.startAdoption(collectionId), "Adoption"),
-      profileFromActiveNote: () => this.fireAndForget(this.startProfileFromNote(), "Profil aus Notiz"),
+      removeState: (source) => this.fireAndForget(this.deps.stateStore.remove(source), t("notice.what.removeState")),
+      adopt: (collectionId) => this.fireAndForget(this.startAdoption(collectionId), t("notice.what.adopt")),
+      profileFromActiveNote: () => this.fireAndForget(this.startProfileFromNote(), t("notice.what.profileFromNote")),
     };
     // `settings` lebt im Plugin (Kommandos/Sync-Deps lesen es dort); der Tab schreibt ueber den
     // Host — beide Sichten zeigen auf dasselbe Objekt, ohne this-Alias im Host.
@@ -239,11 +239,11 @@ export default class CalendarNotesPlugin extends Plugin {
 
   // ── Kommandos ────────────────────────────────────────────────────────────
   private registerCommands(): void {
-    this.addCommand({ id: "sync-all", name: t("cmd.syncAll"), callback: () => this.fireAndForget(this.runAll(), "Sync") });
-    this.addCommand({ id: "sync-preview", name: t("cmd.syncPreview"), callback: () => this.fireAndForget(this.previewSync(), "Vorschau") });
+    this.addCommand({ id: "sync-all", name: t("cmd.syncAll"), callback: () => this.fireAndForget(this.runAll(), t("notice.what.sync")) });
+    this.addCommand({ id: "sync-preview", name: t("cmd.syncPreview"), callback: () => this.fireAndForget(this.previewSync(), t("notice.what.preview")) });
     this.addCommand({ id: "sync-collection", name: t("cmd.syncCollection"), callback: () => this.openCollectionSuggester() });
     this.addCommand({ id: "adopt-collection", name: t("cmd.adoptCollection"), callback: () => this.openAdoptSuggester() });
-    this.addCommand({ id: "profile-from-note", name: t("cmd.profileFromNote"), callback: () => this.fireAndForget(this.startProfileFromNote(), "Profil aus Notiz") });
+    this.addCommand({ id: "profile-from-note", name: t("cmd.profileFromNote"), callback: () => this.fireAndForget(this.startProfileFromNote(), t("notice.what.profileFromNote")) });
     // IDs bewusst OHNE das Wort „command" (obsidianmd/commands/no-command-in-command-id, Teil
     // des Store-Scanners) — der Task-Auftrag nennt die Kommandos „command-run" etc., das ist
     // hier der GESPRAECHSNAME, nicht die addCommand-ID.
@@ -277,7 +277,7 @@ export default class CalendarNotesPlugin extends Plugin {
     new PreviewModal(
       this.app,
       result,
-      () => this.fireAndForget(this.runAll(), "Sync"),
+      () => this.fireAndForget(this.runAll(), t("notice.what.sync")),
       (id) => this.settings.collections.find((c) => c.id === id)?.displayName ?? id,
     ).open();
   }
@@ -289,7 +289,7 @@ export default class CalendarNotesPlugin extends Plugin {
       return;
     }
     new CollectionSuggestModal(this.app, enabled, (c) => {
-      this.fireAndForget(this.service.runCollection(c.id).then((r) => this.recordRun(new Date().toISOString(), [r])), "Sync");
+      this.fireAndForget(this.service.runCollection(c.id).then((r) => this.recordRun(new Date().toISOString(), [r])), t("notice.what.sync"));
     }).open();
   }
 
@@ -300,7 +300,7 @@ export default class CalendarNotesPlugin extends Plugin {
       new Notice(t("notice.noEnabledCollections"));
       return;
     }
-    new CollectionSuggestModal(this.app, enabled, (c) => this.fireAndForget(this.startAdoption(c.id), "Adoption"), t("cmd.adoptCollection.placeholder")).open();
+    new CollectionSuggestModal(this.app, enabled, (c) => this.fireAndForget(this.startAdoption(c.id), t("notice.what.adopt")), t("cmd.adoptCollection.placeholder")).open();
   }
 
   private async startAdoption(collectionId: string): Promise<void> {
@@ -359,7 +359,7 @@ export default class CalendarNotesPlugin extends Plugin {
       const newState = stateAfterAdoption(state, succeeded, items, profile, this.deps.now());
       await this.deps.stateStore.save(newState);
     } catch (e) {
-      new Notice(t("notice.unexpected", "Adoption", e instanceof Error ? e.message : String(e)));
+      new Notice(t("notice.unexpected", t("notice.what.adopt"), e instanceof Error ? e.message : String(e)));
     }
     const summary = summarizeAdoption(succeeded, failed);
     new Notice(t("notice.adoptDone", summary.linkedCount, skippedUids.length, createUids.length));
@@ -373,7 +373,7 @@ export default class CalendarNotesPlugin extends Plugin {
       new Notice(t("notice.noActiveFile"));
       return;
     }
-    new ProfileKindSuggestModal(this.app, (kind) => this.fireAndForget(this.createProfileFromNote(kind, file), "Profil aus Notiz")).open();
+    new ProfileKindSuggestModal(this.app, (kind) => this.fireAndForget(this.createProfileFromNote(kind, file), t("notice.what.profileFromNote"))).open();
   }
 
   private async createProfileFromNote(kind: NoteProfileKind, file: TFile): Promise<void> {
@@ -403,7 +403,7 @@ export default class CalendarNotesPlugin extends Plugin {
     this.intervalHandle = this.registerInterval(
       window.setInterval(() => {
         if (this.service.isRunning()) return;
-        this.fireAndForget(this.runAll(), "Sync");
+        this.fireAndForget(this.runAll(), t("notice.what.sync"));
       }, minutes * 60000),
     );
   }
@@ -411,7 +411,7 @@ export default class CalendarNotesPlugin extends Plugin {
   private scheduleStartupSync(): void {
     this.app.workspace.onLayoutReady(() => {
       if (!this.settings.collections.some((c) => c.enabled)) return;
-      const id = window.setTimeout(() => this.fireAndForget(this.runAll(), "Sync"), this.settings.sync.startupDelaySeconds * 1000);
+      const id = window.setTimeout(() => this.fireAndForget(this.runAll(), t("notice.what.sync")), this.settings.sync.startupDelaySeconds * 1000);
       this.register(() => window.clearTimeout(id));
     });
   }
