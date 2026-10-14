@@ -6,6 +6,7 @@
 // WEGGELASSEN, nicht per `visible` versteckt. `settingBodyHost` bleibt im Einsatz — nicht für
 // den Fallback-Renderpfad, sondern als Hatch-Baustein für die Mehrfeld-Zeilen (Konto, Sammlung).
 import {
+  FuzzySuggestModal,
   Notice,
   PluginSettingTab,
   Setting,
@@ -19,7 +20,7 @@ import {
   type SettingGroupItem,
 } from "obsidian";
 import type { DiscoveryResult } from "../core/dav/discovery";
-import { defaultEventProfile, defaultTodoProfile, validateProfile, type MappingProfile } from "../core/mirror/profile";
+import { defaultTodoProfile, profileTemplates, validateProfile, type MappingProfile, type ProfileTemplate } from "../core/mirror/profile";
 import { collectionSupports, effectiveProfile, newId, secretIdFor, sourceOf, type Account, type CollectionConfig, type PluginSettings } from "../core/settings";
 import type { RunInfo } from "../core/state/collection-state";
 import { t } from "../i18n/strings";
@@ -312,7 +313,12 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
     if (!run) return t("settings.collections.status.never");
     if (!run.ok || run.error) return t("settings.collections.status.error", run.error ?? "?");
     const n = run.counts;
-    return t("settings.collections.status.ok", n.created, n.updated, n.archived, n.deleted, n.skipped, n.errors);
+    const base = t("settings.collections.status.ok", n.created, n.updated, n.archived, n.deleted, n.skipped, n.errors);
+    const comp = run.composition;
+    if (!comp || comp.allDay + comp.timed === 0) return base;
+    // Mehr als neun von zehn Terminen ganztaegig (Geburtstage, Feiertage): die Ganztags-Vorlage passt besser.
+    const hint = comp.allDay * 10 >= (comp.allDay + comp.timed) * 9 ? ` ${t("settings.collections.compositionAllDayHint")}` : "";
+    return `${base} ${t("settings.collections.composition", comp.allDay, comp.timed)}${hint}`;
   }
 
   private updateCollection(id: string, patch: Partial<CollectionConfig>): void {
@@ -444,9 +450,14 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
     this.update();
   }
 
+  /** Eine Vorlage waehlen (Termin, Ganztags-Kalender, Kontakt, Aufgaben) statt immer dasselbe Standardprofil. */
   private addProfile(): void {
-    const base = defaultEventProfile();
-    const profile: MappingProfile = { ...base, id: newId("profile", () => this.host.rand()), name: `${base.name} · ${t("settings.profiles.add")}` };
+    new ProfileTemplateModal(this.app, (tpl) => this.addProfileFromTemplate(tpl)).open();
+  }
+
+  private addProfileFromTemplate(tpl: ProfileTemplate): void {
+    const base = tpl.build();
+    const profile: MappingProfile = { ...base, id: newId("profile", () => this.host.rand()), name: t(`settings.profiles.template.${tpl.key}`) };
     this.host.settings = { ...this.host.settings, profiles: [...this.host.settings.profiles, profile] };
     void this.host.saveSettings();
     this.update();
@@ -539,5 +550,24 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
     // ein-/ausgeblendet — der 1.13-Renderer kommittiert den geänderten Regler selbst. Ein Full-Rebuild
     // würde zudem jede Render-Hatch (u. a. SecretComponent je Konto-Zeile) unnötig neu ausführen.
     await this.host.saveSettings();
+  }
+}
+
+class ProfileTemplateModal extends FuzzySuggestModal<ProfileTemplate> {
+  constructor(app: App, private readonly onChoose: (tpl: ProfileTemplate) => void) {
+    super(app);
+    this.setPlaceholder(t("settings.profiles.template.placeholder"));
+  }
+
+  getItems(): ProfileTemplate[] {
+    return profileTemplates();
+  }
+
+  getItemText(tpl: ProfileTemplate): string {
+    return t(`settings.profiles.template.${tpl.key}`);
+  }
+
+  onChooseItem(tpl: ProfileTemplate): void {
+    this.onChoose(tpl);
   }
 }

@@ -4,6 +4,7 @@ import { syncCollection, type SyncDelta } from "../dav/sync";
 import { applyDelta } from "../mirror/apply";
 import { windowFor, toDavTimeRange, type Window } from "../mirror/window";
 import { effectiveProfile, collectionSupports, sourceOf, type CollectionConfig, type PluginSettings } from "../settings";
+import { countEventComposition } from "../state/composition";
 import { withRun, type CollectionState, type RunInfo } from "../state/collection-state";
 import type { CollectionRunResult, RunResult, SyncDeps } from "./types";
 
@@ -189,7 +190,8 @@ export class SyncService {
       }
       const errorStr = errorStringOf(applyResult.errors, execErrors);
       const runOk = applyResult.errors.length === 0 && execErrors.length === 0;
-      const runInfo: RunInfo = { at: now.toISOString(), ok: runOk, counts: applyResult.counts, ...(errorStr ? { error: errorStr } : {}) };
+      const composition = profile.kind === "event" ? countEventComposition(applyResult.state) : undefined;
+      const runInfo: RunInfo = { at: now.toISOString(), ok: runOk, counts: applyResult.counts, ...(composition ? { composition } : {}), ...(errorStr ? { error: errorStr } : {}) };
       const newState: CollectionState = withRun(applyResult.state, runInfo);
       await this.deps.stateStore.save(newState);
 
@@ -204,7 +206,7 @@ export class SyncService {
       if (errorStr && errorStr !== state.lastRun?.error) this.deps.notify.warn(`${col.displayName}: ${errorStr}`);
 
       this.deps.events?.emit("synced", { collectionId: col.id, counts: applyResult.counts });
-      return { collectionId: col.id, ok: runOk, dryRun: false, plans: applyResult.plans, counts: applyResult.counts, handEdited, strategy: delta.strategy, ...(errorStr ? { error: errorStr } : {}) };
+      return { collectionId: col.id, ok: runOk, dryRun: false, plans: applyResult.plans, counts: applyResult.counts, ...(composition ? { composition } : {}), handEdited, strategy: delta.strategy, ...(errorStr ? { error: errorStr } : {}) };
     } catch (e) {
       const message = errorMessage(e);
       const isNew = message !== state.lastRun?.error;

@@ -56,6 +56,28 @@ export function defaultEventProfile(): MappingProfile {
   };
 }
 
+/** Mitgelieferte Vorlagen fuer die haeufigen Faelle — ein Dropdown statt Hand-JSON. `build()` liefert ein
+ *  frisches Profil; der Aufrufer vergibt Id und Namen. */
+export interface ProfileTemplate { key: "event" | "allday" | "contact" | "todo"; build(): MappingProfile }
+
+export function profileTemplates(): ProfileTemplate[] {
+  return [
+    { key: "event", build: () => defaultEventProfile() },
+    {
+      // Ganztaegige Kalender (Geburtstage, Feiertage): kein Ende (DTEND ist bei VEVENT-Ganztags der
+      // Folgetag, exklusiv), keine Zeitzone, kein Ort/Online; der Titel traegt die Aussage.
+      key: "allday",
+      build: () => {
+        const d = defaultEventProfile();
+        return { ...d, id: "template-allday", name: "All-day calendar", folder: "Events/All-day", filename: "{start_date} {title}",
+          fields: { ...d.fields, end: null, tzid: null, location: null, online: null, attendees: null, organizer: null } };
+      },
+    },
+    { key: "contact", build: () => defaultContactProfile() },
+    { key: "todo", build: () => defaultTodoProfile() },
+  ];
+}
+
 export function defaultTodoProfile(): MappingProfile {
   return {
     id: "default-todo", name: "Tasks (default)", kind: "todo", folder: "Tasks", filename: "{title}", ...IDENTITY,

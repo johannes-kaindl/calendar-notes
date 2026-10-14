@@ -18,6 +18,8 @@ export interface RunInfo {
   ok: boolean;
   error?: string;
   counts: { created: number; updated: number; skipped: number; archived: number; deleted: number; errors: number };
+  /** Nur bei Termin-Sammlungen: ganztaegig gegen mit Uhrzeit, nach dem Lauf ausgezaehlt (`countEventComposition`). */
+  composition?: { allDay: number; timed: number };
 }
 export interface CollectionState {
   version: 1;

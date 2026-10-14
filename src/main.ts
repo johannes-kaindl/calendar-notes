@@ -84,7 +84,7 @@ class ProfileKindSuggestModal extends FuzzySuggestModal<NoteProfileKind> {
 }
 
 function toRunInfo(finishedAt: string, r: CollectionRunResult): RunInfo {
-  return { at: finishedAt, ok: r.ok, ...(r.error !== undefined ? { error: r.error } : {}), counts: r.counts };
+  return { at: finishedAt, ok: r.ok, ...(r.error !== undefined ? { error: r.error } : {}), counts: r.counts, ...(r.composition ? { composition: r.composition } : {}) };
 }
 
 export default class CalendarNotesPlugin extends Plugin {

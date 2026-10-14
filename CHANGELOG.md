@@ -12,6 +12,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- “Add profile” now offers templates: events with a time, an all-day calendar (birthdays, holidays), contacts and tasks, instead of always the same default.
+- After a sync, each event calendar shows how many events are all-day and how many have a time, and points to the all-day template when nearly all are all-day.
 - The plugin API now offers a small set of AI tools to other plugins such as Koda (obsidian-kit's `tool-provider` contract): `list_events`, `list_contacts`, `get_item`, `create_event`, `move_event` and `update_contact`. Every change shows what it will touch (notes, calendar server, invitation mails) and waits for your confirmation first. The previous list of 20 command tools is still available as `commandTools()`; `tools()` now returns the small set (nothing consumed the old list so far).
 - File names of mirrored notes can use `{fm:key}` (a value from the profile's `onCreate`) and `{title_slug}` / `{fn_slug}` (title or name as a lowercase slug), so a convention such as `2026-09-01_doctor_dm_dentist` can be built.
 - `onCreate` values can contain `{now}` (local time) and `{today}` (local day), so new notes get `created`/`updated` as the vault schema asks. Existing notes are not touched.

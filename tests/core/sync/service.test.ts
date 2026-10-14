@@ -469,6 +469,18 @@ describe("SyncService", () => {
     expect(t.calls).toEqual([]);
   });
 
+  it("echter Lauf einer Termin-Sammlung zaehlt ganztaegig gegen mit Uhrzeit aus (RunInfo.composition und Ergebnis)", async () => {
+    const col = calendarCollection("cal1");
+    const settings = baseSettings([col], { pastDays: 3650, futureDays: 3650 });
+    const entries = [
+      { href: `${col.href}simple.ics`, etag: "e-simple", data: fx("simple.ics") },
+      { href: `${col.href}allday.ics`, etag: "e-allday", data: fx("allday.ics") },
+    ];
+    const { deps } = makeDeps(settings, { acc1: calendarTransport(col, entries) }, { now: new Date("2026-08-22T12:00:00Z") });
+    const r = await new SyncService(deps).runCollection("cal1");
+    expect(r.composition).toEqual({ allDay: 1, timed: 1 });
+  });
+
   it("calendar collection: strippt syncToken, sendet calendar-query mit Fenster-time-range, plant nur das Ereignis innerhalb des Fensters", async () => {
     const col = calendarCollection("cal1");
     const settings = baseSettings([col], { pastDays: 90, futureDays: 30 });

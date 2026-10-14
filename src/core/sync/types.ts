@@ -77,6 +77,7 @@ export interface CollectionRunResult {
   dryRun: boolean;
   plans: NotePlan[];
   counts: RunInfo["counts"];
+  composition?: RunInfo["composition"];
   error?: string;
   handEdited: { path: string; keys: string[] }[];
   strategy?: string;
