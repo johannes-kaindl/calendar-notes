@@ -31,7 +31,7 @@ CDP-Treiber, aber nicht, wer ein Fenster offen hält oder auf den Port wartet.
 
 Erst wenn nichts läuft — oder nach Absprache mit dem, der es benutzt — gilt das Rezept unten.
 
-Gemessen wird in einer Zweitinstanz mit eigenem Profil, eigenem Port und eigenem `HOME`, nie mit `quit` und nie in der regulären Instanz; das Startrezept steht im Kopfkommentar von `scripts/gui-smoke.ts` (Quelle: Dach-`AGENTS.md` § Staging-Vaults und `tools/obsidian-cdp/README.md` § Zweitinstanz und Obsidian-CLI).
+Gemessen wird in einer Zweitinstanz mit eigenem Profil und eigenem Port, nie mit `quit` und nie in der regulären Instanz; das Startrezept steht im Kopfkommentar von `scripts/gui-smoke.ts` (Quelle: Dach-`AGENTS.md` § Staging-Vaults und `tools/obsidian-cdp/README.md` § Zweitinstanz und Obsidian-CLI).
 
 ```bash
 OBSIDIAN_PLUGIN_DIR="$STAGING_VAULTS_DIR/calendar-notes/.obsidian/plugins/calendar-notes" npm run deploy
@@ -378,7 +378,7 @@ CDP-Treiber, aber nicht, wer ein Fenster offen hält oder auf den Port wartet.
 
 Erst wenn nichts läuft — oder nach Absprache mit dem, der es benutzt — gilt das Rezept unten.
 
-Gemessen wird in einer Zweitinstanz mit eigenem Profil, eigenem Port und eigenem `HOME`, nie mit `quit` und nie in der regulären Instanz; das Startrezept steht im Kopfkommentar von `scripts/gui-smoke.ts` (Quelle: Dach-`AGENTS.md` § Staging-Vaults und `tools/obsidian-cdp/README.md` § Zweitinstanz und Obsidian-CLI).
+Gemessen wird in einer Zweitinstanz mit eigenem Profil und eigenem Port, nie mit `quit` und nie in der regulären Instanz; das Startrezept steht im Kopfkommentar von `scripts/gui-smoke.ts` (Quelle: Dach-`AGENTS.md` § Staging-Vaults und `tools/obsidian-cdp/README.md` § Zweitinstanz und Obsidian-CLI).
 
 ```bash
 OBSIDIAN_PLUGIN_DIR="$STAGING_VAULTS_DIR/calendar-notes/.obsidian/plugins/calendar-notes" npm run deploy
