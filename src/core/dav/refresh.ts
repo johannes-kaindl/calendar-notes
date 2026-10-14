@@ -15,6 +15,6 @@ export async function refreshCollection(t: Transport, col: DavCollection): Promi
   if (res.status !== 207) throw new DavError(res.status, `PROPFIND ${col.href} → ${res.status}`, col.href);
   const { responses } = parseMultistatus(res.text, `PROPFIND ${col.href}`);
   const fresh = responses[0] ? collectionFromResponse(responses[0], col.href) : undefined;
-  if (!fresh) throw new DavError(res.status, `PROPFIND ${col.href}: keine Collection in der Antwort`, col.href);
+  if (!fresh) throw new DavError(res.status, `PROPFIND ${col.href}: no collection in the response`, col.href, "noCollectionInResponse", [col.href]);
   return { ...col, ...fresh };
 }

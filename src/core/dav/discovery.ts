@@ -48,7 +48,7 @@ async function wellKnown(t: Transport, baseUrl: string, kind: "caldav" | "cardda
     const self = parseMultistatus(res.text, `PROPFIND ${url}`).responses[0]?.href;
     return ensureTrailingSlash(resolveHref(url, self && self !== "" ? self : url));
   }
-  if (res.status === 401 || res.status === 403) throw new DavError(res.status, `Zugang verweigert (${res.status})`, url);
+  if (res.status === 401 || res.status === 403) throw new DavError(res.status, `Access denied (${res.status})`, url, "accessDenied", [res.status]);
   return undefined;
 }
 

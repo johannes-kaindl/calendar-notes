@@ -8,7 +8,7 @@
  * dem falschen Schema zu schreiben waere der teurere Ausgang.
  */
 export function assertNever(x: never, hinweis: string): never {
-  throw new Error(`${hinweis}: unbehandelte Profilsorte ${String(x)}`);
+  throw new Error(`${hinweis}: unhandled profile kind ${String(x)}`);
 }
 
 /**
@@ -21,5 +21,5 @@ export function assertNever(x: never, hinweis: string): never {
  * eine Notiz nach dem falschen Schema zu schreiben.
  */
 export function nichtUnterstuetzt(kind: string, hinweis: string): never {
-  throw new Error(`${hinweis}: Profilsorte ${kind} wird hier noch nicht unterstuetzt`);
+  throw new Error(`${hinweis}: profile kind ${kind} is not supported here yet`);
 }

@@ -20,6 +20,7 @@ import { SchemaFormModal } from "./command-modal";
 import type { InviteRouter } from "./invite";
 import { PlanPreviewModal } from "./plan-preview-modal";
 import { TodoSyncModal, type TodoSyncAuswahl } from "./todo-sync-modal";
+import { describeError } from "./error-i18n";
 
 /** Waehlt eine AKTIVIERTE Sammlung EINER Art (Kalender/Adressbuch) fuer „neuer Termin/Kontakt". */
 class KindCollectionSuggestModal extends FuzzySuggestModal<CollectionConfig> {
@@ -109,7 +110,7 @@ export class CommandFlow {
   ) {}
 
   private fireAndForget(p: Promise<unknown>, what: string): void {
-    p.catch((e: unknown) => new Notice(t("notice.unexpected", what, e instanceof Error ? e.message : String(e))));
+    p.catch((e: unknown) => new Notice(t("notice.unexpected", what, describeError(e))));
   }
 
   // ── command-run ──────────────────────────────────────────────────────────
@@ -190,7 +191,7 @@ export class CommandFlow {
     try {
       plan = descriptor.plan({}, resolved.ctx);
     } catch (e) {
-      new Notice(t("notice.unexpected", t("op.undo"), e instanceof Error ? e.message : String(e)));
+      new Notice(t("notice.unexpected", t("op.undo"), describeError(e)));
       return;
     }
     await this.openPreview(plan, resolved, () => this.fireAndForget(this.runUndo(true), t("op.undo")));
@@ -502,7 +503,7 @@ export class CommandFlow {
     try {
       await resyncObject(this.deps, this.deps.settings(), first.collection.id, href);
     } catch (e) {
-      new Notice(t("notice.unexpected", t("op.command"), e instanceof Error ? e.message : String(e)));
+      new Notice(t("notice.unexpected", t("op.command"), describeError(e)));
       return undefined;
     } finally {
       this.deps.busy.release();
@@ -519,7 +520,7 @@ export class CommandFlow {
     try {
       plan = descriptor.plan(input, ctx);
     } catch (e) {
-      new Notice(t("notice.unexpected", trTitle(descriptor), e instanceof Error ? e.message : String(e)));
+      new Notice(t("notice.unexpected", trTitle(descriptor), describeError(e)));
       return;
     }
     const onRetry = file ? () => this.fireAndForget(this.retryForm(descriptor, file), t("op.command")) : undefined;

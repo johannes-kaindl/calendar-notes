@@ -2,6 +2,7 @@ import { parseEvents, primaryEvent, type EventData } from "../ical/event";
 import { applyMutation, newEventIcs, type EventMutation } from "../ical/mutate";
 import { newId } from "../settings";
 import type { CommandContext, CommandDescriptor, CommandPlan, CommandTarget } from "./types";
+import { CoreError } from "../errors";
 
 export function hrefOfEventTarget(target: CommandTarget): string {
   return "href" in target ? target.href : "";
@@ -62,11 +63,11 @@ export function diffEventFields(before: EventData | undefined, after: EventData)
  *  Platzhalter, der immer ueberschrieben wird. */
 function planForMutation(id: string, ctx: CommandContext, mutation: EventMutation): CommandPlan {
   const before = ctx.raw;
-  if (before === undefined) throw new Error(`${id}: kein Rohdaten (raw) vorhanden`);
+  if (before === undefined) throw new CoreError("noRaw", `${id}: no raw data available`, [id]);
   const beforeEv = primaryEvent(parseEvents(before));
   const newRaw = applyMutation(before, mutation, { now: ctx.now });
   const afterEv = primaryEvent(parseEvents(newRaw));
-  if (!afterEv) throw new Error(`${id}: kein VEVENT nach Mutation`);
+  if (!afterEv) throw new CoreError("noVeventAfter", `${id}: no VEVENT after the change`, [id]);
   const diff = diffEventFields(beforeEv, afterEv);
   return {
     commandId: id, target: ctx.target, summary: "", summaryKey: "", summaryArgs: [], diff, newRaw,
@@ -95,7 +96,7 @@ const eventMove: CommandDescriptor = {
   appliesTo: appliesToExistingEvent,
   plan(input, ctx) {
     const start = str(input["start"]);
-    if (!start) throw new Error("event.move: start fehlt");
+    if (!start) throw new CoreError("fieldMissing", "event.move: start is missing", ["event.move", "start"]);
     const beforeEv = primaryEvent(parseEvents(ctx.raw ?? ""));
     const tzid = str(input["tzid"]) ?? beforeEv?.tzid;
     const allDay = typeof input["allDay"] === "boolean" ? input["allDay"] : undefined;
@@ -118,7 +119,7 @@ const eventSetTitle: CommandDescriptor = {
   appliesTo: appliesToExistingEvent,
   plan(input, ctx) {
     const title = str(input["title"]);
-    if (!title) throw new Error("event.set-title: title fehlt");
+    if (!title) throw new CoreError("fieldMissing", "event.set-title: title is missing", ["event.set-title", "title"]);
     const plan = planForMutation("event.set-title", ctx, { kind: "summary", summary: title });
     plan.summary = `Title changed: "${title}"`;
     plan.summaryKey = "plan.event.set-title.summary";
@@ -209,7 +210,7 @@ const eventAddAttendee: CommandDescriptor = {
   appliesTo: appliesToExistingEvent,
   plan(input, ctx) {
     const email = str(input["email"]);
-    if (!email) throw new Error("event.add-attendee: email fehlt");
+    if (!email) throw new CoreError("fieldMissing", "event.add-attendee: email is missing", ["event.add-attendee", "email"]);
     const name = str(input["name"]);
     const rsvp = typeof input["rsvp"] === "boolean" ? input["rsvp"] : true;
     const plan = planForMutation("event.add-attendee", ctx, { kind: "addAttendee", attendee: { email, name, rsvp } });
@@ -229,7 +230,7 @@ const eventRemoveAttendee: CommandDescriptor = {
   appliesTo: appliesToExistingEvent,
   plan(input, ctx) {
     const email = str(input["email"]);
-    if (!email) throw new Error("event.remove-attendee: email fehlt");
+    if (!email) throw new CoreError("fieldMissing", "event.remove-attendee: email is missing", ["event.remove-attendee", "email"]);
     const plan = planForMutation("event.remove-attendee", ctx, { kind: "removeAttendee", email });
     plan.summary = `Attendee removed: ${email}`;
     plan.summaryKey = "plan.event.remove-attendee.summary";
@@ -263,12 +264,12 @@ const eventSetPartstat: CommandDescriptor = {
   appliesTo: appliesToExistingEvent,
   plan(input, ctx) {
     const partstat = str(input["partstat"]) as "ACCEPTED" | "DECLINED" | "TENTATIVE" | undefined;
-    if (!partstat) throw new Error("event.set-partstat: partstat fehlt");
+    if (!partstat) throw new CoreError("fieldMissing", "event.set-partstat: partstat is missing", ["event.set-partstat", "partstat"]);
     const ownSet = ownAddresses(ctx);
-    if (ownSet.length === 0) throw new Error("Eigene Adresse unbekannt");
+    if (ownSet.length === 0) throw new CoreError("ownAddressUnknown", "Own address unknown");
     const beforeEv = primaryEvent(parseEvents(ctx.raw ?? ""));
     const matched = beforeEv?.attendees.find((a) => ownSet.includes(a.email.toLowerCase()));
-    if (!matched) throw new Error("Eigene Adresse ist kein Teilnehmer dieses Termins");
+    if (!matched) throw new CoreError("ownAddressNotAttendee", "Own address is not an attendee of this event");
     const plan = planForMutation("event.set-partstat", ctx, { kind: "partstat", email: matched.email, partstat });
     plan.summary = `Attendance status set: ${partstat}`;
     plan.summaryKey = "plan.event.set-partstat.summary";
@@ -309,14 +310,14 @@ const eventCreate: CommandDescriptor = {
   plan(input, ctx) {
     const title = str(input["title"]);
     const start = str(input["start"]);
-    if (!title || !start) throw new Error("event.create: title/start fehlen");
+    if (!title || !start) throw new CoreError("createNeedsTitleStart", "event.create: title and start are required");
     const uid = `${newId("ev", ctx.rand)}@calendar-notes`;
     const newRaw = newEventIcs(
       { uid, summary: title, start, end: str(input["end"]), allDay: typeof input["allDay"] === "boolean" ? input["allDay"] : undefined, location: str(input["location"]), description: str(input["description"]) },
       { now: ctx.now },
     );
     const afterEv = primaryEvent(parseEvents(newRaw));
-    if (!afterEv) throw new Error("event.create: kein VEVENT erzeugt");
+    if (!afterEv) throw new CoreError("createNoVevent", "event.create: no VEVENT was produced");
     const diff = diffEventFields(undefined, afterEv);
     const range = fmtRange(afterEv.start, afterEv.end);
     return {

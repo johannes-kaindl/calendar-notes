@@ -4,6 +4,7 @@ import { diffEventFields, hrefOfEventTarget } from "./event-commands";
 import { diffContactFields, hrefOfContactTarget } from "./contact-commands";
 import type { CommandContext, CommandDescriptor, CommandPlan } from "./types";
 import { assertNever, nichtUnterstuetzt } from "../mirror/kind";
+import { CoreError } from "../errors";
 
 export interface HistoryEntry {
   etag: string;
@@ -20,7 +21,7 @@ export function planUndoLast(ctx: CommandContext, history: HistoryEntry[]): Comm
   if (ctx.profile.kind === "event") {
     const beforeEv = ctx.raw ? primaryEvent(parseEvents(ctx.raw)) : undefined;
     const afterEv = primaryEvent(parseEvents(prev.raw));
-    if (!afterEv) throw new Error("undo: kein VEVENT im Verlauf");
+    if (!afterEv) throw new CoreError("undoNoVevent", "undo: no VEVENT in the history");
     return {
       commandId: "undo.last", target: ctx.target, summary, summaryKey, summaryArgs, diff: diffEventFields(beforeEv, afterEv), newRaw: prev.raw,
       etag: ctx.etag, contentType: "text/calendar", hrefForPut: hrefOfEventTarget(ctx.target), createsNew: false,
@@ -57,7 +58,7 @@ export const UNDO_LAST_COMMAND: CommandDescriptor = {
   },
   plan(_input: Record<string, unknown>, ctx: CommandContext): CommandPlan {
     const plan = planUndoLast(ctx, ctx.history ?? []);
-    if (!plan) throw new Error("undo.last: kein Verlauf vorhanden");
+    if (!plan) throw new CoreError("undoNoHistory", "undo.last: no history available");
     return plan;
   },
 };

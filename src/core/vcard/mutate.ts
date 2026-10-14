@@ -1,5 +1,6 @@
 import ICAL from "ical.js";
 import type { ContactData } from "./contact";
+import { CoreError } from "../errors";
 
 export type ContactMutation =
   | { kind: "fn"; fn: string }
@@ -15,7 +16,7 @@ export type ContactMutation =
 
 function parseComponent(vcf: string): ICAL.Component {
   const jcal: unknown = ICAL.parse(vcf);
-  if (!Array.isArray(jcal)) throw new Error("kein VCARD");
+  if (!Array.isArray(jcal)) throw new CoreError("notVcard", "Not a VCARD");
   return new ICAL.Component(jcal);
 }
 
@@ -59,7 +60,7 @@ function removeTyped(root: ICAL.Component, name: "email" | "tel", index: number)
 
 export function applyContactMutation(vcf: string, m: ContactMutation, opts: { now: Date } = { now: new Date() }): string {
   const root = parseComponent(vcf);
-  if (root.name !== "vcard") throw new Error("kein VCARD");
+  if (root.name !== "vcard") throw new CoreError("notVcard", "Not a VCARD");
   const version = String(root.getFirstPropertyValue("version") ?? "3.0");
   switch (m.kind) {
     case "fn": setOrRemove(root, "fn", m.fn); break;

@@ -1,4 +1,5 @@
 import ICAL from "ical.js";
+import { CoreError } from "../errors";
 
 function toJs(t: ICAL.Time): Date {
   return t.toJSDate();
@@ -11,7 +12,7 @@ function intervalOverlaps(start: Date, end: Date, rs: Date, re: Date, exclusiveE
 
 export function eventOccursWithin(ics: string, rangeStart: Date, rangeEnd: Date, opts: { maxIterations?: number } = {}): boolean {
   const jcal: unknown = ICAL.parse(ics);
-  if (!Array.isArray(jcal)) throw new Error("kein VCALENDAR");
+  if (!Array.isArray(jcal)) throw new CoreError("notVcalendar", "Not a VCALENDAR");
   const root = new ICAL.Component(jcal);
   const vevents = root.name === "vevent" ? [root] : root.getAllSubcomponents("vevent");
   const max = opts.maxIterations ?? 2000;

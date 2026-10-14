@@ -7,6 +7,7 @@ import type { MappingProfile } from "../mirror/profile";
 import { effectiveProfile, sourceOf, type Account, type CollectionConfig, type PluginSettings } from "../settings";
 import type { SecretStore, StateStore } from "../sync/types";
 import type { ServerItem } from "./match";
+import { CoreError } from "../errors";
 
 /** Strukturelle Teilmenge von `SyncDeps` (core/sync/types.ts) — jede `SyncDeps`-Instanz
  *  erfuellt dieses Interface automatisch, main.ts kann `this.deps` also direkt uebergeben,
@@ -66,13 +67,13 @@ export async function loadServerItems(
   collectionId: string,
 ): Promise<{ items: ServerItem[]; profile: MappingProfile; source: string; col: DavCollection; skipped: SkippedItem[] }> {
   const colConfig = settings.collections.find((c) => c.id === collectionId);
-  if (!colConfig) throw new Error(`Sammlung nicht gefunden: ${collectionId}`);
+  if (!colConfig) throw new CoreError("collectionNotFound", `Collection not found: ${collectionId}`, [collectionId]);
   const account = settings.accounts.find((a) => a.id === colConfig.accountId);
-  if (!account) throw new Error(`Konto nicht gefunden: ${colConfig.accountId}`);
+  if (!account) throw new CoreError("accountNotFound", `Account not found: ${colConfig.accountId}`, [colConfig.accountId]);
   const profile = effectiveProfile(settings, colConfig);
-  if (!profile) throw new Error(`Profil nicht gefunden fuer Sammlung: ${collectionId}`);
+  if (!profile) throw new CoreError("profileNotFound", `Profile not found for collection: ${collectionId}`, [collectionId]);
   const secret = deps.secrets.get(account.secretId);
-  if (secret === null || secret === "") throw new Error(`Kein Passwort fuer Konto hinterlegt: ${account.name}`);
+  if (secret === null || secret === "") throw new CoreError("noSecret", `No password stored for account: ${account.name}`, [account.name]);
 
   const transport = deps.transportFor(account, secret);
   const fresh = await refreshCollection(transport, baseCollectionOf(colConfig));

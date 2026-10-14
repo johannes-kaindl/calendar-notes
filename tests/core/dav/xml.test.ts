@@ -63,13 +63,13 @@ describe("parseMultistatus — die Fehlermeldung muss diagnostizierbar sein", ()
   });
 
   it("unterscheidet einen leeren Koerper von einem fremden Inhalt", () => {
-    expect(() => parseMultistatus("", "PROPFIND https://dav.example/")).toThrow(/Koerper ist leer/);
+    expect(() => parseMultistatus("", "PROPFIND https://dav.example/")).toThrow(/the body is empty/);
     expect(() => parseMultistatus("<html><body>Fehlerseite</body></html>", "PROPFIND https://dav.example/"))
-      .toThrow(/beginnt mit: <html>/);
+      .toThrow(/starts with: <html>/);
   });
 
   it("bleibt ohne Quellenangabe benutzbar", () => {
-    expect(() => parseMultistatus("<nope/>")).toThrow(/kein DAV:multistatus/);
+    expect(() => parseMultistatus("<nope/>")).toThrow(expect.objectContaining({ code: "notMultistatus" }));
   });
 });
 
@@ -91,6 +91,6 @@ describe("parseMultistatus — ein LEERER Multistatus ist gueltig, kein Fehler",
 
   it("wirft weiterhin, wenn gar kein multistatus da ist", () => {
     expect(() => parseMultistatus("<html><body>Fehlerseite</body></html>", "PROPFIND https://dav.example/"))
-      .toThrow(/kein DAV:multistatus/);
+      .toThrow(expect.objectContaining({ code: "notMultistatus", args: ["PROPFIND https://dav.example/", expect.stringContaining("starts with: <html>")] }));
   });
 });

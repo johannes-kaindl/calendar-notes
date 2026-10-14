@@ -75,12 +75,12 @@ describe("commands registry", () => {
   });
 
   it("registerCommands wirft bei doppelter id (innerhalb eines Aufrufs)", () => {
-    expect(() => registerCommands([descriptor("event.move", "event"), descriptor("event.move", "event")])).toThrow("Doppelte Kommando-ID: event.move");
+    expect(() => registerCommands([descriptor("event.move", "event"), descriptor("event.move", "event")])).toThrow("Duplicate command id: event.move");
   });
 
   it("registerCommands wirft bei doppelter id (gegen bereits Registriertes)", () => {
     registerCommands([descriptor("event.move", "event")]);
-    expect(() => registerCommands([descriptor("event.move", "event")])).toThrow("Doppelte Kommando-ID: event.move");
+    expect(() => registerCommands([descriptor("event.move", "event")])).toThrow("Duplicate command id: event.move");
   });
 
   it("nach einem Wurf bleibt das Register unveraendert (kein Teil-Effekt)", () => {

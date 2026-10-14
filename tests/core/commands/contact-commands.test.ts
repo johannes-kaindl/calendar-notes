@@ -81,13 +81,13 @@ describe("contact.set-email / contact.remove-email", () => {
 
   it("set-email mit Index ausserhalb wirft", () => {
     const c = ctx(read("v3-full.vcf"), existingTarget("c3-1@test", "v3-full.vcf"));
-    expect(() => find("contact.set-email").plan({ index: "5", value: "x@example.test" }, c)).toThrow("Index außerhalb: 5");
+    expect(() => find("contact.set-email").plan({ index: "5", value: "x@example.test" }, c)).toThrow(expect.objectContaining({ code: "indexOutOfRange", args: [5] }));
   });
 
   it("remove-email mit Index ausserhalb (auch negativ) wirft", () => {
     const c = ctx(read("v3-full.vcf"), existingTarget("c3-1@test", "v3-full.vcf"));
-    expect(() => find("contact.remove-email").plan({ index: 2 }, c)).toThrow("Index außerhalb: 2");
-    expect(() => find("contact.remove-email").plan({ index: -1 }, c)).toThrow("Index außerhalb: -1");
+    expect(() => find("contact.remove-email").plan({ index: 2 }, c)).toThrow(expect.objectContaining({ code: "indexOutOfRange", args: [2] }));
+    expect(() => find("contact.remove-email").plan({ index: -1 }, c)).toThrow(expect.objectContaining({ code: "indexOutOfRange", args: [-1] }));
   });
 
   // Fix M6 (Review-Runde 3): index ist bei allen vier Kontakt-Kommandos konsistent ein
@@ -107,7 +107,7 @@ describe("contact.set-email / contact.remove-email", () => {
 
   it("remove-email mit index='new' wirft (nichts zu entfernen)", () => {
     const c = ctx(read("v3-full.vcf"), existingTarget("c3-1@test", "v3-full.vcf"));
-    expect(() => find("contact.remove-email").plan({ index: "new" }, c)).toThrow("index darf nicht \"new\" sein");
+    expect(() => find("contact.remove-email").plan({ index: "new" }, c)).toThrow(expect.objectContaining({ code: "indexNotNew" }));
   });
 });
 
@@ -128,12 +128,12 @@ describe("contact.set-phone / contact.remove-phone", () => {
 
   it("set-phone mit Index ausserhalb wirft", () => {
     const c = ctx(read("v3-full.vcf"), existingTarget("c3-1@test", "v3-full.vcf"));
-    expect(() => find("contact.set-phone").plan({ index: "9", value: "+49 1" }, c)).toThrow("Index außerhalb: 9");
+    expect(() => find("contact.set-phone").plan({ index: "9", value: "+49 1" }, c)).toThrow(expect.objectContaining({ code: "indexOutOfRange", args: [9] }));
   });
 
   it("remove-phone mit Index ausserhalb wirft", () => {
     const c = ctx(read("v3-full.vcf"), existingTarget("c3-1@test", "v3-full.vcf"));
-    expect(() => find("contact.remove-phone").plan({ index: 7 }, c)).toThrow("Index außerhalb: 7");
+    expect(() => find("contact.remove-phone").plan({ index: 7 }, c)).toThrow(expect.objectContaining({ code: "indexOutOfRange", args: [7] }));
   });
 
   // Fix M6 — s. Kommentar bei contact.remove-email oben.
@@ -144,7 +144,7 @@ describe("contact.set-phone / contact.remove-phone", () => {
 
   it("remove-phone mit index='new' wirft (nichts zu entfernen)", () => {
     const c = ctx(read("v3-full.vcf"), existingTarget("c3-1@test", "v3-full.vcf"));
-    expect(() => find("contact.remove-phone").plan({ index: "new" }, c)).toThrow("index darf nicht \"new\" sein");
+    expect(() => find("contact.remove-phone").plan({ index: "new" }, c)).toThrow(expect.objectContaining({ code: "indexNotNew" }));
   });
 
   it("set-email/set-phone mit index 'new' pruefen nicht gegen den Bestand", () => {

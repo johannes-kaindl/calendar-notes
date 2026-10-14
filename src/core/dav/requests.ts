@@ -1,3 +1,4 @@
+import { CoreError } from "../errors";
 export const NS = {
   dav: "DAV:",
   caldav: "urn:ietf:params:xml:ns:caldav",
@@ -37,7 +38,7 @@ const TIME_RANGE_TS = /^\d{8}T\d{6}Z$/;
 
 export function calendarQueryBody(range?: { start: string; end: string }): string {
   if (range && (!TIME_RANGE_TS.test(range.start) || !TIME_RANGE_TS.test(range.end))) {
-    throw new Error("time-range erwartet UTC-Zeitstempel YYYYMMDDTHHMMSSZ");
+    throw new CoreError("timeRangeUtc", "time-range expects UTC timestamps YYYYMMDDTHHMMSSZ");
   }
   const tr = range ? `<c:time-range start="${range.start}" end="${range.end}"/>` : "";
   return `${HEAD}<c:calendar-query ${XMLNS}><d:prop><d:getetag/></d:prop><c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT">${tr}</c:comp-filter></c:comp-filter></c:filter></c:calendar-query>`;

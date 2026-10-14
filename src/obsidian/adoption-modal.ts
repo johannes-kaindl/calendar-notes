@@ -6,6 +6,7 @@ import type { ContactData } from "../core/vcard/contact";
 import type { EventData } from "../core/ical/event";
 import type { MappingProfile } from "../core/mirror/profile";
 import { t } from "../i18n/strings";
+import { describeError } from "./error-i18n";
 
 export type AdoptAction = AdoptDecision["action"];
 
@@ -118,7 +119,7 @@ export class AdoptionModal extends Modal {
         void this.onConfirm(collectDecisions(suggestions, this.chosen)).then(
           () => this.close(),
           (e: unknown) => {
-            new Notice(t("notice.unexpected", "Adoption", e instanceof Error ? e.message : String(e)));
+            new Notice(t("notice.unexpected", "Adoption", describeError(e)));
             this.close();
           },
         );

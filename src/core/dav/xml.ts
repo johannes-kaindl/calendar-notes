@@ -1,4 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
+import { CoreError } from "../errors";
 
 export interface PropStat { status: number; props: Record<string, unknown> }
 export interface MsResponse { href: string; status?: number; propstats: PropStat[]; props: Record<string, unknown> }
@@ -57,9 +58,9 @@ export function hasChild(v: unknown, name: string): boolean {
  *  Laenge plus der Anfang mit zusammengefalteten Leerraeumen. Ein leerer Koerper und eine
  *  HTML-Fehlerseite sehen in der Meldung dann verschieden aus — vorher sahen beide gleich aus. */
 function beschreibeKoerper(xml: string): string {
-  if (xml === "") return "der Koerper ist leer";
+  if (xml === "") return "the body is empty";
   const anfang = xml.replace(/\s+/g, " ").trim().slice(0, 160);
-  return `${xml.length} Zeichen, beginnt mit: ${anfang}`;
+  return `${xml.length} characters, starts with: ${anfang}`;
 }
 
 /** `quelle` nennt die Anfrage, deren Antwort geparst wird (Methode + URL). Ohne sie ist die
@@ -76,8 +77,8 @@ export function parseMultistatus(xml: string, quelle?: string): Multistatus {
   // angelegte Adressbuch brach den Abgleich mit einer Protokoll-Fehlermeldung ab.
   // Gemessen 2026-08-29 an mailbox.org (dessen Kalender vor dem Datenumzug leer waren).
   if (roh === undefined) {
-    const wo = quelle === undefined ? "" : ` auf ${quelle}`;
-    throw new Error(`Antwort${wo} ist kein DAV:multistatus (${beschreibeKoerper(xml)})`);
+    const wo = quelle === undefined ? "" : ` to ${quelle}`;
+    throw new CoreError("notMultistatus", `Response${wo} is not a DAV:multistatus (${beschreibeKoerper(xml)})`, [quelle ?? "", beschreibeKoerper(xml)]);
   }
   const ms: Record<string, unknown> = roh !== null && typeof roh === "object" ? (roh as Record<string, unknown>) : {};
   const responses: MsResponse[] = [];

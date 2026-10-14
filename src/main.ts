@@ -26,6 +26,7 @@ import { CalendarNotesSettingTab, type SettingsHost } from "./obsidian/settings-
 import { obsidianTransport } from "./obsidian/transport";
 import { obsidianSecretStore } from "./vendor/kit-obsidian/secrets";
 import type { SecretStore } from "./vendor/kit/secrets";
+import { describeError } from "./obsidian/error-i18n";
 
 /** Waehlt in der Kommandopalette eine der AKTIVIERTEN Sammlungen fuer einen Einzel-Sync. */
 class CollectionSuggestModal extends FuzzySuggestModal<CollectionConfig> {
@@ -187,7 +188,7 @@ export default class CalendarNotesPlugin extends Plugin {
    *  im SyncService, oder in `recordRun`/`settingTab.update()` selbst) darf nicht stumm im
    *  Nirwana landen — der Nutzer soll wenigstens eine Notice sehen. */
   private fireAndForget(p: Promise<unknown>, what: string): void {
-    p.catch((e: unknown) => new Notice(t("notice.unexpected", what, e instanceof Error ? e.message : String(e))));
+    p.catch((e: unknown) => new Notice(t("notice.unexpected", what, describeError(e))));
   }
 
   private settingsHost(): SettingsHost {
@@ -347,7 +348,7 @@ export default class CalendarNotesPlugin extends Plugin {
         });
         succeeded.push(link);
       } catch (e) {
-        failed.push({ path: link.path, message: e instanceof Error ? e.message : String(e) });
+        failed.push({ path: link.path, message: describeError(e) });
       }
     }
     // load/save separat abgesichert: ein State-Store-Fehler (z. B. kaputtes JSON, Disk voll)
@@ -359,7 +360,7 @@ export default class CalendarNotesPlugin extends Plugin {
       const newState = stateAfterAdoption(state, succeeded, items, profile, this.deps.now());
       await this.deps.stateStore.save(newState);
     } catch (e) {
-      new Notice(t("notice.unexpected", t("notice.what.adopt"), e instanceof Error ? e.message : String(e)));
+      new Notice(t("notice.unexpected", t("notice.what.adopt"), describeError(e)));
     }
     const summary = summarizeAdoption(succeeded, failed);
     new Notice(t("notice.adoptDone", summary.linkedCount, skippedUids.length, createUids.length));

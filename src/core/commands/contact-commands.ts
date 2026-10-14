@@ -2,6 +2,7 @@ import { parseContact, type ContactData } from "../vcard/contact";
 import { applyContactMutation, newContactVcf, type ContactMutation } from "../vcard/mutate";
 import { newId } from "../settings";
 import type { CommandContext, CommandDescriptor, CommandPlan, CommandTarget } from "./types";
+import { CoreError } from "../errors";
 
 export function hrefOfContactTarget(target: CommandTarget): string {
   return "href" in target ? target.href : "";
@@ -49,7 +50,7 @@ export function diffContactFields(before: ContactData | undefined, after: Contac
  *  `planForMutation()` in `event-commands.ts`. */
 function planForContactMutations(id: string, ctx: CommandContext, mutations: ContactMutation[]): CommandPlan {
   const before = ctx.raw;
-  if (before === undefined) throw new Error(`${id}: kein Rohdaten (raw) vorhanden`);
+  if (before === undefined) throw new CoreError("noRaw", `${id}: no raw data available`, [id]);
   const beforeContact = parseContact(before);
   const newRaw = mutations.reduce((raw, m) => applyContactMutation(raw, m, { now: ctx.now }), before);
   const afterContact = parseContact(newRaw);
@@ -74,7 +75,7 @@ function checkIndex(ctx: CommandContext, kind: "email" | "tel", index: number | 
   if (index === "new") return;
   const contact = parseContact(ctx.raw ?? "");
   const len = kind === "email" ? contact.emails.length : contact.tels.length;
-  if (index < 0 || index >= len) throw new Error(`Index außerhalb: ${index}`);
+  if (index < 0 || index >= len) throw new CoreError("indexOutOfRange", `Index out of range: ${index}`, [index]);
 }
 
 const contactSetName: CommandDescriptor = {
@@ -89,7 +90,7 @@ const contactSetName: CommandDescriptor = {
   appliesTo: appliesToExistingContact,
   plan(input, ctx) {
     const fn = str(input["fn"]);
-    if (!fn) throw new Error("contact.set-name: fn fehlt");
+    if (!fn) throw new CoreError("fieldMissing", "contact.set-name: fn is missing", ["contact.set-name", "fn"]);
     const mutations: ContactMutation[] = [{ kind: "fn", fn }];
     const given = str(input["given"]);
     const family = str(input["family"]);
@@ -121,7 +122,7 @@ const contactSetEmail: CommandDescriptor = {
   appliesTo: appliesToExistingContact,
   plan(input, ctx) {
     const value = str(input["value"]);
-    if (!value) throw new Error("contact.set-email: value fehlt");
+    if (!value) throw new CoreError("fieldMissing", "contact.set-email: value is missing", ["contact.set-email", "value"]);
     const index = parseIndex(input["index"]);
     checkIndex(ctx, "email", index);
     const types = Array.isArray(input["types"]) ? (input["types"] as unknown[]).map(String) : undefined;
@@ -146,7 +147,7 @@ const contactRemoveEmail: CommandDescriptor = {
   appliesTo: appliesToExistingContact,
   plan(input, ctx) {
     const index = parseIndex(input["index"]);
-    if (index === "new") throw new Error("contact.remove-email: index darf nicht \"new\" sein");
+    if (index === "new") throw new CoreError("indexNotNew", "contact.remove-email: index must not be \"new\"", ["contact.remove-email"]);
     checkIndex(ctx, "email", index);
     const plan = planForContactMutations("contact.remove-email", ctx, [{ kind: "removeEmail", index }]);
     plan.summary = "Email removed";
@@ -172,7 +173,7 @@ const contactSetPhone: CommandDescriptor = {
   appliesTo: appliesToExistingContact,
   plan(input, ctx) {
     const value = str(input["value"]);
-    if (!value) throw new Error("contact.set-phone: value fehlt");
+    if (!value) throw new CoreError("fieldMissing", "contact.set-phone: value is missing", ["contact.set-phone", "value"]);
     const index = parseIndex(input["index"]);
     checkIndex(ctx, "tel", index);
     const types = Array.isArray(input["types"]) ? (input["types"] as unknown[]).map(String) : undefined;
@@ -193,7 +194,7 @@ const contactRemovePhone: CommandDescriptor = {
   appliesTo: appliesToExistingContact,
   plan(input, ctx) {
     const index = parseIndex(input["index"]);
-    if (index === "new") throw new Error("contact.remove-phone: index darf nicht \"new\" sein");
+    if (index === "new") throw new CoreError("indexNotNew", "contact.remove-phone: index must not be \"new\"", ["contact.remove-phone"]);
     checkIndex(ctx, "tel", index);
     const plan = planForContactMutations("contact.remove-phone", ctx, [{ kind: "removeTel", index }]);
     plan.summary = "Phone number removed";
@@ -306,7 +307,7 @@ const contactCreate: CommandDescriptor = {
   appliesTo: appliesToNewContact,
   plan(input, ctx) {
     const fn = str(input["fn"]);
-    if (!fn) throw new Error("contact.create: fn fehlt");
+    if (!fn) throw new CoreError("fieldMissing", "contact.create: fn is missing", ["contact.create", "fn"]);
     const uid = `${newId("ct", ctx.rand)}@calendar-notes`;
     const newRaw = newContactVcf({ uid, fn, email: str(input["email"]), tel: str(input["tel"]), org: str(input["org"]) }, { now: ctx.now });
     const afterContact = parseContact(newRaw);

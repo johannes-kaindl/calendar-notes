@@ -1,4 +1,5 @@
 import ICAL from "ical.js";
+import { CoreError } from "../errors";
 
 export interface Typed { value: string; types: string[]; pref: boolean }
 export interface Address { types: string[]; street?: string; city?: string; zip?: string; region?: string; country?: string; pobox?: string; ext?: string; pref: boolean }
@@ -40,9 +41,9 @@ function structuredParts(v: unknown): string[] {
 
 export function parseContact(vcf: string): ContactData {
   const jcal: unknown = ICAL.parse(vcf);
-  if (!Array.isArray(jcal)) throw new Error("kein VCARD");
+  if (!Array.isArray(jcal)) throw new CoreError("notVcard", "Not a VCARD");
   const root = new ICAL.Component(jcal);
-  if (root.name !== "vcard") throw new Error("kein VCARD");
+  if (root.name !== "vcard") throw new CoreError("notVcard", "Not a VCARD");
   const str = (n: string): string | undefined => {
     const v = root.getFirstPropertyValue(n);
     return v === null || v === undefined ? undefined : String(v);

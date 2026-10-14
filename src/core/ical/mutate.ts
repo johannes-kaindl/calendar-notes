@@ -1,6 +1,7 @@
 import ICAL from "ical.js";
 import type { Attendee } from "./event";
 import type { VtodoStatus } from "../mirror/todo-reverse";
+import { CoreError } from "../errors";
 
 export type EventMutation =
   | { kind: "times"; start: string; end?: string; allDay?: boolean; tzid?: string }
@@ -24,7 +25,7 @@ const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
  *  wurde still auf 00:00 gerundet (schrieb die falsche Uhrzeit auf den Server). */
 function parseIsoParts(iso: string): { year: number; month: number; day: number; hour: number; minute: number; second: number } {
   const m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/.exec(iso);
-  if (!m) throw new Error(`ungueltiges ISO-Datum: ${iso}`);
+  if (!m) throw new CoreError("invalidIsoDate", `Invalid ISO date: ${iso}`, [iso]);
   return {
     year: Number(m[1]), month: Number(m[2]), day: Number(m[3]),
     hour: m[4] ? Number(m[4]) : 0, minute: m[5] ? Number(m[5]) : 0, second: m[6] ? Number(m[6]) : 0,
@@ -62,7 +63,7 @@ function utcNow(now: Date): ICAL.Time {
 function master(root: ICAL.Component): ICAL.Component {
   const all = root.getAllSubcomponents("vevent");
   const m = all.find((c) => !c.getFirstProperty("recurrence-id")) ?? all[0];
-  if (!m) throw new Error("kein VEVENT");
+  if (!m) throw new CoreError("notVevent", "Not a VEVENT");
   return m;
 }
 
@@ -78,7 +79,7 @@ function findAttendee(ve: ICAL.Component, email: string): ICAL.Property | undefi
 
 function parseComponent(ics: string): ICAL.Component {
   const jcal: unknown = ICAL.parse(ics);
-  if (!Array.isArray(jcal)) throw new Error("kein VCALENDAR");
+  if (!Array.isArray(jcal)) throw new CoreError("notVcalendar", "Not a VCALENDAR");
   return new ICAL.Component(jcal);
 }
 
@@ -87,7 +88,7 @@ function parseComponent(ics: string): ICAL.Component {
  *  einer falsch geleiteten Ressource die halbe Antwort. */
 function masterTodo(root: ICAL.Component): ICAL.Component {
   const vt = root.getAllSubcomponents("vtodo")[0];
-  if (!vt) throw new Error("kein VTODO");
+  if (!vt) throw new CoreError("notVtodo", "Not a VTODO");
   return vt;
 }
 

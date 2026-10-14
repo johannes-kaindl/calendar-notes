@@ -38,7 +38,7 @@ export function insertMethod(ics: string, method: string): string {
     return lines.join(eol);
   }
   const prodidIdx = lines.findIndex((l) => l.startsWith("PRODID"));
-  if (prodidIdx === -1) throw new Error("iMIP: VCALENDAR ohne PRODID-Zeile");
+  if (prodidIdx === -1) throw new Error("iMIP: VCALENDAR without a PRODID line");
   lines.splice(prodidIdx + 1, 0, `METHOD:${method}`);
   return lines.join(eol);
 }
@@ -53,10 +53,10 @@ function displayTime(start: string, end?: string): string {
  *  liefert die deutsch/englisch uebersetzten Beschriftungen (der Aufrufer liest sie aus
  *  `t("invite.label.*")`, s. `src/obsidian/invite.ts`). */
 export function buildImip(plan: CommandPlan, method: "REQUEST" | "CANCEL", from: string, opts: { now: Date; labels: ImipLabels }): ImipMessage {
-  if (!plan.invite) throw new Error("buildImip: Plan enthaelt keine invite-Angaben");
+  if (!plan.invite) throw new Error("buildImip: plan carries no invite data");
   const ics = insertMethod(plan.newRaw, method);
   const ev = primaryEvent(parseEvents(ics));
-  if (!ev) throw new Error("buildImip: kein VEVENT im Plan");
+  if (!ev) throw new Error("buildImip: no VEVENT in the plan");
 
   const { labels } = opts;
   const title = ev.summary;

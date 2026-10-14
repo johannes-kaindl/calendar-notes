@@ -5,6 +5,7 @@ import { t } from "../i18n/strings";
 import { trPlan } from "./command-i18n";
 import { describeExecuteError } from "./execute-i18n";
 import { fieldLabel } from "./field-labels";
+import { describeError } from "./error-i18n";
 
 /** Diff-Zeilen fuers Anzeigen — Feldname uebersetzt (dieselbe `fieldLabel()` wie im
  *  Formular, s. `command-modal.ts`, damit `allDay` z. B. auch hier „Ganztägig"/„All day"
@@ -73,7 +74,7 @@ export class PlanPreviewModal extends Modal {
     try {
       result = await this.onExecute();
     } catch (e) {
-      new Notice(t("notice.unexpected", t("op.command"), e instanceof Error ? e.message : String(e)));
+      new Notice(t("notice.unexpected", t("op.command"), describeError(e)));
       return;
     }
     if (result.ok) {

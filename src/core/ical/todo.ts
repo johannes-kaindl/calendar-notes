@@ -1,5 +1,6 @@
 import ICAL from "ical.js";
 import { timeOfProp } from "./time";
+import { CoreError } from "../errors";
 
 export interface TodoData {
   uid: string; summary: string; description?: string;
@@ -79,9 +80,9 @@ export function primaryTodo(todos: TodoData[]): TodoData | undefined {
 
 export function parseTodos(ics: string): TodoData[] {
   const jcal: unknown = ICAL.parse(ics);
-  if (!Array.isArray(jcal)) throw new Error("kein VCALENDAR");
+  if (!Array.isArray(jcal)) throw new CoreError("notVcalendar", "Not a VCALENDAR");
   const root = new ICAL.Component(jcal);
-  if (root.name !== "vcalendar" && root.name !== "vtodo") throw new Error("kein VCALENDAR");
+  if (root.name !== "vcalendar" && root.name !== "vtodo") throw new CoreError("notVcalendar", "Not a VCALENDAR");
   const comps = root.name === "vtodo" ? [root] : root.getAllSubcomponents("vtodo");
   return comps.map(todoFromComponent);
 }

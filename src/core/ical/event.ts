@@ -1,5 +1,6 @@
 import ICAL from "ical.js";
 import { calAddress, timeOfProp, timeToIso, type Attendee } from "./time";
+import { CoreError } from "../errors";
 
 export { timeToIso, type Attendee };
 export interface EventData {
@@ -55,9 +56,9 @@ function eventFromComponent(ve: ICAL.Component): EventData {
 
 export function parseEvents(ics: string): EventData[] {
   const jcal: unknown = ICAL.parse(ics);
-  if (!Array.isArray(jcal)) throw new Error("kein VCALENDAR");
+  if (!Array.isArray(jcal)) throw new CoreError("notVcalendar", "Not a VCALENDAR");
   const root = new ICAL.Component(jcal);
-  if (root.name !== "vcalendar" && root.name !== "vevent") throw new Error("kein VCALENDAR");
+  if (root.name !== "vcalendar" && root.name !== "vevent") throw new CoreError("notVcalendar", "Not a VCALENDAR");
   const comps = root.name === "vevent" ? [root] : root.getAllSubcomponents("vevent");
   return comps.map(eventFromComponent);
 }

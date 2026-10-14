@@ -38,7 +38,7 @@ export function nichtUebertragbareKeys(profile: MappingProfile, changedKeys: str
 }
 
 export function hrefOfTodoTarget(target: CommandTarget): string {
-  if (!("href" in target) || !target.href) throw new Error("todo-Kommando ohne href im Target");
+  if (!("href" in target) || !target.href) throw new Error("todo command without an href in the target");
   return target.href;
 }
 
@@ -117,7 +117,7 @@ export function planTodoCreate(ctx: CommandContext, frontmatter: Record<string, 
     ...(Array.isArray(kategorien) ? { categories: kategorien.map(String) } : {}),
   }, { now: ctx.now });
   const after = primaryTodo(parseTodos(newRaw));
-  if (!after) throw new Error("planTodoCreate: erzeugtes ICS enthaelt kein VTODO");
+  if (!after) throw new Error("planTodoCreate: the generated ICS holds no VTODO");
   return {
     commandId: "todo.create", target: ctx.target,
     summary: "Create task on the server", summaryKey: "plan.todo.create.summary", summaryArgs: [],

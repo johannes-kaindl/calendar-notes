@@ -178,13 +178,13 @@ describe("event.set-partstat", () => {
 
   it("wirft, wenn keine eigene Adresse bekannt ist", () => {
     const c = ctx(read("attendees.ics"), existingTarget("att-1@test", "attendees.ics"), { account: { ...ACCOUNT, username: "nicht-email" } });
-    expect(() => find("event.set-partstat").plan({ partstat: "ACCEPTED" }, c)).toThrow("Eigene Adresse unbekannt");
+    expect(() => find("event.set-partstat").plan({ partstat: "ACCEPTED" }, c)).toThrow(expect.objectContaining({ code: "ownAddressUnknown" }));
   });
 
   it("wirft, wenn die eigene Adresse kein Teilnehmer des Termins ist", () => {
     // ACCOUNT.username = jay@example.test, aber attendees.ics kennt nur alex@ und sam@example.test
     const c = ctx(read("attendees.ics"), existingTarget("att-1@test", "attendees.ics"));
-    expect(() => find("event.set-partstat").plan({ partstat: "ACCEPTED" }, c)).toThrow("Eigene Adresse ist kein Teilnehmer dieses Termins");
+    expect(() => find("event.set-partstat").plan({ partstat: "ACCEPTED" }, c)).toThrow(expect.objectContaining({ code: "ownAddressNotAttendee" }));
   });
 
   // Fix M5 (Review-Runde 3): ALLE eigenen Adressen (scheduling.addresses ∪ username) werden

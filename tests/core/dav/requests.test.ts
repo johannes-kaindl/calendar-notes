@@ -32,8 +32,8 @@ describe("request bodies", () => {
     expect(calendarQueryBody()).not.toContain("time-range");
   });
   it("calendar-query: ungültiges time-range-Format wirft", () => {
-    expect(() => calendarQueryBody({ start: "2026-01-01T00:00:00Z", end: "20261231T000000Z" })).toThrow("time-range erwartet UTC-Zeitstempel YYYYMMDDTHHMMSSZ");
-    expect(() => calendarQueryBody({ start: "20260101T000000Z", end: "not-a-date" })).toThrow("time-range erwartet UTC-Zeitstempel YYYYMMDDTHHMMSSZ");
+    expect(() => calendarQueryBody({ start: "2026-01-01T00:00:00Z", end: "20261231T000000Z" })).toThrow(expect.objectContaining({ code: "timeRangeUtc" }));
+    expect(() => calendarQueryBody({ start: "20260101T000000Z", end: "not-a-date" })).toThrow(expect.objectContaining({ code: "timeRangeUtc" }));
   });
   it("xmlEscape", () => { expect(xmlEscape(`<&>"'`)).toBe("&lt;&amp;&gt;&quot;&apos;"); });
 });

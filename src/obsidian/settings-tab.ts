@@ -30,6 +30,7 @@ import { settingBodyHost } from "../vendor/kit-obsidian/settings_walker";
 import { JsonModal } from "./json-modal";
 import { profileFromTaskNotes, readTaskNotes } from "./tasknotes";
 import type { SecretStore } from "../vendor/kit/secrets";
+import { describeError } from "./error-i18n";
 
 /** Was der Tab vom Plugin braucht — als Interface, damit Tests eine Attrappe geben können. */
 export interface SettingsHost {
@@ -212,7 +213,7 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
       this.mergeDiscoveredCollections(account, result);
       new Notice(t("notice.discoverOk", result.collections.length, result.warnings.length));
     } catch (e) {
-      new Notice(t("notice.discoverFailed", e instanceof Error ? e.message : String(e)));
+      new Notice(t("notice.discoverFailed", describeError(e)));
     }
     this.update();
   }
@@ -464,7 +465,7 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
       await clipboard.writeText(json);
       new Notice(t("notice.copied"));
     } catch (e) {
-      new Notice(t("notice.copyFailed", e instanceof Error ? e.message : String(e)));
+      new Notice(t("notice.copyFailed", describeError(e)));
     }
   }
 

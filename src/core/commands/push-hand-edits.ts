@@ -12,6 +12,7 @@ import { diffEventFields, hrefOfEventTarget } from "./event-commands";
 import { diffContactFields, hrefOfContactTarget } from "./contact-commands";
 import type { CommandContext, CommandPlan } from "./types";
 import { assertNever } from "../mirror/kind";
+import { CoreError } from "../errors";
 
 export interface SkippedField {
   key: string;
@@ -45,9 +46,9 @@ function handEditedKeys(frontmatter: Record<string, unknown>, prevWritten: Recor
 
 function planEventHandEdits(ctx: CommandContext, frontmatter: Record<string, unknown>, keys: string[], skipped: SkippedField[]): CommandPlan | null {
   const before = ctx.raw;
-  if (before === undefined) throw new Error("push-hand-edits: kein Rohdaten (raw) vorhanden");
+  if (before === undefined) throw new CoreError("noRaw", "push-hand-edits: no raw data available", ["push-hand-edits"]);
   const beforeEv = primaryEvent(parseEvents(before));
-  if (!beforeEv) throw new Error("push-hand-edits: kein VEVENT vorhanden");
+  if (!beforeEv) throw new CoreError("noVevent", "push-hand-edits: no VEVENT present");
   const mutations: EventMutation[] = [];
   let times: { start?: string; end?: string } | undefined;
   for (const fmKey of keys) {
@@ -67,7 +68,7 @@ function planEventHandEdits(ctx: CommandContext, frontmatter: Record<string, unk
   if (mutations.length === 0) return null;
   const newRaw = mutations.reduce((raw, m) => applyMutation(raw, m, { now: ctx.now }), before);
   const afterEv = primaryEvent(parseEvents(newRaw));
-  if (!afterEv) throw new Error("push-hand-edits: kein VEVENT nach Mutation");
+  if (!afterEv) throw new CoreError("noVeventAfter", "push-hand-edits: no VEVENT after the change", ["push-hand-edits"]);
   const diff = diffEventFields(beforeEv, afterEv);
   return {
     commandId: "push-hand-edits", target: ctx.target,
@@ -79,7 +80,7 @@ function planEventHandEdits(ctx: CommandContext, frontmatter: Record<string, unk
 
 function planContactHandEdits(ctx: CommandContext, frontmatter: Record<string, unknown>, keys: string[], skipped: SkippedField[]): CommandPlan | null {
   const before = ctx.raw;
-  if (before === undefined) throw new Error("push-hand-edits: kein Rohdaten (raw) vorhanden");
+  if (before === undefined) throw new CoreError("noRaw", "push-hand-edits: no raw data available", ["push-hand-edits"]);
   const beforeContact = parseContact(before);
   const mutations: ContactMutation[] = [];
   for (const fmKey of keys) {
@@ -138,9 +139,9 @@ function planContactHandEdits(ctx: CommandContext, frontmatter: Record<string, u
  */
 function planTodoHandEdits(ctx: CommandContext, frontmatter: Record<string, unknown>, keys: string[], skipped: SkippedField[]): CommandPlan | null {
   const before = ctx.raw;
-  if (before === undefined) throw new Error("push-hand-edits: kein Rohdaten (raw) vorhanden");
+  if (before === undefined) throw new CoreError("noRaw", "push-hand-edits: no raw data available", ["push-hand-edits"]);
   const beforeTodo = primaryTodo(parseTodos(before));
-  if (!beforeTodo) throw new Error("push-hand-edits: kein VTODO vorhanden");
+  if (!beforeTodo) throw new CoreError("noVtodo", "push-hand-edits: no VTODO present");
   const mutations: TodoMutation[] = [];
   for (const fmKey of keys) {
     const sf = todoServerFeld(ctx.profile, fmKey);
@@ -167,7 +168,7 @@ function planTodoHandEdits(ctx: CommandContext, frontmatter: Record<string, unkn
   if (mutations.length === 0) return null;
   const newRaw = mutations.reduce((raw, m) => applyTodoMutation(raw, m, { now: ctx.now }), before);
   const afterTodo = primaryTodo(parseTodos(newRaw));
-  if (!afterTodo) throw new Error("push-hand-edits: kein VTODO nach Mutation");
+  if (!afterTodo) throw new CoreError("noVtodoAfter", "push-hand-edits: no VTODO after the change");
   return {
     commandId: "push-hand-edits", target: ctx.target,
     summary: "Write hand edits to the server", summaryKey: "plan.push-hand-edits.summary", summaryArgs: [],

@@ -5,6 +5,7 @@ import type { CommandPlan } from "../core/commands/types";
 import type { Account } from "../core/settings";
 import { t } from "../i18n/strings";
 import { joinVaultPath, vaultDirname } from "../vendor/kit/vault-path";
+import { describeError } from "./error-i18n";
 
 /** Fix-Runde 1, Punkt 4: EINE Deklaration statt zweier — vorher trug `invite.ts` eine
  *  eigenstaendige Kopie neben `src/core/api/types.ts` (dort aus `check:pure`-Gruenden noetig,
@@ -96,7 +97,7 @@ class IcsModal extends Modal {
       await clipboard.writeText(this.ics);
       new Notice(t("notice.copied"));
     } catch (e) {
-      new Notice(t("notice.copyFailed", e instanceof Error ? e.message : String(e)));
+      new Notice(t("notice.copyFailed", describeError(e)));
     }
   }
 
@@ -113,7 +114,7 @@ class IcsModal extends Modal {
       new Notice(t("invite.saved", path));
       this.close();
     } catch (e) {
-      new Notice(t("notice.unexpected", t("op.saveInvite"), e instanceof Error ? e.message : String(e)));
+      new Notice(t("notice.unexpected", t("op.saveInvite"), describeError(e)));
     }
   }
 }

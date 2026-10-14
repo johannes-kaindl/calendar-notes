@@ -8,7 +8,7 @@ Each entry starts with what you see — the wording is the plugin's own English 
 
 The text after the colon says what the server answered. Common cases:
 
-**Zugang verweigert (401)** (or **(403)**) — the server rejected the credentials. This one message is always shown in German.
+**Access denied (401)** (or **(403)**) — the server rejected the credentials.
 
 **Cause:** wrong user name or password, or your provider requires an **app password** with calendar permission instead of your account password. A password without that permission is usually rejected with a bare "unauthorised" that does not name the reason.
 
