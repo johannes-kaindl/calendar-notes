@@ -1,7 +1,7 @@
 {
   "sources": {
-    "obsidian-kit": { "ref": "0.57.0" },
-    "code-kit": { "ref": "0.24.0" }
+    "obsidian-kit": { "ref": "0.60.1" },
+    "code-kit": { "ref": "0.27.1" }
   },
   "targets": [
     { "dir": "src/vendor/code-kit", "source": "code-kit", "from": "src/ts/pure", "modules": ["timeout", "sha256", "filename-template", "settings", "i18n", "busy-guard"] },

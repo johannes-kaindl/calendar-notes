@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Internal housekeeping only, nothing changes for you: the shared kit libraries were updated (obsidian-kit 0.60.1, code-kit 0.27.1). None of the changes in between touch a part this plugin uses in a visible way.
+
 ### Added
 
 - Event profiles can map the server's event status onto your own status words (`eventStatusMap` in the profile JSON). A cancelled event now shows up as cancelled in your notes instead of staying "planned" forever; a status you moved on by hand is left alone.

@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.57.0, src/pure/vault-path.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.60.1, src/pure/vault-path.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** Vault-relative Pfade fügen und zerlegen — obsidian-frei, in Node testbar (PROF-OBS-03/04).
  *  Genau die drei Rechnungen, die im Ausgabe-Pfad jedes Export-Plugins vorkommen: Ordner
  *  normalisieren, Ordner + Dateiname fügen, Elternordner eines fertigen Pfads bestimmen.

@@ -1,4 +1,4 @@
-// vendored from code-kit@0.24.0, src/ts/pure/sha256.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.27.1, src/ts/pure/sha256.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** FIPS-180-4-SHA-256, synchron und chunk-fähig — obsidian-frei, ohne jeden Import.
  *
  *  Warum überhaupt eine eigene Implementierung: `crypto.subtle.digest` ist asynchron

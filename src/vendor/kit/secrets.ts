@@ -1,4 +1,4 @@
-// vendored from code-kit@0.24.0, src/ts/pure/secrets.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.27.1, src/ts/pure/secrets.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // uebernommen aus obsidian-kit/src/pure/secrets.ts, 2026-10-09
 /** Schlüsselbund-Vertrag, obsidian-frei. Herkunft: calendar-notes/src/obsidian/secrets.ts
  *  (2026-08, danach byte-nah in anysource-sideloader, mailstone, yijing-oracle — n=4, damit

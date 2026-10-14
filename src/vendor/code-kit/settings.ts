@@ -1,4 +1,4 @@
-// vendored from code-kit@0.24.0, src/ts/pure/settings.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.27.1, src/ts/pure/settings.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** Shallow-Merge gespeicherter Plugin-Settings über Defaults — das gemeinsame
  *  `Object.assign({}, DEFAULTS, await loadData())`-Muster der Plugins, plus Referenz-Schutz:
  *  Default-*Werte* werden eine Ebene tief geklont (Arrays slice(), Plain-Objects Spread),

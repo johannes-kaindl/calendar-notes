@@ -1,4 +1,4 @@
-// vendored from code-kit@0.24.0, src/ts/pure/busy-guard.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.27.1, src/ts/pure/busy-guard.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Origin: calendar-notes `src/core/sync/busy.ts` (2026-08-30) and mailstone `src/core/sync/busy.ts` (a copy with a
 // stamp in line 1, byte-identical otherwise — `diff` measured 2026-10-12, Welle 19). 32 lines, no imports.
 

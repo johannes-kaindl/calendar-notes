@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.57.0, src/obsidian/folder-suggest.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.60.1, src/obsidian/folder-suggest.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 import { AbstractInputSuggest, type App, type TFolder } from "obsidian";
 
 /** Ordner-Autocomplete für ein Settings-Textfeld (REGISTRY „Ordner-Autocomplete

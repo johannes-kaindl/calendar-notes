@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.57.0, src/testing/window-timers.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.60.1, src/testing/window-timers.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Timer-Shim für node-Tests von Code, der `window.setTimeout` ruft (Community-Store-Regel
 // `prefer-window-timers`). Zero external imports, wie `obsidian-mock.ts` — eine Datei, die ein Consumer
 // nach `tests/vendor/kit/` vendort.

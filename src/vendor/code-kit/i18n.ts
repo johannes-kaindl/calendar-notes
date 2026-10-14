@@ -1,4 +1,4 @@
-// vendored from code-kit@0.24.0, src/ts/pure/i18n.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.27.1, src/ts/pure/i18n.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // i18n-Engine (EN/DE) — pure (kein obsidian-/DOM-Import, PROF-OBS-03/04).
 // Implementiert PROF-OBS-07 (_docs/docs/obsidian-i18n.md). Die Strings sind plugin-eigen
 // und werden via defineStrings() injiziert; die Sprach-Detektion lebt in der obsidian-Schicht

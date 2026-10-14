@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.57.0, src/obsidian/secrets.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.60.1, src/obsidian/secrets.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 import type { App } from "obsidian";
 import { stripCrLf, type SecretStore } from "../kit/secrets";
 
