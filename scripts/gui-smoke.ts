@@ -41,13 +41,17 @@ import { fileURLToPath } from "node:url";
 import { Buffer } from "node:buffer";
 import {
   Cdp,
+  AbbruchAusnahme,
   attachTo,
+  beimAbbruch,
   bereiteInstanzVor,
+  istAbgebrochen,
   notices,
   pollUntil,
   releaseAlwaysOnTop,
   requireUntil,
   requireVisible,
+  schliesseDialog,
 } from "../../tools/obsidian-cdp/cdp.js";
 import { createBilanz, parseArgs, runDriver, type Bilanz } from "../../tools/obsidian-cdp/bilanz.js";
 import { buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
@@ -552,6 +556,8 @@ async function checkP2bUiAuth(cdp: Cdp, radicale: RunningServer): Promise<void> 
     // eigene ID, und ein zweites Konto mit denselben Sammlungen wuerde P2 und alles danach
     // an DIESER Hinterlassenschaft scheitern lassen statt an ihrem eigenen Gegenstand.
     if (angelegt) {
+      // Dialog zuerst, in beiden Formen des Schliessen-Knopfs (.modal-close-button bis 1.12, .modal-header-button ab 1.14).
+      await schliesseDialog(cdp).catch(() => undefined);
       await cdp.evaluate(`
         const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
         const weg = plugin.settings.accounts.filter((a) => a.name === ${JSON.stringify(UI_ACCOUNT_NAME)}).map((a) => a.id);
@@ -563,9 +569,6 @@ async function checkP2bUiAuth(cdp: Cdp, radicale: RunningServer): Promise<void> 
         await plugin.saveSettings();
         const ids = await app.secretStorage.listSecrets();
         if (ids.includes(${JSON.stringify(UI_SECRET_ID)})) await app.secretStorage.deleteSecret(${JSON.stringify(UI_SECRET_ID)});
-        const doc = plugin.settingTab.containerEl.ownerDocument;
-        const close = doc.querySelector(".modal-container .modal-close-button");
-        if (close) close.click();
         app.setting.close();
         return true;
       `).catch(() => undefined);
@@ -1764,43 +1767,29 @@ async function main(): Promise<void> {
     join(REPO_ROOT, "main.js"),
   );
 
-  const cleanupFns: { label: string; run: () => Promise<void> }[] = [];
   let radicale: RunningServer | undefined;
 
-  // Dieselbe Aufraeumarbeit wie im `finally` unten — als eigene Funktion, damit der
-  // SIGINT/SIGTERM-Handler sie aufrufen kann, ohne Code zu duplizieren. Ein Ctrl-C mitten
-  // im Lauf ueberspringt das `finally` NICHT (try/catch-Semantik), sondern beendet den
-  // Node-Prozess sofort — ohne eigenen Handler blieben Radicale, das Smoke-Konto, veraenderte
-  // Vault-Notizen und State-Dateien stehen (gemessen: der naechste Lauf liest das Konto als
-  // "vorheriger Stand" und snapshottet es mit statt es zu entfernen — s. P0 oben).
-  const cleanupState = async (): Promise<void> => {
-    if (radicale) {
-      await radicale.stop().catch(() => undefined);
-      console.log("Radicale gestoppt.");
-    }
-    for (const c of cleanupFns) {
-      try {
-        await c.run();
-      } catch (e) {
-        console.log(`Aufraeumen (${c.label}) fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`);
-      }
-    }
-    if (focus) await releaseAlwaysOnTop(cdp).catch(() => undefined);
+  // Alles, was dieser Lauf am Wirt oder am Rechner anlegt, meldet sich als EIGENER Aufraeumschritt beim
+  // Abbruch-Modul der Brücke an (`beimAbbruch`), und zwar VOR der ersten Aenderung. Normalweg: `finally`
+  // schliesst die Schritte rueckwaerts (`schliesse()`); Ctrl-C/SIGTERM: das Modul sperrt den Hauptzweig, faehrt
+  // dieselben Schritte rueckwaerts (je Schritt hoechstens 1 s, deshalb nicht ein grosser), druckt die Bilanz und
+  // endet mit Exit 130. Der fruehere lokale SIGINT-Handler lief neben dem `finally` her (Rennen). Gemessen vorher:
+  // ein Ctrl-C ueberspringt das `finally` nicht, beendet aber Node sofort — Radicale, das Smoke-Konto, veraenderte
+  // Vault-Notizen und State-Dateien blieben stehen, und der naechste Lauf las das Konto als „vorherigen Stand“ (P0).
+  const schritte: ReturnType<typeof beimAbbruch>[] = [];
+  const anmelden = (name: string, fn: () => Promise<unknown>): void => {
+    schritte.push(
+      beimAbbruch(async () => {
+        try {
+          await fn();
+        } catch (e) {
+          if (e instanceof AbbruchAusnahme) throw e;
+          console.log(`Aufraeumen (${name}) fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }, name),
+    );
   };
-
-  let signalCleanupRunning = false;
-  const onAbortSignal = (signal: NodeJS.Signals) => {
-    if (signalCleanupRunning) return;
-    signalCleanupRunning = true;
-    void (async () => {
-      console.log(`\n\nAbbruch durch ${signal} — raeume Smoke-Zustand auf...`);
-      await cleanupState();
-      cdp.close();
-      process.exit(130);
-    })();
-  };
-  process.on("SIGINT", onAbortSignal);
-  process.on("SIGTERM", onAbortSignal);
+  if (focus) anmelden("Vordergrund-Zwang loesen", () => releaseAlwaysOnTop(cdp).catch(() => undefined));
 
   try {
     const pluginPresent = await cdp.evaluate<boolean>( `return !!app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];`);
@@ -1863,26 +1852,29 @@ async function main(): Promise<void> {
     const vaultSnapshot = await snapshotVault(cdp);
     const stateSnapshot = await snapshotState(cdp);
     if (!keep) {
-      cleanupFns.push({
-        label: "Settings zuruecksetzen",
-        run: async () => {
-          await cdp.evaluate(`
-            const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
-            plugin.settings = ${settingsSnapshot};
-            await plugin.saveSettings();
-            app.secretStorage.setSecret(${JSON.stringify(SECRET_ID)}, "");
-            return true;
-          `);
-        },
-      });
-      cleanupFns.push({ label: "Vault-Notizen zuruecksetzen", run: () => restoreVault(cdp, vaultSnapshot) });
-      cleanupFns.push({ label: "State-Dateien zuruecksetzen", run: () => pruneNewState(cdp, stateSnapshot) });
+      // Rueckwaerts gefahren: zuerst Settings, dann Vault-Notizen, dann State-Dateien (wie vor dem Umbau).
+      anmelden("State-Dateien zuruecksetzen", () => pruneNewState(cdp, stateSnapshot));
+      anmelden("Vault-Notizen zuruecksetzen", () => restoreVault(cdp, vaultSnapshot));
+      anmelden("Settings zuruecksetzen", () =>
+        cdp.evaluate(`
+          const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+          plugin.settings = ${settingsSnapshot};
+          await plugin.saveSettings();
+          app.secretStorage.setSecret(${JSON.stringify(SECRET_ID)}, "");
+          return true;
+        `),
+      );
     }
 
     radicale = await startRadicale({
       port: RADICALE_PORT,
       fixtureDir: join(REPO_ROOT, "fixtures/radicale"),
       runDir: join(REPO_ROOT, ".radicale-run", String(RADICALE_PORT)),
+    });
+    const laufenderRadicale = radicale;
+    anmelden("Radicale stoppen", async () => {
+      await laufenderRadicale.stop();
+      console.log("Radicale gestoppt.");
     });
     console.log(`Radicale: ${radicale.baseUrl}`);
 
@@ -1950,10 +1942,10 @@ async function main(): Promise<void> {
 
     if (focus) await checkP8(port, vault);
   } finally {
-    // Dieselbe Funktion wie der SIGINT/SIGTERM-Handler oben — kein Doppelcode.
-    process.off("SIGINT", onAbortSignal);
-    process.off("SIGTERM", onAbortSignal);
-    await cleanupState();
+    // Normalweg: Schritte rueckwaerts schliessen. Nach Ctrl-C raeumt das Modul auf, beendet den Prozess und
+    // druckt die Bilanz; dieser Zweig darf dann weder ein zweites Mal aufraeumen noch die Bilanz ein zweites Mal drucken.
+    for (const schritt of schritte.reverse()) await schritt.schliesse();
+    if (istAbgebrochen()) return;
     cdp.close();
   }
 

@@ -44,6 +44,7 @@ import {
   pollUntil,
   releaseAlwaysOnTop,
   requireVisible,
+  schliesseDialog,
 } from "../../tools/obsidian-cdp/cdp.js";
 import {
   boxOf,
@@ -159,11 +160,14 @@ async function wirePallasForAdoption(cdp: Cdp): Promise<string> {
  *  (preview → PreviewModal, adoption → AdoptionModal bleiben offen; gemessen 2026-08-23:
  *  drei Modals uebereinander, event-note.png waere abgedunkelt gewesen). */
 async function closeModals(cdp: Cdp): Promise<void> {
+  // schliesseDialog schliesst den obersten Dialog (Knopf in beiden Formen, sonst Escape); drei Modals uebereinander
+  // brauchen drei Durchgaenge. Was danach noch steht, wird entfernt (wie vorher).
+  for (let i = 0; i < 6; i++) {
+    const r = await schliesseDialog(cdp);
+    if (r.offenVorher === 0) break;
+  }
   await cdp.evaluate(`
-    for (const m of Array.from(document.querySelectorAll(".modal-container"))) {
-      const btn = m.querySelector(".modal-close-button");
-      if (btn) btn.click(); else m.remove();
-    }
+    for (const m of Array.from(document.querySelectorAll(".modal-container"))) m.remove();
     await new Promise((r) => setTimeout(r, 300));
     return true;
   `);
