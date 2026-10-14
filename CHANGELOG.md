@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Event profiles can map the server's event status onto your own status words (`eventStatusMap` in the profile JSON). A cancelled event now shows up as cancelled in your notes instead of staying "planned" forever; a status you moved on by hand is left alone.
+
 ### Fixed
 
 - Deriving a profile from a note no longer takes `vcard_uid`, `ical_uid` or `uid` as the identity field when its value is not shaped like a server UID (a UUID or `local@domain`). Before, the later adoption would have overwritten foreign identifiers; the field is now listed as not mapped and `dav_uid` is used.

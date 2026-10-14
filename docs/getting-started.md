@@ -35,4 +35,5 @@ From here the plugin syncs on its own every 15 minutes while Obsidian is open.
 
 - Change an event or contact on the server through a command — **Change event/contact…**, **New event…**, **Undo last change**. Each one shows a diff before anything is sent.
 - Tasks from your calendar server show up as TaskNotes-compatible notes; the README explains how to build the profile from your own TaskNotes settings.
+- To carry a cancelled event over into your own status vocabulary, set `fields.status` of an event profile to your status key and add `"eventStatusMap": { "confirmed": "planned", "tentative": "planned", "cancelled": "cancelled" }` (your words on the right). A cancelled event sets the cancelled word; if the cancellation is withdrawn, a note that still carries it goes back to the confirmed word. Any other status you set by hand is never overwritten.
 - Something went differently? See [Troubleshooting](troubleshooting.md).

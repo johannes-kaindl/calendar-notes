@@ -2,6 +2,8 @@ import type { FmVal, MappingProfile } from "./profile";
 import { toFrontmatter, type ManagedValues } from "./fields";
 import { mergeBody, userContent } from "./body";
 import { managedHash, fmEquals } from "./hash";
+import { eventStatusValue, nextEventStatus } from "./event-status";
+import { fmKeyFor } from "./profile";
 
 export interface ExistingNote {
   path: string;
@@ -35,6 +37,17 @@ export function planUpsert(i: UpsertInput): NotePlan {
   const mapped = toFrontmatter(i.values, p);
   const set: Record<string, FmVal> = { [p.uidField]: i.uid, [p.sourceField]: i.source, [p.etagField]: i.etag, [p.stateField]: i.state ?? "live", ...mapped.set };
   const unset = [...mapped.unset];
+  // Status-Abbildung (nur Termine mit eventStatusMap): der Schluessel ist KEIN verwalteter Wert,
+  // weil der Nutzer ihn weiterschaltet — er steht nicht in written/hash und loest kein handEdited aus.
+  const statusKey = p.kind === "event" && p.eventStatusMap ? fmKeyFor(p, "status") : null;
+  let rawStatus: string | null = null;
+  if (statusKey) {
+    const raw = set[statusKey];
+    rawStatus = typeof raw === "string" ? raw : null;
+    delete set[statusKey];
+    const at = unset.indexOf(statusKey);
+    if (at >= 0) unset.splice(at, 1);
+  }
   if (i.recurrenceId) set[p.recurrenceIdField] = i.recurrenceId;
   else unset.push(p.recurrenceIdField);
   const written = { ...set };
@@ -42,12 +55,17 @@ export function planUpsert(i: UpsertInput): NotePlan {
   const rid = i.recurrenceId ? { recurrenceId: i.recurrenceId } : {};
 
   if (!i.existing) {
-    return { op: "create", path: i.path, uid: i.uid, ...rid, frontmatter: { ...p.onCreate, ...set }, body: mergeBody("", i.block, p.body), written, hash };
+    const statusFm = statusKey && p.eventStatusMap ? { [statusKey]: eventStatusValue(p.eventStatusMap, rawStatus) } : {};
+    return { op: "create", path: i.path, uid: i.uid, ...rid, frontmatter: { ...p.onCreate, ...set, ...statusFm }, body: mergeBody("", i.block, p.body), written, hash };
   }
 
   const fm = i.existing.frontmatter;
   const effSet: Record<string, FmVal> = {};
   for (const [k, v] of Object.entries(set)) if (!fmEquals(fm[k], v)) effSet[k] = v;
+  if (statusKey && p.eventStatusMap) {
+    const next = nextEventStatus(p.eventStatusMap, rawStatus, fm[statusKey]);
+    if (next !== undefined) effSet[statusKey] = next;
+  }
   const effUnset = unset.filter((k) => Object.hasOwn(fm, k) && fm[k] !== undefined);
   const newBody = mergeBody(i.existing.body, i.block, p.body);
   const bodyChanged = newBody !== i.existing.body;

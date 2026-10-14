@@ -3,6 +3,8 @@ export type FmScalar = string | number | boolean;
 export type FmVal = FmScalar | string[];
 
 export interface StatusMap { needsAction: string; inProcess: string; completed: string; cancelled: string }
+/** Nur bei kind "event": VEVENT-STATUS -> Vokabel des Vault-Felds, das `fields.status` benennt. */
+export interface EventStatusMap { confirmed: string; tentative: string; cancelled: string }
 export interface PriorityMap { high: string; normal: string; low: string }
 
 export interface MappingProfile {
@@ -17,6 +19,8 @@ export interface MappingProfile {
    *  nie im Code geraten. */
   statusMap?: StatusMap;
   priorityMap?: PriorityMap;
+  /** Nur bei kind "event" und gesetztem `fields.status`; ohne sie steht der rohe Serverwert im Feld. */
+  eventStatusMap?: EventStatusMap;
   /** Die beim Ableiten gelesene TaskNotes-specVersion — macht einen API-Bruch sichtbar. */
   taskNotesSpec?: string;
 }
@@ -138,6 +142,8 @@ export function validateProfile(p: unknown): { ok: true; profile: MappingProfile
     return out;
   };
   const statusMap = strMap(o["statusMap"], ["needsAction", "inProcess", "completed", "cancelled"] as const, "statusMap");
+  const eventStatusMap = strMap(o["eventStatusMap"], ["confirmed", "tentative", "cancelled"] as const, "eventStatusMap");
+  if (eventStatusMap && kind !== "event") errors.push("eventStatusMap gibt es nur bei kind event");
   const priorityMap = strMap(o["priorityMap"], ["high", "normal", "low"] as const, "priorityMap");
   const specRaw = o["taskNotesSpec"];
   if (specRaw !== undefined && typeof specRaw !== "string") errors.push("taskNotesSpec muss ein String sein");
@@ -146,7 +152,7 @@ export function validateProfile(p: unknown): { ok: true; profile: MappingProfile
     ok: true,
     profile: {
       id, name, kind: kind as ProfileKind, folder: normFolder(folderRaw), filename, ...ids, fields, onCreate, body, attendeeLinks,
-      ...(statusMap ? { statusMap } : {}), ...(priorityMap ? { priorityMap } : {}),
+      ...(statusMap ? { statusMap } : {}), ...(priorityMap ? { priorityMap } : {}), ...(eventStatusMap ? { eventStatusMap } : {}),
       ...(typeof specRaw === "string" ? { taskNotesSpec: specRaw } : {}),
     },
   };
