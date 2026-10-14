@@ -43,11 +43,10 @@ hing an Ollama, nicht am Port.
 npm run build && OBSIDIAN_PLUGIN_DIR="$STAGING_VAULTS_DIR/calendar-notes/.obsidian/plugins/calendar-notes" npm run deploy
 npm run shots -- --setup                            # baut den Vault aus fixtures/vault neu
 
-osascript -e 'quit app "Obsidian"'
-open -a Obsidian --args --remote-debugging-port=9222
-#   … den Aufnahme-Vault öffnen und einmalig als vertrauenswürdig bestätigen …
+# Zweitinstanz mit eigenem Profil, Port und HOME starten: Rezept im Kopfkommentar von scripts/shots.ts
+# (Quelle: Dach-AGENTS.md § Staging-Vaults, tools/obsidian-cdp/README.md § Zweitinstanz und Obsidian-CLI)
 
-npm run shots                                        # nimmt alle fünf Bilder auf
+npm run shots -- --port <port>                       # nimmt alle fünf Bilder auf
 npm run shots:check                                  # gleicht Vertrag ↔ Dateien ↔ README ab
 ```
 

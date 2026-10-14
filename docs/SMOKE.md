@@ -31,10 +31,10 @@ CDP-Treiber, aber nicht, wer ein Fenster offen hält oder auf den Port wartet.
 
 Erst wenn nichts läuft — oder nach Absprache mit dem, der es benutzt — gilt das Rezept unten.
 
+Gemessen wird in einer Zweitinstanz mit eigenem Profil, eigenem Port und eigenem `HOME`, nie mit `quit` und nie in der regulären Instanz; das Startrezept steht im Kopfkommentar von `scripts/gui-smoke.ts` (Quelle: Dach-`AGENTS.md` § Staging-Vaults und `tools/obsidian-cdp/README.md` § Zweitinstanz und Obsidian-CLI).
+
 ```bash
-osascript -e 'quit app "Obsidian"'
-open -a Obsidian --args --remote-debugging-port=9222
-OBSIDIAN_PLUGIN_DIR="<staging-vault>/.obsidian/plugins/calendar-notes" npm run deploy
+OBSIDIAN_PLUGIN_DIR="$STAGING_VAULTS_DIR/calendar-notes/.obsidian/plugins/calendar-notes" npm run deploy
 ```
 
 Radicale oder `uvx` muss im PATH stehen (`pip install radicale` oder `brew install uv`) —
@@ -378,10 +378,10 @@ CDP-Treiber, aber nicht, wer ein Fenster offen hält oder auf den Port wartet.
 
 Erst wenn nichts läuft — oder nach Absprache mit dem, der es benutzt — gilt das Rezept unten.
 
+Gemessen wird in einer Zweitinstanz mit eigenem Profil, eigenem Port und eigenem `HOME`, nie mit `quit` und nie in der regulären Instanz; das Startrezept steht im Kopfkommentar von `scripts/gui-smoke.ts` (Quelle: Dach-`AGENTS.md` § Staging-Vaults und `tools/obsidian-cdp/README.md` § Zweitinstanz und Obsidian-CLI).
+
 ```bash
-osascript -e 'quit app "Obsidian"'
-open -a Obsidian --args --remote-debugging-port=9222
-OBSIDIAN_PLUGIN_DIR="<staging-vault>/.obsidian/plugins/calendar-notes" npm run deploy
+OBSIDIAN_PLUGIN_DIR="$STAGING_VAULTS_DIR/calendar-notes/.obsidian/plugins/calendar-notes" npm run deploy
 ```
 
 Radicale oder `uvx` muss im PATH stehen (`pip install radicale` oder `brew install uv`) —
