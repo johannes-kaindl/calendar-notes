@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-10-14
+
 ### Changed
 
 - Internal housekeeping only, nothing changes for you: the shared kit libraries were updated (obsidian-kit 0.60.1, code-kit 0.27.1). None of the changes in between touch a part this plugin uses in a visible way.
