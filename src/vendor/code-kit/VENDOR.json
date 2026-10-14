@@ -4,5 +4,5 @@
   "sha": "ac89f10",
   "modules": "timeout.ts, sha256.ts, filename-template.ts, settings.ts, i18n.ts",
   "note": "Verbatim snapshot aus der Git-Ref 0.1.0 (CORE-META-22: feste Ref, nicht Arbeitsstand). Never hand-edit. Re-vendor via tools/sync-kit.sh.",
-  "vendored": "timeout.ts, sha256.ts, filename-template.ts, settings.ts, i18n.ts, busy-guard.ts"
+  "vendored": "timeout.ts, sha256.ts, filename-template.ts, settings.ts, i18n.ts, busy-guard.ts, slug.ts, local-stamp.ts"
 }

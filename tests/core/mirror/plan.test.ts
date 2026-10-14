@@ -18,6 +18,21 @@ describe("planUpsert", () => {
     expect(pl.written).toEqual({ dav_uid: "u1", dav_source: "acc/kontakte", dav_etag: '"e1"', dav_state: "live", title: "Kim Test", email: "kim@example.test" });
     expect(pl.hash).toMatch(/^[0-9a-f]{64}$/);
   });
+  it("create: {now} und {today} in onCreate werden zur lokalen Zeit des Anlegens (created/updated des Schemas)", () => {
+    const now = new Date(2026, 9, 14, 19, 5, 7);
+    const pl = planUpsert({ ...base, now, profile: { ...p, onCreate: { type: "x", created: "{now}", updated: "{now}", tag: "am {today}", n: 3 } } });
+    if (pl.op !== "create") throw new Error(pl.op);
+    expect(pl.frontmatter).toMatchObject({ created: "2026-10-14T19:05:07", updated: "2026-10-14T19:05:07", tag: "am 2026-10-14", n: 3 });
+  });
+  it("create ohne now laesst {now} stehen statt zu raten; update fasst created nie an", () => {
+    const pl = planUpsert({ ...base, profile: { ...p, onCreate: { created: "{now}" } } });
+    if (pl.op !== "create") throw new Error(pl.op);
+    expect(pl.frontmatter["created"]).toBe("{now}");
+    const existing = { path: base.path, frontmatter: { created: "2026-01-01T00:00:00", dav_uid: "u1", dav_source: "acc/kontakte", dav_etag: '"e0"', dav_state: "live", title: "Kim Test" }, body: "" };
+    const up = planUpsert({ ...base, now: new Date(2026, 9, 14), existing, profile: { ...p, onCreate: { created: "{now}" } } });
+    if (up.op !== "update") throw new Error(up.op);
+    expect(up.set).not.toHaveProperty("created");
+  });
   it("create: managed wins over onCreate on collision; body none", () => {
     const pl = planUpsert({ ...base, profile: { ...p, body: "none", onCreate: { type: "x", title: "ignored" } } });
     if (pl.op !== "create") throw new Error();

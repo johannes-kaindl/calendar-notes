@@ -4,7 +4,7 @@
     "code-kit": { "ref": "0.27.1" }
   },
   "targets": [
-    { "dir": "src/vendor/code-kit", "source": "code-kit", "from": "src/ts/pure", "modules": ["timeout", "sha256", "filename-template", "settings", "i18n", "busy-guard"] },
+    { "dir": "src/vendor/code-kit", "source": "code-kit", "from": "src/ts/pure", "modules": ["timeout", "sha256", "filename-template", "settings", "i18n", "busy-guard", "slug", "local-stamp"] },
     { "dir": "src/vendor/kit", "source": "obsidian-kit", "from": "src/pure", "modules": ["frontmatter", "vault-path"] },
     { "dir": "src/vendor/kit", "source": "code-kit", "from": "src/ts/pure", "modules": ["secrets"] },
     {

@@ -33,6 +33,30 @@ describe("filename", () => {
     const t = { uid: "todo-ohne@test", summary: "", allDay: false, categories: [], sequence: 0 };
     expect(noteBasename(defaultTodoProfile(), t)).toBe("todo-ohne@test");
   });
+  // Namenskonvention des Vaults: YYYY-MM-DD_kategorie_kuerzel_betreff. Kategorie und Kuerzel stehen
+  // als Literale in `onCreate` ({fm:schluessel}), der Betreff als Slug ({title_slug}).
+  it("{fm:key} liest ein onCreate-Literal, {title_slug} ist der Betreff als Slug", () => {
+    const [e] = parseEvents(fx("ical", "simple.ics"));
+    const p = { ...defaultEventProfile(), filename: "{start_date}_{fm:termin_kategorie}_{fm:kuerzel}_{title_slug}", onCreate: { termin_kategorie: "arzt", kuerzel: "ZA" } };
+    expect(noteBasename(p, e!)).toBe("2026-09-01_arzt_ZA_zahnaerztin-dr-mueller");
+  });
+  it("{fm:key} ohne onCreate-Wert ist leer und wirft nicht; ein unbekannter Name bleibt literal", () => {
+    const [e] = parseEvents(fx("ical", "simple.ics"));
+    const p = { ...defaultEventProfile(), filename: "{start_date}_{fm:fehlt}_{title_slug}" };
+    expect(noteBasename(p, e!)).toBe("2026-09-01__zahnaerztin-dr-mueller");
+    expect(noteBasename({ ...p, filename: "{fm:__proto__}{start_date}" }, e!)).toBe("2026-09-01");
+  });
+  it("{fm:key} nimmt nur Strings und Zahlen, keine Listen", () => {
+    const [e] = parseEvents(fx("ical", "simple.ics"));
+    const p = { ...defaultEventProfile(), filename: "{fm:tags}{fm:n}{title_slug}", onCreate: { tags: ["a", "b"], n: 3 } };
+    expect(noteBasename(p, e!)).toBe("3zahnaerztin-dr-mueller");
+  });
+  it("{title_slug} gibt es auch fuer Aufgaben, {fn_slug} fuer Kontakte", () => {
+    const [t] = parseTodos(fx("ical", "todo-minimal.ics"));
+    expect(noteBasename({ ...defaultTodoProfile(), filename: "{title_slug}" }, t!)).toBe("irgendwann-mal-aufraeumen");
+    const c = parseContact(fx("vcard", "v3-full.vcf"));
+    expect(noteBasename({ ...defaultContactProfile(), filename: "{fn_slug}" }, c)).toBe("dr-florian-brandes");
+  });
   it("notePath", () => {
     const p = { ...defaultContactProfile(), folder: "A/B" };
     expect(notePath(p, "X")).toBe("A/B/X.md");

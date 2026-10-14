@@ -12,6 +12,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- File names of mirrored notes can use `{fm:key}` (a value from the profile's `onCreate`) and `{title_slug}` / `{fn_slug}` (title or name as a lowercase slug), so a convention such as `2026-09-01_doctor_dm_dentist` can be built.
+- `onCreate` values can contain `{now}` (local time) and `{today}` (local day), so new notes get `created`/`updated` as the vault schema asks. Existing notes are not touched.
 - Event profiles can map the server's event status onto your own status words (`eventStatusMap` in the profile JSON). A cancelled event now shows up as cancelled in your notes instead of staying "planned" forever; a status you moved on by hand is left alone.
 
 ### Fixed

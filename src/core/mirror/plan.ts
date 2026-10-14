@@ -4,6 +4,7 @@ import { mergeBody, userContent } from "./body";
 import { managedHash, fmEquals } from "./hash";
 import { eventStatusValue, nextEventStatus } from "./event-status";
 import { fmKeyFor } from "./profile";
+import { localDate, localIso } from "../../vendor/code-kit/local-stamp";
 
 export interface ExistingNote {
   path: string;
@@ -30,6 +31,18 @@ export interface UpsertInput {
   existing?: ExistingNote;
   prevWritten?: Record<string, FmVal>;
   state?: "live" | "archived";
+  /** Zeitpunkt des Anlegens fuer `{now}`/`{today}` in `onCreate`. Fehlt er, bleiben die Platzhalter stehen. */
+  now?: Date;
+}
+
+/** `{now}` -> lokale Zeit `YYYY-MM-DDTHH:mm:ss`, `{today}` -> lokaler Tag. Nur Strings; Listen und Zahlen bleiben. */
+function generatedOnCreate(onCreate: Record<string, FmVal>, now: Date | undefined): Record<string, FmVal> {
+  if (!now) return onCreate;
+  const out: Record<string, FmVal> = {};
+  for (const [k, v] of Object.entries(onCreate)) {
+    out[k] = typeof v === "string" ? v.replaceAll("{now}", localIso(now)).replaceAll("{today}", localDate(now)) : v;
+  }
+  return out;
 }
 
 export function planUpsert(i: UpsertInput): NotePlan {
@@ -56,7 +69,7 @@ export function planUpsert(i: UpsertInput): NotePlan {
 
   if (!i.existing) {
     const statusFm = statusKey && p.eventStatusMap ? { [statusKey]: eventStatusValue(p.eventStatusMap, rawStatus) } : {};
-    return { op: "create", path: i.path, uid: i.uid, ...rid, frontmatter: { ...p.onCreate, ...set, ...statusFm }, body: mergeBody("", i.block, p.body), written, hash };
+    return { op: "create", path: i.path, uid: i.uid, ...rid, frontmatter: { ...generatedOnCreate(p.onCreate, i.now), ...set, ...statusFm }, body: mergeBody("", i.block, p.body), written, hash };
   }
 
   const fm = i.existing.frontmatter;

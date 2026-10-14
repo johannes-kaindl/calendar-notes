@@ -136,6 +136,7 @@ export function applyDelta(i: ApplyInput): ApplyResult {
           ...(existing ? { existing } : {}),
           ...(prevWritten ? { prevWritten } : {}),
           state: "live",
+          now: i.now,
         });
         push(pl);
         const written = pl.op === "create" || pl.op === "update" ? pl.written : (state.objects[hp]?.notes[rid]?.written ?? {});
