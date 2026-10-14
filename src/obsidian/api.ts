@@ -12,6 +12,11 @@ import {
   type ContactsQuery,
   type EventsQuery,
 } from "../core/api/types";
+import { createToolProvider } from "../core/api/tool-provider";
+import { TOOL_PROVIDER_API_VERSION } from "../vendor/kit/tool-provider";
+import { parseEvents, primaryEvent } from "../core/ical/event";
+import { parseContact } from "../core/vcard/contact";
+import { noteBasename, notePath } from "../core/mirror/filename";
 import { buildImip } from "../core/commands/imip";
 import { ensureDefaultCommands, commandRegistry, findCommand } from "../core/commands/registry";
 import { validateInput } from "../core/commands/schema";
@@ -164,8 +169,36 @@ export function createPluginApi(host: PluginApiHost): CalendarNotesApi {
     return deps.events.on("changed", cb);
   }
 
-  return {
-    version: CALENDAR_NOTES_API_VERSION,
+  /** Obergrenze der Vault-Pfade, die ein Plan beim Ausfuehren beschreibt (der Resync nach dem PUT schreibt
+   *  die Notiz): bestehendes Objekt = alle Notizen aus dem State; neues Objekt = der Pfad, den der Resync
+   *  mit demselben Namensverfahren waehlt (`freePath`) — gegen den Vault von JETZT. Ein Konflikt zwischen
+   *  Vorschau und Ausfuehren ist nur bei einer gleichzeitig angelegten Notiz gleichen Namens denkbar. */
+  async function previewPaths(plan: ApiPlan, targetRef: ApiTargetRef): Promise<string[]> {
+    const settings = deps.settings();
+    if (!("new" in targetRef)) {
+      const state = await deps.stateStore.load(targetRef.source);
+      const obj = Object.values(state.objects).find((o) => o.uid === targetRef.uid);
+      return obj ? Object.values(obj.notes).map((n) => n.path) : [];
+    }
+    const collection = settings.collections.find((c) => c.id === targetRef.collectionId);
+    const profile = collection ? effectiveProfile(settings, collection) : undefined;
+    if (!profile) return [];
+    const data = profile.kind === "contact" ? parseContact(plan.newRaw) : profile.kind === "event" ? primaryEvent(parseEvents(plan.newRaw)) : undefined;
+    if (!data) return [];
+    const base = noteBasename(profile, data);
+    for (let n = 1; n < 100; n++) {
+      const path = notePath(profile, base, n === 1 ? undefined : n);
+      if (!app.vault.getAbstractFileByPath(path)) return [path];
+    }
+    return [notePath(profile, base)];
+  }
+
+  // Der Werkzeug-Vertrag sitzt AUF den Methoden dieser API (events/contacts/get/plan/execute) — er wird
+  // nach dem Objekt gebaut und von `tools`/`executeTool` nur durchgereicht.
+  let provider!: ReturnType<typeof createToolProvider>;
+
+  const api: CalendarNotesApi = {
+    version: TOOL_PROVIDER_API_VERSION,
     apiVersion: CALENDAR_NOTES_API_VERSION,
 
     async events(q?: EventsQuery): Promise<ApiEvent[] | ApiError> {
@@ -206,7 +239,10 @@ export function createPluginApi(host: PluginApiHost): CalendarNotesApi {
       });
     },
 
-    tools() {
+    tools: (opts) => provider.tools(opts),
+    executeTool: (name, args, opts) => provider.executeTool(name, args, opts),
+
+    commandTools() {
       // Anders als commands(): description UND jede Schema-Feld-description UEBERSETZT
       // (aktuelle UI-Sprache) — Tool-Definitionen gehen direkt an ein LLM, kein Konsument, der
       // selbst nachuebersetzen koennte. Name/Aufbau bleiben wie `toolDefinitions()`
@@ -274,4 +310,13 @@ export function createPluginApi(host: PluginApiHost): CalendarNotesApi {
 
     on: on as CalendarNotesApi["on"],
   };
+  provider = createToolProvider({
+    events: (q) => api.events(q),
+    contacts: (q) => api.contacts(q),
+    get: (ref) => api.get(ref),
+    plan: (id, input, target) => api.plan(id, input, target),
+    execute: (plan) => api.execute(plan),
+    previewPaths,
+  });
+  return api;
 }

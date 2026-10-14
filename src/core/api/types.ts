@@ -5,6 +5,7 @@ import type { EventData } from "../ical/event";
 import type { ExecuteResult } from "../sync/execute";
 import type { SyncEvents } from "../sync/events";
 import type { ContactData } from "../vcard/contact";
+import type { TOOL_PROVIDER_API_VERSION, ProviderCallOptions, ProviderResult, ProviderToolDef, ToolLang } from "../../vendor/kit/tool-provider";
 
 /**
  * Oeffentlicher Vertrag `app.plugins.plugins["calendar-notes"].api` (Task 7, Spec §5b) —
@@ -119,8 +120,9 @@ export interface MailTransport {
 }
 
 export interface CalendarNotesApi {
-  /** Vertrag der Kit-Anbieter-API (Form-Guard). */
-  version: 1;
+  /** Vertrag `tool-provider` aus der Bibliothek (`TOOL_PROVIDER_API_VERSION`, Form-Guard) — eine eigene
+   *  Zahl, die nicht mehr an `apiVersion` haengt. */
+  version: typeof TOOL_PROVIDER_API_VERSION;
   /** Plugin-eigene Versionszaehlung, derselbe Wert wie `version` — Fremdplugins pruefen eines von beiden. */
   apiVersion: 1;
 
@@ -134,8 +136,15 @@ export interface CalendarNotesApi {
 
   /** Kommando-Beschreibungen fuer Formulare/Anzeige. */
   commands(): ApiCommandDescriptor[];
-  /** Dieselben Kommandos als LLM-Tool-Definitionen (`toolDefinitions()` aus der Registry). */
-  tools(): ApiToolDefinition[];
+  /** Die 20 Kommandos 1:1 als LLM-Tool-Definitionen (`toolDefinitions()` aus der Registry). Bis 0.3.2
+   *  hiess diese Methode `tools()`; seit dem Werkzeug-Vertrag traegt `tools()` die kleine Werkzeugmenge. */
+  commandTools(): ApiToolDefinition[];
+  /** Werkzeug-Vertrag `tool-provider` (obsidian-kit 0.60): sechs Werkzeuge (list_events, list_contacts,
+   *  get_item, create_event, move_event, update_contact), jedes mit `writes`. Synchron, ohne Nebenwirkung. */
+  tools(opts?: { lang?: ToolLang }): ProviderToolDef[];
+  /** Fuehrt ein Werkzeug aus; ein schreibendes macht plan -> `opts.confirm` -> execute INTERN und endet
+   *  ohne `confirm` mit `needs-confirm`. Wirft nie. (Nicht `execute`: das traegt den Plan-Schritt.) */
+  executeTool(name: string, args: Record<string, unknown>, opts?: ProviderCallOptions): Promise<ProviderResult>;
   /** Baut einen `CommandPlan`, schreibt NICHTS. Bestaetigung liegt beim Aufrufer — Koda
    *  bestaetigt je Schreibvorgang, eine Crew duerfte nur schema-validiert `plan`+`execute`. */
   plan(commandId: string, input: Record<string, unknown>, target: ApiTargetRef): Promise<ApiPlan | ApiError>;

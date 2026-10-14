@@ -332,11 +332,17 @@ describe("createPluginApi — commands/tools", () => {
     expect(ids).toContain("undo.last");
     expect(new Set(ids).size).toBe(ids.length);
 
-    const tools = a.tools();
+    const tools = a.commandTools();
     expect(tools.map((t) => t.name)).toContain("event_rename");
     expect(tools.map((t) => t.name)).toContain("test_event_create");
     expect(tools.some((t) => t.name.includes("."))).toBe(false);
     expect(tools.length).toBe(a.commands().length);
+    // tools() ist seit dem Werkzeug-Vertrag die KLEINE Menge, jedes mit writes
+    const provided = a.tools({ lang: "en" });
+    expect(provided.map((t) => t.name)).toEqual(["list_events", "list_contacts", "get_item", "create_event", "move_event", "update_contact"]);
+    expect(provided.filter((t) => t.writes).map((t) => t.name)).toEqual(["create_event", "move_event", "update_contact"]);
+    expect(a.version).toBe(1);
+    expect(a.apiVersion).toBe(1);
   });
 });
 

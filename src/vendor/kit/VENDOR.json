@@ -4,7 +4,7 @@
   "sha": "4dfbd4e",
   "modules": "frontmatter.ts, vault-path.ts + secrets.ts@0.35.0",
   "note": "Verbatim snapshot aus der Git-Ref 0.28.0 (CORE-META-22: feste Ref, nicht Arbeitsstand). Never hand-edit. Re-vendor via tools/sync-kit.sh. secrets.ts liegt in diesem Verzeichnis auf einer EIGENEN, neueren Ref: obsidian-kit@0.35.0 (e7e3e19) — s. eigener Datei-Header, nicht diese Basis-Version.",
-  "vendored": "frontmatter.ts, vault-path.ts",
+  "vendored": "frontmatter.ts, vault-path.ts, tool-provider.ts",
   "code_kit_version": "0.27.1",
   "code_kit_sha": "ac89f10",
   "code_kit_vendored": "secrets.ts"

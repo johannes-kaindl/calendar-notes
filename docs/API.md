@@ -71,10 +71,10 @@ get(ref: { uid: string; source?: string }): Promise<ApiEvent | ApiContact | null
 
 ```ts
 commands(): { id, kind, title, titleKey, description, descriptionKey, schema }[]
-tools(): { name, description, parameters }[]
+commandTools(): { name, description, parameters }[]
 ```
 
-`tools()` baut auf `toolDefinitions()` aus der Kommando-Registry auf — `name` ersetzt Punkte
+`commandTools()` (bis 0.3.2: `tools()`) baut auf `toolDefinitions()` aus der Kommando-Registry auf — `name` ersetzt Punkte
 durch Unterstriche (`event.set-title` → `event_set-title`, Bindestriche bleiben), `parameters`
 ist dasselbe Mini-JSON-Schema wie `commands()[i].schema` (flache Untermenge von JSON Schema,
 tool-calling-tauglich). Die Registry ist mit einem eingebauten Kommando-Satz vorbefüllt
@@ -91,7 +91,7 @@ DE/EN) und ändern sich bei einem Sprachwechsel. `commands()` liefert zusätzlic
 über Sprachwechsel hinweg STABIL vergleichen will (Logging, Caching, Diffing), verlässt sich
 auf `id`/die Keys, nie auf den übersetzten Text. `commands()[i].schema` bleibt bewusst
 UNübersetzt (Key + englischer Fallback je Feld via `descriptionKey`/`description`) — ein
-UI-Konsument übersetzt Formularfelder selbst. `tools()` übersetzt dagegen `description` UND
+UI-Konsument übersetzt Formularfelder selbst. `commandTools()` übersetzt dagegen `description` UND
 jede Schema-Feld-`description`: Tool-Definitionen gehen direkt an ein LLM, das fertigen Text
 statt eines Key+Fallback-Paars braucht.
 
@@ -140,7 +140,7 @@ zu `{ error: string }` (`ApiError`).
 ### Beispiel: Koda (Tool-Calling, Mensch bestätigt)
 
 ```ts
-const tools = cn.tools();               // ins System-Prompt / Tool-Register
+const tools = cn.commandTools();        // alle 20 Kommandos als Tool-Definitionen (ins System-Prompt / Tool-Register)
 // … LLM waehlt ein Tool + Argumente …
 const plan = await cn.plan("event.move", { start: "2026-09-01T14:00" }, { uid, source });
 if ("error" in plan) { /* melden, abbrechen */ }
@@ -223,6 +223,19 @@ on(event: "changed", cb: (e: { path: string; op: string; uid: string }) => void)
   Fix-Runde 1, Punkt 1) — ein kaputter Callback in DEINEM Plugin stoppt weder `emit()` selbst
   noch (unabhängig davon nochmal abgesichert) den Sync-/Kommando-Lauf, der ihn ausgelöst hat.
 
+## Werkzeug-Vertrag: `tools()` und `executeTool()`
+
+Seit der Hebung auf obsidian-kit 0.60 erfüllt das API-Objekt den Kit-Vertrag `tool-provider` (`isToolProviderApi`): ein Wirt mit Agenten-Loop (koda-agent) montiert die Werkzeuge, statt sie nachzubauen.
+
+```ts
+tools(opts?: { lang?: "de" | "en" }): { name, description, parameters, writes }[]
+executeTool(name, args, opts?: { lang?, confirm?(preview) }): Promise<ProviderResult>
+```
+
+Sechs Werkzeuge statt der 20 Kommandos: lesend `list_events`, `list_contacts`, `get_item`; schreibend `create_event`, `move_event`, `update_contact` (Sammelwerkzeug, `field`: `name`, `email`, `phone`, `org`, `title`, `note`, `birthday`). Das Ziel steht in den Parametern (`uid` + `source` aus einer Liste, `collectionId` für neue Termine). Jedes schreibende Werkzeug macht `plan → confirm → execute` intern und ruft `confirm` genau einmal vor dem ersten Schreiben, mit `summary`, `paths` (Obergrenze der Vault-Pfade: bei einem bestehenden Objekt alle Notizen aus dem State, bei einem neuen der Pfad, den der Resync wählt) und `outside` (CalDAV/CardDAV, Mail). Ohne `confirm` oder bei `false` endet es mit `needs-confirm`; geschrieben ist dann nichts.
+
+`execute(plan: ApiPlan)` bleibt unverändert neben `executeTool` bestehen (der Zwei-Schritt-Weg für Crews). `version` ist die Zahl des Kit-Vertrags (`TOOL_PROVIDER_API_VERSION`), `apiVersion` die eigene Zählung dieser API; beide sind heute `1`.
+
 ## Fehlerformat
 
 Jede Methode ist entweder `Promise<T | ApiError>` oder gibt synchron `T | ApiError` zurück,
@@ -239,6 +252,6 @@ altes `version === 1`-Objekt bleibt für bereits ausgelieferte Plugin-Versionen 
 erreichbar, solange `calendar-notes` beide Formen anbietet — oder die Major-Version wird
 angehoben und alte Konsumenten sehen `version !== 1` und behandeln die API als fehlend.
 
-Intern kommt der Wert aus `CALENDAR_NOTES_API_VERSION` (`src/core/api/types.ts`) — `src/
-obsidian/api.ts` setzt `version` und `apiVersion` darüber, kein Literal `1` (Fix-Runde 1, Punkt 3): eine
+Intern kommt `apiVersion` aus `CALENDAR_NOTES_API_VERSION` (`src/core/api/types.ts`) und `version` aus `TOOL_PROVIDER_API_VERSION` (Kit) — `src/
+obsidian/api.ts` setzt beide darüber, kein Literal `1` (Fix-Runde 1, Punkt 3): eine
 künftige Versionserhöhung ändert genau EINE Konstante.

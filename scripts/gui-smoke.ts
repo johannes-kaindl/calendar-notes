@@ -135,7 +135,7 @@ const PUNKT = {
   P10: "P10 Kommando via API (event.move)",
   P12: "P12 Undo (Letzte Änderung zurücknehmen) — DTSTART zurueck auf Vor-P10-Stand",
   P11: "P11 Einladung ohne Scheduling/Transport (Route ics)",
-  P13: "P13 API-Lesen (events/contacts/tools==commands, keine Punkte in Tool-Namen)",
+  P13: "P13 API-Lesen (events/contacts/commandTools==commands, tools() = sechs Werkzeuge mit writes)",
   P20: "P20 Aufgaben-Sammlung erkannt und aktivierbar",
   P21: "P21 Aufgaben-Profil automatisch zugewiesen",
   P22: "P22 Sync legt Notiz fuer die offene Aufgabe an",
@@ -1137,6 +1137,7 @@ async function checkP13(cdp: Cdp): Promise<void> {
     eventsHasSimple1: boolean;
     contactsHasBrandes: boolean;
     toolCount: number;
+    providerTools: string;
     commandCount: number;
     toolNamesHaveDot: boolean;
   }>(
@@ -1144,12 +1145,14 @@ async function checkP13(cdp: Cdp): Promise<void> {
     const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
     const events = await plugin.api.events({ from: "2026-09-01", to: "2026-09-30" });
     const contacts = await plugin.api.contacts({ query: "Brandes" });
-    const tools = plugin.api.tools();
+    const tools = plugin.api.commandTools();
+    const providerTools = plugin.api.tools({ lang: "en" });
     const commands = plugin.api.commands();
     return {
       eventsHasSimple1: Array.isArray(events) && events.some((e) => e.uid === "simple-1@test"),
       contactsHasBrandes: Array.isArray(contacts) && contacts.some((c) => /florian brandes/i.test(c.data?.fn ?? "")),
       toolCount: Array.isArray(tools) ? tools.length : -1,
+      providerTools: Array.isArray(providerTools) ? providerTools.map((t) => t.name + (t.writes ? "!" : "")).join(",") : "",
       commandCount: Array.isArray(commands) ? commands.length : -1,
       toolNamesHaveDot: Array.isArray(tools) && tools.some((t) => t.name.includes(".")),
     };
@@ -1160,9 +1163,10 @@ async function checkP13(cdp: Cdp): Promise<void> {
     result.contactsHasBrandes &&
     result.toolCount === result.commandCount &&
     result.toolCount > 0 &&
+    result.providerTools === "list_events,list_contacts,get_item,create_event!,move_event!,update_contact!" &&
     !result.toolNamesHaveDot;
   record("P13", ok,
-    `events hat simple-1=${result.eventsHasSimple1}, contacts hat Florian Brandes=${result.contactsHasBrandes}, tools=${result.toolCount} commands=${result.commandCount}, Tool-Name mit Punkt=${result.toolNamesHaveDot}`,
+    `events hat simple-1=${result.eventsHasSimple1}, contacts hat Florian Brandes=${result.contactsHasBrandes}, commandTools=${result.toolCount} commands=${result.commandCount}, tools()=${result.providerTools}, Tool-Name mit Punkt=${result.toolNamesHaveDot}`,
   );
 }
 
