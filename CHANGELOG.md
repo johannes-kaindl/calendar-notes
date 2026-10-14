@@ -21,6 +21,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- The profile dropdown of a tasks calendar is no longer empty: it offers the task profiles and always shows the profile the calendar actually uses. The profile list names task profiles “Tasks” instead of “Events”.
 - Errors from the plugin's core are now translated like the rest of the interface. Before, a failed connection test in an English Obsidian said “Zugang verweigert (401)”, and several command, adoption and server-response errors were German-only. Errors that are collected during a sync run and shown later in its summary are still in English.
 - Removing an account now asks first, and says what goes (its calendar settings and sync state) and what stays (your notes, the server, the keychain entry).
 - Error notices, the saved invitation file name (`invitation-….ics` / `einladung-….ics`) and the name of the “match existing notes” action no longer mix German into an English interface; the command, the settings button and the dialog title now use the same wording.

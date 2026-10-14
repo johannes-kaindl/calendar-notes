@@ -147,6 +147,29 @@ describe("CalendarNotesSettingTab.getSettingDefinitions", () => {
     expect(Object.keys(contactProfileItem.control.options)).toEqual(["default-contact"]);
   });
 
+  // Befund 2026-10-14 (Screenshot sammlungen-status.png, Welle 22): bei einer Aufgaben-Sammlung stand das
+  // Profil-Dropdown leer, weil die Optionen nur nach `c.kind` (calendar -> event) gefiltert wurden, das
+  // gesetzte Aufgaben-Profil also nicht unter den Optionen war. Alt, nicht aus dieser Welle.
+  it("eine Aufgaben-Sammlung bietet ihr Aufgaben-Profil an, auch wenn es das aktuelle ist", () => {
+    const s = withAccountAndCollections();
+    const todoCol: CollectionConfig = { id: "c3", accountId: "a1", href: "https://dav.example/todo/", kind: "calendar", displayName: "Aufgaben", enabled: true, profileId: "default-todo", readOnly: false, components: ["VTODO"] };
+    const tab = newTab(fakeHost({ ...s, collections: [...s.collections, todoCol] }));
+    const defs = tab.getSettingDefinitions() as any[];
+    const account = defs.find((d) => d.heading === "Kalender & Adressbücher").items.find((i: any) => i.type === "page");
+    const group = account.items.find((g: any) => g.heading === "Aufgaben");
+    const dropdown = group.items.find((i: any) => i.control?.type === "dropdown");
+    expect(Object.keys(dropdown.control.options)).toContain("default-todo");
+    expect(Object.keys(dropdown.control.options)).not.toContain("default-contact");
+  });
+
+  it("die Profilliste nennt bei einem Aufgaben-Profil die Art Aufgaben, nicht Termine", () => {
+    const tab = newTab(fakeHost(withAccountAndCollections()));
+    const defs = tab.getSettingDefinitions() as any[];
+    const list = defs.find((d) => d.type === "list" && d.items.some((i: any) => i.name === "Tasks (default)"));
+    const row = list.items.find((i: any) => i.name === "Tasks (default)");
+    expect(row.desc).toBe("Aufgaben");
+  });
+
   it("setControlValue('sync.intervalMinutes', 5) writes into settings.sync", async () => {
     const host = fakeHost(withAccountAndCollections());
     const tab = newTab(host);

@@ -277,9 +277,13 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
   }
 
   private collectionGroup(c: CollectionConfig, s: PluginSettings): SettingDefinitionGroup {
-    const wantedKind = c.kind === "calendar" ? "event" : "contact";
+    // Angeboten wird, was zur Sammlung passt: Adressbuch -> Kontakt; Kalender -> Termin, und Aufgabe, wenn die
+    // Sammlung ausdruecklich VTODO fuehrt. Das GESETZTE Profil steht immer darunter — sonst zeigt das Dropdown
+    // fuer eine Aufgaben-Sammlung nichts an (gemessen 2026-10-14), obwohl der Sync dieses Profil nutzt.
+    const offersTodo = (c.components ?? []).some((x) => x.toUpperCase() === "VTODO");
+    const fits = (p: MappingProfile): boolean => p.id === c.profileId || (c.kind === "addressbook" ? p.kind === "contact" : p.kind === "event" || (offersTodo && p.kind === "todo"));
     const profileOptions: Record<string, string> = {};
-    for (const p of s.profiles.filter((p) => p.kind === wantedKind)) profileOptions[p.id] = p.name;
+    for (const p of s.profiles.filter(fits)) profileOptions[p.id] = p.name;
     return {
       type: "group",
       heading: c.displayName,
@@ -344,7 +348,7 @@ export class CalendarNotesSettingTab extends PluginSettingTab {
     const s = this.host.settings;
     const items: SettingGroupItem[] = s.profiles.map((p) => ({
       name: p.name,
-      desc: p.kind === "contact" ? t("settings.profiles.kindContact") : t("settings.profiles.kindEvent"),
+      desc: p.kind === "contact" ? t("settings.profiles.kindContact") : p.kind === "todo" ? t("settings.profiles.kindTodo") : t("settings.profiles.kindEvent"),
       render: (setting: Setting) => this.renderProfileRow(setting, p),
     }));
     // Der Knopf wird nur gerendert, wenn readTaskNotes(...) tatsaechlich etwas liefert — ein

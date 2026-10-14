@@ -346,6 +346,7 @@ export const EN: Record<string, string> = {
   "settings.profiles.jsonTitle": "Mapping profile (JSON)",
   "settings.profiles.kindContact": "Contacts",
   "settings.profiles.kindEvent": "Events",
+  "settings.profiles.kindTodo": "Tasks",
   "settings.profiles.save": "Save",
 
   "settings.sync.futureDays": "Days ahead",
@@ -731,6 +732,7 @@ export const DE: Record<string, string> = {
   "settings.profiles.jsonTitle": "Zuordnungsprofil (JSON)",
   "settings.profiles.kindContact": "Kontakte",
   "settings.profiles.kindEvent": "Termine",
+  "settings.profiles.kindTodo": "Aufgaben",
   "settings.profiles.save": "Speichern",
 
   "settings.sync.futureDays": "Tage voraus",
