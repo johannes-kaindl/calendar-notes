@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Deriving a profile from a note no longer takes `vcard_uid`, `ical_uid` or `uid` as the identity field when its value is not shaped like a server UID (a UUID or `local@domain`). Before, the later adoption would have overwritten foreign identifiers; the field is now listed as not mapped and `dav_uid` is used.
+
 ## [0.3.2] — 2026-10-12
 
 ### Changed

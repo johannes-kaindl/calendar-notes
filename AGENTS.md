@@ -186,6 +186,7 @@ ohne Fehler und ohne Symptom außer fehlenden Aufgaben.
   Hand. Gegen ein stilles Zurückdrehen steht ein Pin in
   `tests/core/mirror/profile-from-note.test.ts` (Gegenprobe gefahren: mit `event_uid` in
   `UID_KEYS` wird er rot).
+  **Gleiche Gattung bei `vcard_uid` (Pallas-Rollout 2026-10-14):** 98 von 99 Kontaktnotizen trugen 16-stellige Hex-Kennungen eines anderen Systems. Ein Fremd-UID-Schlüssel aus `UID_KEYS` wird deshalb nur übernommen, wenn der Wert die Form einer Server-UID hat (UUID oder `lokal@domain`, `looksLikeServerUid`); sonst bleibt `dav_uid`, und das Feld steht in `unmapped`. Grenze: die Form ist eine Heuristik, ein UUID-förmiger Fremdwert passiert sie; ob der Wert auf dem Server vorkommt, kann die Ableitung ohne Serverstand nicht prüfen.
 - Profil-Ableitungs-Modul (`src/core/mirror/profile-from-note.ts`): Case-insensitives Mapping aus beliebigen Frontmatter-Keys (`organisation→org`, `mobil→tel_cell` u.a.) mit Heuristik-Synonymen; Kommando `profile-from-note` auf aktiver Notiz → Profil in Settings anlegen → Notice mit mapped/unmapped
 - Matching-Regeln (E-Mail exakt → Telefon normalisiert E.164 → Name fuzzy bis Konfidenz-Schwelle; Termine: Start exakt + Titel-Ähnlichkeit) mit `sure/likely/weak`-Stufen (`src/core/adopt/match.ts`, `src/core/adopt/phone.ts`)
 - Staging-Vault-Fixture (`fixtures/vault/`) mit Pallas-ähnlicher Struktur (Kontakte + Termine mit echten Feldmustern) und Default-Profil-Vorlage, über `npm run smoke:gui -- --setup|--section generic|pallas` abrufbar

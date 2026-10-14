@@ -35,6 +35,30 @@ describe("suggestProfileFromNote — contact", () => {
     expect(profile.uidField).toBe("vcard_uid");
   });
 
+  // Pallas-Rollout 2026-10-14: 99 Kontaktnotizen tragen `vcard_uid` mit 16 Hex-Zeichen, der Server
+  // vergibt UUIDs, nur 1 von 99 Werten kommt dort vor. `adoptionPlan` beschreibt uidField mit der
+  // Server-UID und haette 98 fremde Kennungen ueberschrieben. Ein Fremd-UID-Feld wird deshalb nur
+  // uebernommen, wenn der Wert die Form einer Server-UID hat (UUID oder `...@domain`).
+  it("does not take vcard_uid as uidField when its value is a foreign identifier", () => {
+    const fm = { ...frontmatter, vcard_uid: "9f3a1c0b7d2e4a56" };
+    const { profile, unmapped } = suggestProfileFromNote("contact", fm, { folder: "Kontakte", name: "Kontakte", rand });
+    expect(profile.uidField).toBe("dav_uid");
+    expect(unmapped).toContain("vcard_uid");
+  });
+
+  it("takes a uid field whose value looks like a server uid (UUID form)", () => {
+    const fm = { ...frontmatter, vcard_uid: "3f1c0a94-77b2-4e31-9d08-51ac6e2b4470" };
+    const { profile, unmapped } = suggestProfileFromNote("contact", fm, { folder: "Kontakte", name: "Kontakte", rand });
+    expect(profile.uidField).toBe("vcard_uid");
+    expect(unmapped).not.toContain("vcard_uid");
+  });
+
+  it("falls through to the next uid key when the first one is foreign", () => {
+    const fm = { ...frontmatter, vcard_uid: "9f3a1c0b7d2e4a56", uid: "abc@server.example" };
+    const { profile } = suggestProfileFromNote("contact", fm, { folder: "Kontakte", name: "Kontakte", rand });
+    expect(profile.uidField).toBe("uid");
+  });
+
   it("copies type/status/up verbatim into onCreate", () => {
     const { profile } = suggestProfileFromNote("contact", frontmatter, { folder: "Kontakte", name: "Kontakte", rand });
     expect(profile.onCreate).toEqual({ type: "👤 Kontakt", status: "3-evergreen 🌿", up: "[[10_Kontakte]]" });

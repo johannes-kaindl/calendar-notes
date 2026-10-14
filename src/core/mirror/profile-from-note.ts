@@ -77,6 +77,15 @@ const EVENT_SYNONYMS: Record<string, string> = {
 // zwei der gemessenen Notizen teilen sich denselben Wert. Wer es doch will, setzt `uidField` im
 // Profil-JSON. Festgehalten als Pin in `tests/core/mirror/profile-from-note.test.ts`.
 const UID_KEYS = ["vcard_uid", "ical_uid", "uid"];
+
+// Ein Fremd-UID-Feld gilt nur dann als DAV-UID, wenn der Wert die Form einer Server-UID hat: UUID
+// (8-4-4-4-12) oder `lokal@domain`. Gemessen im Pallas-Rollout (2026-10-14): 98 von 99 `vcard_uid`
+// waren 16-stellige Hex-Kennungen eines anderen Systems. Nicht beantwortbar ist hier, ob der Wert
+// auf dem Server vorkommt — die Ableitung laeuft ohne Serverstand.
+const SERVER_UID_SHAPE = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[^@\s]+@[^@\s]+)$/i;
+function looksLikeServerUid(v: unknown): boolean {
+  return typeof v === "string" && SERVER_UID_SHAPE.test(v.trim());
+}
 const ON_CREATE_KEYS = ["type", "status", "up"];
 
 function synonymsFor(kind: ProfileKind): Record<string, string> {
@@ -101,7 +110,8 @@ function baseProfileFor(kind: ProfileKind): MappingProfile {
 /**
  * Leitet aus einer Beispiel-Notiz (Frontmatter) einen Mapping-Vorschlag ab: erkennt gängige
  * de/en-Feldnamen, übernimmt `type`/`status`/`up` verbatim ins onCreate und erkennt ein
- * abweichendes Uid-Feld (`vcard_uid`/`ical_uid`/`uid`). Das Ergebnis besteht `validateProfile`.
+ * abweichendes Uid-Feld (`vcard_uid`/`ical_uid`/`uid`), sofern sein Wert wie eine Server-UID
+ * aussieht (sonst `dav_uid`, das Feld landet in `unmapped`). Das Ergebnis besteht `validateProfile`.
  */
 export function suggestProfileFromNote(
   kind: ProfileKind,
@@ -142,7 +152,7 @@ export function suggestProfileFromNote(
 
   let uidField = base.uidField;
   for (const k of UID_KEYS) {
-    if (Object.hasOwn(frontmatter, k)) {
+    if (Object.hasOwn(frontmatter, k) && looksLikeServerUid(frontmatter[k])) {
       uidField = k;
       break;
     }
