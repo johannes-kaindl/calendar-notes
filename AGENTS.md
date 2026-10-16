@@ -4,7 +4,7 @@ CalDAV-Termine und CardDAV-Kontakte als Notiz-Spiegel; der Server ist die Wahrhe
 über Kommandos. Spec: Vault-Cockpit `_SDD/2026-08-22-calendar-notes-design.md`. Pläne: Vault-Cockpit `_SDD/`.
 
 > **Workspace-Standards (maintainer-lokal):** Die verbindliche Leitkonvention steht in `_docs/CONVENTIONS.md`
-> im Multi-Projekt-Workspace des Maintainers, `../../_docs` relativ zu diesem Repo — nicht Teil dieses Repos,
+> im Multi-Projekt-Workspace des Maintainers, `../../workspace/_docs` relativ zu diesem Repo — nicht Teil dieses Repos,
 > ignorieren falls im Klon nicht vorhanden. Modell comply-or-explain.
 
 - `src/core/**` ist obsidian-/DOM-/node-frei (`npm run check:pure`). Transport wird injiziert.
@@ -129,7 +129,7 @@ ohne Fehler und ohne Symptom außer fehlenden Aufgaben.
 
 ## Was M2b liefert
 - Settings-Modell (`src/core/settings.ts`) mit Konten, Sammlungen, Profilen, Sync-Optionen und Normalisierung
-- Obsidian-Adapter für Transport (`src/obsidian/transport.ts`), Secret-Speicher (`src/obsidian/secrets.ts`, `app.secretStorage` mit Verifizierung), State-Store (`src/obsidian/state-store.ts`, `manifest.dir/state/`), Vault-Adapter (`src/obsidian/vault-notes.ts` mit Index + Lookup + `prime()`, Plan-Ausführung über `processFrontMatter`/`vault.process`)
+- Obsidian-Adapter für Transport (`src/obsidian/transport.ts`), Secret-Speicher (Kit-Modul `secrets` (vendort unter `src/vendor/kit-obsidian/`), `app.secretStorage` mit Verifizierung; bis 0.2.0 ein eigener Adapter), State-Store (`src/obsidian/state-store.ts`, `manifest.dir/state/`), Vault-Adapter (`src/obsidian/vault-notes.ts` mit Index + Lookup + `prime()`, Plan-Ausführung über `processFrontMatter`/`vault.process`)
 - `SyncService` (`src/core/sync/service.ts`) mit injizierten Interfaces (Transport/Secret/State/Lookup/Executor/Notifier) — kompletter Ablauf in 8 vitest-Tests mit Fakes; Refresh → Sync → Plan → Ausführung → State, Fehler isoliert, Notices nur bei neuen Fehlern, Trockenlauf, Epoch-Guard
 - Settings-Tab (`src/obsidian/settings-tab.ts`) mit Konten-Verwaltung (Discovery, Passwort via SecretComponent im Schlüsselbund), Sammlungen pro Konto (Profil-Dropdown, Ordner-Override), Profile-Management (JSON-Modal, Im-/Export), Sync-Parameter
 - Vorschau-Modal (`src/obsidian/preview-modal.ts`) für Trockenlauf: Gesamtzahl, per-Collection Zähler/Fehler, Operationen nach Typ

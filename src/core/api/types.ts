@@ -136,7 +136,7 @@ export interface CalendarNotesApi {
 
   /** Kommando-Beschreibungen fuer Formulare/Anzeige. */
   commands(): ApiCommandDescriptor[];
-  /** Die 20 Kommandos 1:1 als LLM-Tool-Definitionen (`toolDefinitions()` aus der Registry). Bis 0.3.2
+  /** Die 21 Kommandos 1:1 als LLM-Tool-Definitionen (`toolDefinitions()` aus der Registry). Bis 0.3.2
    *  hiess diese Methode `tools()`; seit dem Werkzeug-Vertrag traegt `tools()` die kleine Werkzeugmenge. */
   commandTools(): ApiToolDefinition[];
   /** Werkzeug-Vertrag `tool-provider` (obsidian-kit 0.60): sechs Werkzeuge (list_events, list_contacts,
