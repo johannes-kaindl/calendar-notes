@@ -1,7 +1,7 @@
 {
   "source": "obsidian-kit",
-  "version": "0.60.1",
-  "sha": "4dfbd4e",
+  "version": "0.61.0",
+  "sha": "9afb096",
   "modules": "obsidian-mock.ts",
   "note": "Verbatim snapshot aus der Git-Ref 0.28.0 (CORE-META-22: feste Ref, nicht Arbeitsstand). Never hand-edit. Re-vendor via tools/sync-kit.sh.",
   "vendored": "obsidian-mock.ts, window-timers.ts"

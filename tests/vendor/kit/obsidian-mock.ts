@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.60.1, src/testing/obsidian-mock.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.61.0, src/testing/obsidian-mock.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Self-contained Obsidian test double for obsidian-kit.
 // - Zero external imports (NOT from "obsidian", NOT from "vitest").
 // - Consumed via vitest `resolve.alias` as a drop-in for `import ... from "obsidian"`,
@@ -11,30 +11,57 @@
 // ---------------------------------------------------------------------------
 // Internal spy helper (replaces vitest's `vi.fn` so this file stays dep-free).
 // ---------------------------------------------------------------------------
+/** Spy ohne vitest. Seit 0.61.0 so weit vi-kompatibel, wie Konsumenten-Tests ihn brauchen: `vi.mocked(x).mockReset()`/`…Once`,
+ *  und die vitest-Matcher (`toHaveBeenCalledTimes` …) erkennen ihn (`_isMockFunction`, `getMockName`). `mock.results` hält
+ *  weiter die rohen Rückgabewerte (nicht vitests `{ type, value }`). */
 export interface MockFn {
   (...args: any[]): any;
   mock: { calls: any[][]; results: any[] };
+  _isMockFunction: true;
+  getMockName(): string;
+  mockName(name: string): MockFn;
   mockImplementation(impl: (...args: any[]) => any): MockFn;
+  mockImplementationOnce(impl: (...args: any[]) => any): MockFn;
   mockReturnValue(value: any): MockFn;
+  mockReturnValueOnce(value: any): MockFn;
   mockResolvedValue(value: any): MockFn;
+  mockResolvedValueOnce(value: any): MockFn;
   mockRejectedValue(value: any): MockFn;
+  mockRejectedValueOnce(value: any): MockFn;
+  /** Räumt nur die Aufrufe ab; Implementierung und Once-Warteschlange bleiben. */
   mockClear(): MockFn;
+  /** Räumt Aufrufe, Once-Warteschlange und gesetzte Implementierung ab und stellt die Grundimplementierung (das Argument von `fn`) wieder her. */
+  mockReset(): MockFn;
+  /** Wie `mockReset` (es gibt kein Original, das wiederherzustellen wäre). */
+  mockRestore(): MockFn;
 }
 
 function fn(impl?: (...args: any[]) => any): MockFn {
   let implementation = impl;
+  let name = "vi.fn()";
+  const once: Array<(...args: any[]) => any> = [];
   const spy = ((...args: any[]) => {
     spy.mock.calls.push(args);
-    const result = implementation ? implementation(...args) : undefined;
+    const run = once.length > 0 ? once.shift() : implementation;
+    const result = run ? run(...args) : undefined;
     spy.mock.results.push(result);
     return result;
   }) as MockFn;
   spy.mock = { calls: [], results: [] };
+  spy._isMockFunction = true;
+  spy.getMockName = () => name;
+  spy.mockName = (n) => { name = n; return spy; };
   spy.mockImplementation = (i) => { implementation = i; return spy; };
+  spy.mockImplementationOnce = (i) => { once.push(i); return spy; };
   spy.mockReturnValue = (v) => { implementation = () => v; return spy; };
+  spy.mockReturnValueOnce = (v) => { once.push(() => v); return spy; };
   spy.mockResolvedValue = (v) => { implementation = () => Promise.resolve(v); return spy; };
+  spy.mockResolvedValueOnce = (v) => { once.push(() => Promise.resolve(v)); return spy; };
   spy.mockRejectedValue = (v) => { implementation = () => Promise.reject(v); return spy; };
+  spy.mockRejectedValueOnce = (v) => { once.push(() => Promise.reject(v)); return spy; };
   spy.mockClear = () => { spy.mock.calls = []; spy.mock.results = []; return spy; };
+  spy.mockReset = () => { spy.mockClear(); once.length = 0; implementation = impl; return spy; };
+  spy.mockRestore = () => spy.mockReset();
   return spy;
 }
 

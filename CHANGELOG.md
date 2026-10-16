@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Internal housekeeping only, nothing changes for you: the shared kit libraries were updated (obsidian-kit 0.61.0, code-kit 0.28.2). The changes in between (a language-model change for Gemma 4, a new Claude provider, endpoint-manager notifications, a Kit test mock) touch no part this plugin uses in a visible way.
+
 ## [0.4.0] — 2026-10-14
 
 ### Changed

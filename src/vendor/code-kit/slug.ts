@@ -1,4 +1,4 @@
-// vendored from code-kit@0.27.1, src/ts/pure/slug.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.28.2, src/ts/pure/slug.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Origin: the slug functions that plugin repos wrote one by one (measured 2026-10-14, `obsidian-plugins/*/src`):
 // mailstone `core/render/filename.ts:8` (`subjectSlug`) and `core/settings.ts:38` (`slugifyAccountId`) — the same
 // chain twice —, wikijs-maintainer `core/paths.ts:15` (`slugifySegment`), neurovim-obsidian `paths.ts:3`

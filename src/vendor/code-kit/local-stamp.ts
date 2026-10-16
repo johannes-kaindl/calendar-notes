@@ -1,4 +1,4 @@
-// vendored from code-kit@0.27.1, src/ts/pure/local-stamp.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.28.2, src/ts/pure/local-stamp.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Origin: the `getFullYear()`/`getMonth() + 1`/`padStart` block that plugin repos wrote by hand. Measured 2026-10-14
 // over `obsidian-plugins/*/src` without tests and vendor trees: 19 lines in 10 repos (22 in 11 with the two gui-smoke
 // drivers). Of those, 16 lines in 10 repos format a stamp and are covered here: local-image-generator
