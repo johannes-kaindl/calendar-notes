@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-10-16
+
 ### Fixed
 
 - **The sync no longer silently adds to a damaged managed block.** If a note has a `%% dav:begin %%` line without its `%% dav:end %%`, the sync used to read "no block", append a second one and, on the next run, replace everything between the orphaned begin line and the new end line, including text you wrote there. It now leaves that note alone, reports it (the note path and what to fix) and keeps retrying until the markers are in order again.
