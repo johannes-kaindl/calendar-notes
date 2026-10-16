@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **The sync no longer silently adds to a damaged managed block.** If a note has a `%% dav:begin %%` line without its `%% dav:end %%`, the sync used to read "no block", append a second one and, on the next run, replace everything between the orphaned begin line and the new end line, including text you wrote there. It now leaves that note alone, reports it (the note path and what to fix) and keeps retrying until the markers are in order again.
+- **A `%% dav:end %%` inside a server description no longer breaks the block open.** The rest of the description fell out of the block, and the note grew by 33 characters at every sync. The markers in server content are now neutralized before they are written, and the block ends at its first end marker.
+- A note that uses Windows line endings keeps them inside the managed block.
+
 ### Changed
 
 - Internal housekeeping only, nothing changes for you: the shared kit libraries were updated (obsidian-kit 0.61.0, code-kit 0.28.2). The changes in between (a language-model change for Gemma 4, a new Claude provider, endpoint-manager notifications, a Kit test mock) touch no part this plugin uses in a visible way.

@@ -5,7 +5,7 @@ import { parseEvents, type EventData } from "../ical/event";
 import { parseTodos, type TodoData } from "../ical/todo";
 import { eventOccursWithin } from "../ical/recur";
 import { contactValues, eventValues, type AttendeeResolver } from "./fields";
-import { renderContactBlock, renderEventBlock } from "./body";
+import { BrokenZoneError, renderContactBlock, renderEventBlock } from "./body";
 import { renderTodoBlock, todoInWindow, todoValues } from "./todo-values";
 import { noteBasename, notePath } from "./filename";
 import { planUpsert, planRemoval, planArchive, type ExistingNote, type NotePlan } from "./plan";
@@ -124,20 +124,30 @@ export function applyDelta(i: ApplyInput): ApplyResult {
         const path = existing?.path ?? freePath(i.profile, noteBasename(i.profile, it.data), it.uid, i.lookup, taken);
         taken.add(path);
         const prevWritten = state.objects[hp]?.notes[rid]?.written;
-        const pl = planUpsert({
-          profile: i.profile,
-          source: i.source,
-          uid: it.uid,
-          ...(it.recurrenceId ? { recurrenceId: it.recurrenceId } : {}),
-          etag: obj.etag,
-          values: it.values,
-          block: it.block,
-          path,
-          ...(existing ? { existing } : {}),
-          ...(prevWritten ? { prevWritten } : {}),
-          state: "live",
-          now: i.now,
-        });
+        let pl: NotePlan;
+        try {
+          pl = planUpsert({
+            profile: i.profile,
+            source: i.source,
+            uid: it.uid,
+            ...(it.recurrenceId ? { recurrenceId: it.recurrenceId } : {}),
+            etag: obj.etag,
+            values: it.values,
+            block: it.block,
+            path,
+            ...(existing ? { existing } : {}),
+            ...(prevWritten ? { prevWritten } : {}),
+            state: "live",
+            now: i.now,
+          });
+        } catch (e) {
+          // Beschaedigte Zone: diese Notiz wird nicht geschrieben (kein Plan, kein neuer etag), alle anderen laufen weiter.
+          if (!(e instanceof BrokenZoneError)) throw e;
+          errors.push({ href: obj.href, message: `${path}: ${e.message}` });
+          counts.errors++;
+          erroredHps.add(hp);
+          continue;
+        }
         push(pl);
         const written = pl.op === "create" || pl.op === "update" ? pl.written : (state.objects[hp]?.notes[rid]?.written ?? {});
         const hash = pl.op === "create" || pl.op === "update" ? pl.hash : (state.objects[hp]?.notes[rid]?.hash ?? "");

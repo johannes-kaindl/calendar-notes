@@ -191,6 +191,27 @@ describe("applyDelta — events", () => {
     }
   });
 });
+describe("applyDelta — beschaedigte Zone", () => {
+  it("BEGIN ohne END in der Notiz: Fehler mit Pfad, kein Schreibplan, alter etag bleibt, andere Notizen laufen weiter", () => {
+    const p = defaultEventProfile();
+    const orphan = { path: "Events/a.md", frontmatter: { dav_uid: "simple-1@test", dav_source: "acc/kal", dav_state: "live" }, body: `${"%% dav:begin %%"}\nMein Text\n` };
+    const st = upsertObject(emptyState("acc/kal"), "/k/simple.ics", { uid: "simple-1@test", etag: '"old"', raw: "x", written: {}, hash: "h", notePath: "Events/a.md", at: "t" });
+    const r = applyDelta({
+      profile: p, source: "acc/kal", now: NOW,
+      state: { ...st, snapshot: { etags: { "/k/simple.ics": '"old"' } } },
+      lookup: lookupOf([orphan]),
+      delta: delta({ changed: [{ href: "https://s/k/simple.ics", etag: '"new"', data: fx("ical", "simple.ics") }, { href: "https://s/k/allday.ics", etag: '"2"', data: fx("ical", "allday.ics") }], snapshot: { etags: { "/k/simple.ics": '"new"', "/k/allday.ics": '"2"' } } }),
+    });
+    expect(r.errors).toHaveLength(1);
+    expect(r.errors[0]!.message).toContain("Events/a.md");
+    expect(r.errors[0]!.message).toContain("dav:end");
+    expect(r.plans.some((pl) => pl.path === "Events/a.md")).toBe(false);
+    expect(r.plans.filter((pl) => pl.op === "create")).toHaveLength(1);
+    expect(r.state.snapshot.etags["/k/simple.ics"]).toBe('"old"');
+    expect(r.state.snapshot.etags["/k/allday.ics"]).toBe('"2"');
+    expect(r.counts.errors).toBe(1);
+  });
+});
 describe("applyDelta — todos", () => {
   it("legt fuer eine offene Aufgabe eine Notiz an", () => {
     const p = defaultTodoProfile();
