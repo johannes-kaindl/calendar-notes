@@ -157,7 +157,8 @@ describe("applyDelta — events", () => {
     });
     const pl = r.plans[0]!;
     if (pl.op !== "create") throw new Error();
-    expect(pl.frontmatter["attendees"]).toEqual(["[[Contacts/Alex Aguado|Alex Aguado]]", "sam@example.test"]);
+    expect(pl.frontmatter["attendees"]).toEqual(["[[Contacts/Alex Aguado|Alex Aguado]]"]);
+    expect(pl.frontmatter["attendees_extern"]).toEqual(["sam@example.test"]);
   });
   it("override.ics synced twice with no changes → second run plans are all skip and no handEdited", () => {
     const win = { start: new Date("2026-09-01T00:00:00Z"), end: new Date("2026-09-30T00:00:00Z") };

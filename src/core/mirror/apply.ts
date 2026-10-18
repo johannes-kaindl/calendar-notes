@@ -9,7 +9,7 @@ import { BrokenZoneError, renderContactBlock, renderEventBlock } from "./body";
 import { renderTodoBlock, todoInWindow, todoValues } from "./todo-values";
 import { noteBasename, notePath } from "./filename";
 import { planUpsert, planRemoval, planArchive, type ExistingNote, type NotePlan } from "./plan";
-import type { MappingProfile, ProfileKind } from "./profile";
+import { fmKeyFor, type MappingProfile, type ProfileKind } from "./profile";
 import type { Window } from "./window";
 import { upsertObject, removeObject, withSnapshot, type CollectionState, type RunInfo } from "../state/collection-state";
 import { sha256HexUtf8 } from "../../vendor/code-kit/sha256";
@@ -101,7 +101,7 @@ export function applyDelta(i: ApplyInput): ApplyResult {
         items.push({ data: c, uid: c.uid, values: contactValues(c), block: renderContactBlock(c) });
       } else if (kind === "event") {
         for (const e of parseEvents(obj.data)) {
-          items.push({ data: e, uid: e.uid, ...(e.recurrenceId ? { recurrenceId: e.recurrenceId } : {}), values: eventValues(e, { resolveAttendee: i.resolveAttendee, attendeeLinks: i.profile.attendeeLinks }), block: renderEventBlock(e) });
+          items.push({ data: e, uid: e.uid, ...(e.recurrenceId ? { recurrenceId: e.recurrenceId } : {}), values: eventValues(e, { resolveAttendee: i.resolveAttendee, attendeeLinks: i.profile.attendeeLinks, externAttendees: fmKeyFor(i.profile, "attendees_extern") !== null }), block: renderEventBlock(e) });
         }
       } else if (kind === "todo") {
         for (const td of parseTodos(obj.data)) {

@@ -54,6 +54,27 @@ describe("eventValues", () => {
     const plain = eventValues(e!, { attendeeLinks: false, resolveAttendee: () => ({ path: "x" }) });
     expect(plain["attendees"]).toEqual(["Alex Aguado <alex@example.test>", "sam@example.test"]);
   });
+  it("Teilnehmer ohne aufloesbaren Kontakt kommen in attendees_extern, attendees bleibt eine reine Linkliste", () => {
+    const [e] = parseEvents(fx("ical", "attendees.ics"));
+    const resolve = (m: string) => (m === "alex@example.test" ? { path: "Kontakte/Alex Aguado", display: "Alex Aguado" } : undefined);
+    const v = eventValues(e!, { resolveAttendee: resolve, externAttendees: true });
+    expect(v["attendees"]).toEqual(["[[Kontakte/Alex Aguado|Alex Aguado]]"]);
+    expect(v["attendees_extern"]).toEqual(["sam@example.test"]);
+  });
+  it("ohne einen aufloesbaren Kontakt ist attendees leer und alle stehen in attendees_extern", () => {
+    const [e] = parseEvents(fx("ical", "attendees.ics"));
+    const v = eventValues(e!, { resolveAttendee: () => undefined, externAttendees: true });
+    expect(v["attendees"]).toBeNull();
+    expect(v["attendees_extern"]).toEqual(["Alex Aguado <alex@example.test>", "sam@example.test"]);
+  });
+  it("ist attendees_extern nicht abgebildet (externAttendees aus) oder das Verlinken abgeschaltet, bleibt alles in attendees wie bisher", () => {
+    const [e] = parseEvents(fx("ical", "attendees.ics"));
+    const alt = eventValues(e!, { resolveAttendee: () => undefined });
+    expect(alt["attendees"]).toEqual(["Alex Aguado <alex@example.test>", "sam@example.test"]);
+    const ohneLinks = eventValues(e!, { attendeeLinks: false, resolveAttendee: () => ({ path: "x" }), externAttendees: true });
+    expect(ohneLinks["attendees"]).toEqual(["Alex Aguado <alex@example.test>", "sam@example.test"]);
+    expect(ohneLinks["attendees_extern"]).toBeNull();
+  });
   it("allday + rrule", () => {
     const [a] = parseEvents(fx("ical", "allday.ics")); const [r] = parseEvents(fx("ical", "recurring-exdate.ics"));
     expect(eventValues(a!)).toMatchObject({ allday: true, start: "2026-12-24", end: "2026-12-27" });

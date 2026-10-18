@@ -63,6 +63,7 @@ const EVENT_SYNONYMS: Record<string, string> = {
   location: "location",
   online: "online",
   teilnehmer: "attendees",
+  teilnehmer_extern: "attendees_extern",
   attendees: "attendees",
   link: "url",
   url: "url",

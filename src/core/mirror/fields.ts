@@ -41,11 +41,27 @@ function attendeeText(a: Attendee, opts: { resolveAttendee?: AttendeeResolver; a
   return a.name ? `${a.name} <${a.email}>` : a.email;
 }
 
-export function eventValues(e: EventData, opts: { resolveAttendee?: AttendeeResolver; attendeeLinks?: boolean } = {}): ManagedValues {
+/** Teilnehmer in (verlinkte, ohne aufloesbaren Kontakt als Klartext) getrennt. Nur wenn das Profil ein Nebenfeld
+ *  `attendees_extern` fuehrt UND das Verlinken aktiv ist, bleibt `attendees` eine reine Linkliste; sonst steht alles
+ *  wie bisher gemischt in `attendees`. */
+function splitAttendees(e: EventData, opts: { resolveAttendee?: AttendeeResolver; attendeeLinks?: boolean; externAttendees?: boolean }): { linked: string[]; extern: string[] } {
+  const split = opts.externAttendees === true && opts.attendeeLinks !== false && opts.resolveAttendee !== undefined;
+  const linked: string[] = [];
+  const extern: string[] = [];
+  for (const a of e.attendees) {
+    const hit = split ? opts.resolveAttendee?.(a.email) : undefined;
+    if (!split || hit) linked.push(attendeeText(a, opts));
+    else extern.push(attendeeText(a, { attendeeLinks: false }));
+  }
+  return { linked, extern };
+}
+
+export function eventValues(e: EventData, opts: { resolveAttendee?: AttendeeResolver; attendeeLinks?: boolean; externAttendees?: boolean } = {}): ManagedValues {
+  const att = splitAttendees(e, opts);
   return {
     title: nz(e.summary), start: e.start, end: nz(e.end), allday: e.allDay, tzid: nz(e.tzid),
     location: nz(e.location), url: nz(e.url), online: isOnline(e), description: nz(e.description), status: nz(e.status),
-    rrule: nz(e.rrule), attendees: e.attendees.length ? e.attendees.map((a) => attendeeText(a, opts)) : null,
+    rrule: nz(e.rrule), attendees: list(att.linked), attendees_extern: list(att.extern),
     organizer: e.organizer ? attendeeText(e.organizer, opts) : null, categories: list(e.categories), last_modified: nz(e.lastModified),
   };
 }

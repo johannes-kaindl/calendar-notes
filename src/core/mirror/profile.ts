@@ -26,7 +26,7 @@ export interface MappingProfile {
 }
 
 export const CONTACT_SERVER_FIELDS = ["fn", "given", "family", "nickname", "email", "email_home", "email_work", "tel_cell", "tel_home", "tel_work", "org", "title", "role", "url", "adr", "bday", "note", "categories", "photo"] as const;
-export const EVENT_SERVER_FIELDS = ["title", "start", "end", "allday", "tzid", "location", "url", "online", "description", "status", "rrule", "attendees", "organizer", "categories", "last_modified"] as const;
+export const EVENT_SERVER_FIELDS = ["title", "start", "end", "allday", "tzid", "location", "url", "online", "description", "status", "rrule", "attendees", "attendees_extern", "organizer", "categories", "last_modified"] as const;
 export const TODO_SERVER_FIELDS = ["title", "due", "start", "allday", "tzid", "description", "status", "priority", "percent", "completed", "rrule", "categories", "last_modified"] as const;
 
 const IDENTITY = { uidField: "dav_uid", sourceField: "dav_source", etagField: "dav_etag", stateField: "dav_state", recurrenceIdField: "dav_recurrence_id" };
@@ -50,7 +50,7 @@ export function defaultEventProfile(): MappingProfile {
     id: "default-event", name: "Events (default)", kind: "event", folder: "Events", filename: "{start_date} {title}", ...IDENTITY,
     fields: {
       title: "title", start: "start", end: "end", allday: "all_day", tzid: null, location: "location", url: "url", online: "online",
-      description: null, status: "event_status", rrule: "rrule", attendees: "attendees", organizer: "organizer", categories: "categories", last_modified: null,
+      description: null, status: "event_status", rrule: "rrule", attendees: "attendees", attendees_extern: "attendees_extern", organizer: "organizer", categories: "categories", last_modified: null,
     },
     onCreate: { type: "event" }, body: "block", attendeeLinks: true,
   };
@@ -70,7 +70,7 @@ export function profileTemplates(): ProfileTemplate[] {
       build: () => {
         const d = defaultEventProfile();
         return { ...d, id: "template-allday", name: "All-day calendar", folder: "Events/All-day", filename: "{start_date} {title}",
-          fields: { ...d.fields, end: null, tzid: null, location: null, online: null, attendees: null, organizer: null } };
+          fields: { ...d.fields, end: null, tzid: null, location: null, online: null, attendees: null, attendees_extern: null, organizer: null } };
       },
     },
     { key: "contact", build: () => defaultContactProfile() },
