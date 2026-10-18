@@ -1,11 +1,11 @@
 import { ButtonComponent, FuzzySuggestModal, Modal, Notice, Setting, type App } from "obsidian";
 import { parseEvents, primaryEvent } from "../core/ical/event";
 import type { FieldSchema, ObjectSchema } from "../core/commands/schema";
-import { validateInput } from "../core/commands/schema";
+import { emptyChoiceField, inputIssues, predeterminedInput } from "../core/commands/schema";
 import type { CommandContext, CommandDescriptor } from "../core/commands/types";
 import { parseContact } from "../core/vcard/contact";
 import { fieldLabel } from "./field-labels";
-import { tr, trFieldDescription } from "./command-i18n";
+import { describeIssue, tr, trFieldDescription } from "./command-i18n";
 import { t } from "../i18n/strings";
 import { assertNever, nichtUnterstuetzt } from "../core/mirror/kind";
 
@@ -56,6 +56,22 @@ function scalarToString(v: unknown): string {
   if (typeof v === "string") return v;
   if (typeof v === "number" || typeof v === "boolean") return String(v);
   return "";
+}
+
+/** Was beim Oeffnen eines Kommandos mit dem Formular geschieht, nach den beiden Pruefungen des Kits (code-kit `validate-input`):
+ *  ein Auswahlfeld OHNE Option macht das Formular unbedienbar (kein Eintrag im Dropdown, jedes Absenden scheitert an
+ *  `must be one of []`) und oeffnet es deshalb nicht; steht die Eingabe schon fest (nur Auswahlfelder mit je genau einer Option, oder
+ *  ein Schema ohne Felder), gibt es nichts zu fragen und das Formular bleibt zu. Bestaetigt wird weiter in der Vorschau, es geht keine
+ *  Zustimmung verloren, nur ein Klick ohne Inhalt. Heute tragen alle Kommandos feste Schemas (hoechstens `partstat` mit drei Optionen),
+ *  der Fall „keine Option“ tritt nur bei einem von aussen registrierten Kommando mit dynamischer Auswahl auf (`registerCommands`).
+ *  Unterschied zu mailstone, begruendet: dort baut ein Kommando das Schema aus dem Kontext (Anhaenge), hier ist es fest. */
+export type FormEntry = { kind: "form" } | { kind: "decided"; input: Record<string, unknown> } | { kind: "no-choices"; field: string };
+
+export function formEntry(schema: ObjectSchema): FormEntry {
+  const empty = emptyChoiceField(schema);
+  if (empty !== null) return { kind: "no-choices", field: empty };
+  const input = predeterminedInput(schema);
+  return input === null ? { kind: "form" } : { kind: "decided", input };
 }
 
 /**
@@ -271,13 +287,13 @@ export class SchemaFormModal extends Modal {
 
   private submit(): void {
     const parsed = parseFormValues(this.descriptor.schema, this.values);
-    const result = validateInput(this.descriptor.schema, parsed);
-    if (!result.ok) {
-      this.renderErrors(result.errors);
+    const issues = inputIssues(this.descriptor.schema, parsed);
+    if (issues.length > 0) {
+      this.renderErrors(issues.map((i) => describeIssue(this.descriptor.schema, i)));
       new Notice(t("notice.formInvalid"));
       return;
     }
-    this.onSubmit(result.value);
+    this.onSubmit(parsed);
     this.close();
   }
 }

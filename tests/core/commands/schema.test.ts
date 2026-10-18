@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { validateInput, type ObjectSchema } from "../../../src/core/commands/schema";
+import { inputIssues, unsupportedSchemaKeywords, validateInput, type ObjectSchema } from "../../../src/core/commands/schema";
+import { commandRegistry, ensureDefaultCommands } from "../../../src/core/commands/registry";
 
 const SCHEMA: ObjectSchema = {
   type: "object",
@@ -100,5 +101,29 @@ describe("validateInput", () => {
   it("input ist kein Objekt -> Fehler", () => {
     expect(validateInput(SCHEMA, null).ok).toBe(false);
     expect(validateInput(SCHEMA, "x").ok).toBe(false);
+  });
+});
+
+describe("Schemas der registrierten Kommandos liegen im Teilbereich, den das Kit prueft", () => {
+  it("kein Kommando verlangt etwas, das validateInput nicht pruefen kann (Kit-Pruefung statt stiller Luecke)", () => {
+    ensureDefaultCommands();
+    const gaps = commandRegistry().flatMap((c) => unsupportedSchemaKeywords(c.schema).map((g) => `${c.id}: ${g}`));
+    expect(gaps).toEqual([]);
+    expect(commandRegistry().length).toBeGreaterThan(15);
+  });
+
+  it("kein Kommando-Schema ist fuer das Kit unlesbar (bad-schema, z. B. ein required-Name ohne Eintrag in properties)", () => {
+    ensureDefaultCommands();
+    for (const c of commandRegistry()) {
+      const codes = inputIssues(c.schema, {}).map((i) => i.code);
+      expect(codes, c.id).not.toContain("bad-schema");
+    }
+  });
+
+  it("Unterschiede zur frueheren lokalen Fassung: nicht existierender Tag, Pflichtfeld aus Leerraum, Datum leer", () => {
+    expect(validateInput(SCHEMA, { title: "x", day: "2026-02-30" }).ok).toBe(false);
+    expect(validateInput(SCHEMA, { title: "x", start: "2026-09-02T25:00" }).ok).toBe(false);
+    expect(validateInput(SCHEMA, { title: "   " }).ok).toBe(false);
+    expect(validateInput(SCHEMA, { title: "x", day: "" }).ok).toBe(true);
   });
 });

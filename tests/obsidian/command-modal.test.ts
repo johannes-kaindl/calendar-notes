@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { initialValuesFor, parseFormValues, SchemaFormModal } from "../../src/obsidian/command-modal";
+import { formEntry, initialValuesFor, parseFormValues, SchemaFormModal } from "../../src/obsidian/command-modal";
 import { Setting } from "../vendor/kit/obsidian-mock";
 import type { ObjectSchema } from "../../src/core/commands/schema";
 import type { CommandContext, CommandDescriptor, CommandTarget } from "../../src/core/commands/types";
@@ -120,5 +120,26 @@ describe("SchemaFormModal", () => {
     (modal as any).submit();
     expect(submitted).toBeUndefined();
     expect((modal as any).errorsEl.textContent ?? (modal as any).errorsEl.children?.length).toBeTruthy();
+  });
+});
+
+describe("formEntry (emptyChoiceField / predeterminedInput des Kits)", () => {
+  const schemaOf = (properties: ObjectSchema["properties"], required?: string[]): ObjectSchema => ({ type: "object", properties, ...(required ? { required } : {}) });
+
+  it("ein Schema ohne Felder braucht kein Formular: die Eingabe ist {}", () => {
+    expect(formEntry(schemaOf({}))).toEqual({ kind: "decided", input: {} });
+  });
+  it("ein Auswahlfeld mit genau einer Option ist entschieden", () => {
+    expect(formEntry(schemaOf({ mode: { type: "string", enum: ["only"] } }, ["mode"]))).toEqual({ kind: "decided", input: { mode: "only" } });
+  });
+  it("ein Auswahlfeld mit mehreren Optionen oeffnet das Formular (partstat)", () => {
+    expect(formEntry(schemaOf({ partstat: { type: "string", enum: ["ACCEPTED", "DECLINED", "TENTATIVE"] } }, ["partstat"]))).toEqual({ kind: "form" });
+  });
+  it("ein freies Feld oeffnet das Formular, auch neben einer entschiedenen Auswahl", () => {
+    expect(formEntry(schemaOf({ title: { type: "string" } }))).toEqual({ kind: "form" });
+    expect(formEntry(schemaOf({ mode: { type: "string", enum: ["only"] }, title: { type: "string" } }))).toEqual({ kind: "form" });
+  });
+  it("ein Auswahlfeld ohne Option oeffnet nichts und nennt das Feld", () => {
+    expect(formEntry(schemaOf({ target: { type: "string", enum: [] } }, ["target"]))).toEqual({ kind: "no-choices", field: "target" });
   });
 });

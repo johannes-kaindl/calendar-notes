@@ -14,6 +14,10 @@ All notable changes to this project are documented here. The format follows
 
 - Internal housekeeping: the shared kit libraries were updated (obsidian-kit 0.63.0, code-kit 0.31.0). The changes in between (a copy button on the thinking block, a text-area suggester, Claude as a language-model provider, LM Studio detection from model metadata, kit texts for image, OCR and audio errors) touch no part this plugin shows; what changes visibly for you is listed separately below.
 
+- **Command input is checked by the shared kit validation.** Forms and the plugin API now reject a date that does not exist (30 February) and a time that does not exist (25:00), and a required field that holds only spaces counts as missing. Forms show the messages in your language as before; the plugin API reports them in English (`title: missing (required)`) instead of the mixed German text it used before.
+
+- **Commands that need no input open no empty form.** A command without fields (for example deleting an event) goes straight to its preview, and so does a command whose only choices have one option each; the confirmation in the preview stays. A choice field without any option (possible only for a command registered by another plugin) shows a notice instead of an unusable form.
+
 ### Fixed
 
 - **Linking existing notes no longer pairs the wrong contacts.** A shared e-mail address or phone number (a practice mailbox, a landline two people share) used to count as a sure match on its own, and several people sharing one address were paired in a ring. A feature that more than one server entry or note carries now never counts as sure, a name that contradicts the note title caps the match at “likely”, and the pairing prefers the entry whose name the note carries. A partial name (a note called “Florian” for “Dr. Florian Brandes”) is not a contradiction. The same name on several entries (duplicates) is never sure either.

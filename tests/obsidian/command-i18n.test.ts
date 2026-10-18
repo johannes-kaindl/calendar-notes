@@ -1,7 +1,8 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { tr, trTitle, trDescription, trFieldDescription, trPlan, trSchema } from "../../src/obsidian/command-i18n";
+import { describeIssue, tr, trTitle, trDescription, trFieldDescription, trPlan, trSchema } from "../../src/obsidian/command-i18n";
+import { inputIssues, type ObjectSchema } from "../../src/core/commands/schema";
 import { DE, EN, initI18n } from "../../src/i18n/strings";
 import { EVENT_COMMANDS } from "../../src/core/commands/event-commands";
 import { CONTACT_COMMANDS } from "../../src/core/commands/contact-commands";
@@ -190,5 +191,48 @@ describe("command-i18n: tr()/trTitle()/trDescription()/trPlan()/trFieldDescripti
 
     const unknownPlan: CommandPlan = { ...plan, summaryKey: "does.not.exist", summary: "raw fallback summary" };
     expect(trPlan(unknownPlan)).toBe("raw fallback summary");
+  });
+});
+
+describe("describeIssue (Pruefbefund des Kits in der Sprache der Oberflaeche)", () => {
+  const schema: ObjectSchema = {
+    type: "object",
+    properties: {
+      title: { type: "string", minLength: 3 },
+      partstat: { type: "string", enum: ["ACCEPTED", "DECLINED"] },
+      day: { type: "string", format: "date" },
+      count: { type: "number", minimum: 1, maximum: 5 },
+      mails: { type: "array", items: { type: "string", format: "email" } },
+      on: { type: "boolean" },
+    },
+    required: ["title"],
+  };
+  const texts = (input: unknown): string[] => inputIssues(schema, input).map((i) => describeIssue(schema, i));
+  afterEach(() => initI18n(null));
+
+  it("deutsch: jeder Fehlercode hat einen deutschen Satz, der Pfad und die Grenze nennt", () => {
+    initI18n("de");
+    expect(texts({})).toEqual(["title: fehlt (Pflichtfeld)"]);
+    expect(texts({ title: "ab", partstat: "X", day: "2026-02-30", count: 9, mails: ["kein-at"], on: "ja", extra: 1 })).toEqual([
+      "title: zu kurz (mindestens 3)",
+      "partstat: muss einer von [ACCEPTED, DECLINED] sein",
+      "day: kein gültiges Datum (JJJJ-MM-TT)",
+      "count: über dem Höchstwert 5",
+      "mails[0]: keine gültige E-Mail-Adresse",
+      "on: muss an oder aus sein",
+      "extra: unbekanntes Feld",
+    ]);
+    expect(texts("kein Objekt")).toEqual(["Die Eingabe ist kein Objekt."]);
+  });
+
+  it("englisch", () => {
+    initI18n("en");
+    expect(texts({ title: "abc", count: 0, mails: [5] })).toEqual(["count: below the minimum 1", "mails[0]: must be text"]);
+  });
+
+  it("ein Befund ohne eigenen Satz bleibt der englische Kit-Text (Fehler im Schema, nicht in der Eingabe)", () => {
+    const kaputt = { type: "object", properties: { a: { type: "object" } } } as unknown as ObjectSchema;
+    const issue = inputIssues(kaputt, { a: 1 })[0]!;
+    expect(describeIssue(kaputt, issue)).toBe(issue.message);
   });
 });

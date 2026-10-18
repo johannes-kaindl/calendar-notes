@@ -456,7 +456,7 @@ describe("createPluginApi — plan()", () => {
     registerCommands([eventRenameDescriptor()]);
     const f = makeFakes();
     const result = await api(f).plan("event.rename", {}, { uid: EVENT_UID, source: EVENT_SOURCE });
-    expect(result).toEqual({ error: "validation: title: fehlt (required)" });
+    expect(result).toEqual({ error: "validation: title: missing (required)" });
   });
 
   it("ergaenzt inviteRoute, wenn der Plan eine Einladung enthaelt", async () => {

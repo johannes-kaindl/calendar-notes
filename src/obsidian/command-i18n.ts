@@ -1,4 +1,4 @@
-import type { FieldSchema, ObjectSchema } from "../core/commands/schema";
+import type { FieldSchema, ObjectSchema, ValidationIssue } from "../core/commands/schema";
 import type { CommandDescriptor, CommandPlan } from "../core/commands/types";
 import { t } from "../i18n/strings";
 
@@ -62,4 +62,28 @@ export function trSchema(schema: ObjectSchema): ObjectSchema {
  *  formatierter englischer Text mit denselben Argumenten). */
 export function trPlan(plan: CommandPlan): string {
   return trOrFallback(plan.summaryKey, plan.summary, ...plan.summaryArgs);
+}
+
+/** Der Text eines Pruefbefunds (`inputIssues`) in der Sprache der Oberflaeche. Das Kit liefert Fehlercode und Pfad, der Satz
+ *  steht hier; was der Code nicht sagt (erwarteter Typ, Mindestlaenge, Auswahl, Grenzen), liest die Funktion aus dem Schema. Ein
+ *  Befund ohne eigenen Satz (`unsupported-type`, `bad-schema`: ein Fehler im Schema, nicht in der Eingabe) bleibt der englische Kit-Text. */
+export function describeIssue(schema: ObjectSchema, issue: ValidationIssue): string {
+  const root = issue.path.replace(/\[\d+\]$/, "");
+  const field: FieldSchema | undefined = Object.hasOwn(schema.properties, root) ? schema.properties[root] : undefined;
+  const isItem = root !== issue.path;
+  switch (issue.code) {
+    case "not-object": return t("validation.notObject");
+    case "missing": return t("validation.missing", issue.path);
+    case "unknown-field": return t("validation.unknownField", issue.path);
+    case "type": return t(`validation.type.${isItem ? "string" : (field?.type ?? "string")}`, issue.path);
+    case "too-short": return field?.type === "string" && field.minLength !== undefined ? t("validation.tooShort", issue.path, field.minLength) : issue.message;
+    case "not-in-enum": return field?.type === "string" && field.enum ? t("validation.notInEnum", issue.path, field.enum.join(", ")) : issue.message;
+    case "format": {
+      const format = field?.type === "string" ? field.format : field?.type === "array" ? field.items.format : undefined;
+      return format === "date" || format === "date-time" || format === "email" ? t(`validation.format.${format}`, issue.path) : issue.message;
+    }
+    case "below-minimum": return field?.type === "number" && field.minimum !== undefined ? t("validation.belowMin", issue.path, field.minimum) : issue.message;
+    case "above-maximum": return field?.type === "number" && field.maximum !== undefined ? t("validation.aboveMax", issue.path, field.maximum) : issue.message;
+    default: return issue.message;
+  }
 }

@@ -16,7 +16,7 @@ import { describeExecuteError } from "./execute-i18n";
 import { t } from "../i18n/strings";
 import { buildCommandContext } from "./command-context";
 import { tr, trPlan, trTitle } from "./command-i18n";
-import { SchemaFormModal } from "./command-modal";
+import { formEntry, SchemaFormModal } from "./command-modal";
 import type { InviteRouter } from "./invite";
 import { PlanPreviewModal } from "./plan-preview-modal";
 import { TodoSyncModal, type TodoSyncAuswahl } from "./todo-sync-modal";
@@ -165,7 +165,7 @@ export class CommandFlow {
       new Notice(t("notice.notCommandTarget"));
       return;
     }
-    new SchemaFormModal(this.app, descriptor, ctx, (input) => this.applyPlan(descriptor, input, ctx, undefined)).open();
+    this.openFormOrDecide(descriptor, ctx, undefined);
   }
 
   // ── command-undo ─────────────────────────────────────────────────────────
@@ -512,7 +512,21 @@ export class CommandFlow {
   }
 
   private openForm(descriptor: CommandDescriptor, resolved: ResolvedTarget): void {
-    new SchemaFormModal(this.app, descriptor, resolved.ctx, (input) => this.applyPlan(descriptor, input, resolved.ctx, resolved.file)).open();
+    this.openFormOrDecide(descriptor, resolved.ctx, resolved.file);
+  }
+
+  /** Formular oeffnen, ausser es gibt nichts zu fragen (Eingabe steht fest) oder nichts zu waehlen (Auswahl ohne Option); s. `formEntry`. */
+  private openFormOrDecide(descriptor: CommandDescriptor, ctx: CommandContext, file: TFile | undefined): void {
+    const entry = formEntry(descriptor.schema);
+    if (entry.kind === "no-choices") {
+      new Notice(t("notice.noChoices", entry.field));
+      return;
+    }
+    if (entry.kind === "decided") {
+      this.applyPlan(descriptor, entry.input, ctx, file);
+      return;
+    }
+    new SchemaFormModal(this.app, descriptor, ctx, (input) => this.applyPlan(descriptor, input, ctx, file)).open();
   }
 
   private applyPlan(descriptor: CommandDescriptor, input: Record<string, unknown>, ctx: CommandContext, file: TFile | undefined): void {
