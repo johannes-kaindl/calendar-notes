@@ -103,8 +103,8 @@ execute(plan: ApiPlan): Promise<ApiExecuteResult | ApiError>
 ```
 
 `plan()` schreibt NICHTS — sie prüft die Eingabe zuerst gegen `descriptor.schema`
-(`validateInput()`, `src/core/commands/schema.ts`; ein Verstoß kommt als `{ error: "validation:
-<Meldungen>" }` zurück, BEVOR irgendein Ziel aufgelöst wird), löst dann das Ziel im
+(`validateInput()` aus code-kit `validate-input`, hier über `src/core/commands/schema.ts`; ein Verstoß kommt als `{ error: "validation:
+<Meldungen>" }` mit englischen, stabilen Meldungen der Form `feld: text` zurück, BEVOR irgendein Ziel aufgelöst wird), löst dann das Ziel im
 Collection-State auf (ohne Notiz-Frontmatter, die API hat keine „aktive Notiz") und baut den
 `CommandContext`. `ApiPlan` ist ein serialisierbarer `CommandPlan` (Zusammenfassung, Diff,
 neuer Rohtext, Ziel-Etag) plus — falls der Plan eine Einladung auslöst — `inviteRoute`

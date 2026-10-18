@@ -1,0 +1,9 @@
+# Adoption und erster Abgleich
+
+Zuordnungsregeln, Verhalten des ersten Abgleichs nach einer Adoption und Teilnehmer-Fallback; entstanden in Welle 24 aus dem Rollout Teil B in Pallas (Vault-Cockpit `_Tasks`, vier Befunde). Der Aufbau der Adoption steht in `AGENTS.md` § „Was M3 liefert“.
+
+Die Zuordnung (`src/core/adopt/match.ts`) kennt vier Regeln, die aus einem Pallas-Trockenlauf stammen (6 von 99 Kontakt-Zuordnungen waren falsch): Ein Merkmal (E-Mail, Telefon, Name), das mehr als einen Server-Eintrag oder mehr als eine Notiz trägt, ist nie `sure`; widerspricht der Name dem Notiz-Titel (Ähnlichkeit unter 0,7 und kein Teilname), ist ein eindeutiges Merkmal höchstens `likely`; innerhalb einer Konfidenzstufe gewinnt die Namensähnlichkeit, sonst entstünde bei einer gemeinsamen Mailbox ein Ring; ein Teilname („Florian“ für „Dr. Florian Brandes“) ist kein Widerspruch.
+
+Der erste Abgleich nach einer Adoption (State mit `hash: ""`, erkannt in `applyDelta`) gewinnt die Notiz: ein gefüllter, abweichender Wert bleibt, steht als Hand-Edit in der Vorschau, leere Felder werden gefüllt, nichts wird geleert. Wikilink und Klartext gelten als gleich (`fmEquals` mit `linkAware`). ⚠️ Das schützt nur den ersten Lauf: ab dem zweiten gewinnt der Server wie überall, ein geänderter Server-Eintrag überschreibt also auch ein damals behaltenes Feld (mit Hand-Edit-Hinweis). Vor dem ersten Sync entscheiden, ob der Wert der Notiz mit „Handänderungen auf den Server übertragen“ zum Server soll.
+
+Teilnehmer ohne auflösbaren Kontakt stehen im Server-Feld `attendees_extern` (nur wenn das Profil es abbildet), `attendees` bleibt dann eine reine Linkliste. Der Dateiname eines Kontakts folgt dem Server-`FN` wörtlich: doppelte Namen wie `Buni Buni` stehen so auf dem Server, das Plugin setzt kein `fn` aus Vor- und Nachname zusammen.
