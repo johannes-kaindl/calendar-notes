@@ -52,6 +52,7 @@ import {
   requireUntil,
   requireVisible,
   schliesseDialog,
+  schliesseEinstellungen,
 } from "../../tools/obsidian-cdp/cdp.js";
 import { createBilanz, parseArgs, runDriver, type Bilanz } from "../../tools/obsidian-cdp/bilanz.js";
 import { buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
@@ -427,7 +428,9 @@ async function checkP2bUiAuth(cdp: Cdp, radicale: RunningServer): Promise<void> 
   const NAME_OF = `((el) => (el.querySelector(".setting-item-name") ? el.querySelector(".setting-item-name").textContent : "").trim())`;
   const ITEM_BY = (labels: string[]) =>
     `[...${TAB}.querySelectorAll(".setting-item")].find((el) => ${JSON.stringify(labels)}.includes(${NAME_OF}(el)))`;
-  const MODAL = `${DOC}.querySelector(".modal-container")`;
+  // Ein Modal oeffnet im AKTIVEN Dokument; in einer Zweitinstanz ist das je nach Fokuslage das Hauptfenster oder das
+  // Einstellungen-Fenster (gemessen 2026-10-18, 1.14.4: einmal Hauptfenster, einmal Einstellungen). Alle drei Dokumente absuchen.
+  const MODAL = `([activeDocument, ${DOC}, document].map((d) => d.querySelector(".modal-container")).find(Boolean) ?? null)`;
   const MODAL_TITLE = `(${MODAL} && ${MODAL}.querySelector(".modal-title") ? ${MODAL}.querySelector(".modal-title").textContent.trim() : "")`;
   let angelegt = false;
 
@@ -447,7 +450,10 @@ async function checkP2bUiAuth(cdp: Cdp, radicale: RunningServer): Promise<void> 
       if (ids.includes(${JSON.stringify(UI_SECRET_ID)})) await app.secretStorage.deleteSecret(${JSON.stringify(UI_SECRET_ID)});
       return true;
     `);
-    await cdp.evaluate(`app.setting.close(); return true;`);
+    // `schliesseEinstellungen` statt `app.setting.close()`: ein Close unmittelbar nach einem frueheren Open laesst in
+    // einer Zweitinstanz das Einstellungen-Fenster als aktives Dokument stehen, das Secret-Modal oeffnet dann dort
+    // und der Treiber sieht es nicht (gemessen 2026-10-18, P2b „Secret-Dialog nicht geoeffnet"; Dach `fbf7667`).
+    await schliesseEinstellungen(cdp);
     await new Promise((r) => setTimeout(r, 400));
     await cdp.evaluate(`app.setting.open(); app.setting.openTabById(${JSON.stringify(PLUGIN_ID)}); return true;`);
     await requireUntil(cdp, ITEM_BY(["Accounts", "Konten"]), "Konten-Ueberschrift nicht gezeichnet");
@@ -492,13 +498,22 @@ async function checkP2bUiAuth(cdp: Cdp, radicale: RunningServer): Promise<void> 
       btn.click();
       return true;
     `);
-    await requireUntil(cdp, `${MODAL} && ${MODAL}.querySelector(".modal.mod-secret")`, "Secret-Dialog nicht geoeffnet");
-
+    // Zwei Wege je nach Schluesselbund-Stand (gemessen 2026-10-18, 1.14.4): Gibt es schon einen Eintrag, oeffnet der Knopf
+    // die Auswahl („Geheimnis auswaehlen“, `.modal.mod-secret`) und „Add secret…“ fuehrt in den Anlegen-Dialog; ist der
+    // Schluesselbund leer (das Aufraeumen eines frueheren Laufs loescht den Eintrag), oeffnet er den Anlegen-Dialog sofort.
+    // Ein Treiber, der nur den ersten Weg kannte, meldete im zweiten „nichts gemessen“.
+    await requireUntil(
+      cdp,
+      `${MODAL} && (${MODAL}.querySelector(".modal.mod-secret") || ${MODAL}.querySelector('input[type="password"]'))`,
+      "Secret-Dialog nicht geoeffnet",
+    );
     await cdp.evaluate(`
-      const add = [...${MODAL}.querySelectorAll("button")].find((b) => /add secret|geheimnis hinzu/i.test(b.textContent || ""));
+      const m = ${MODAL};
+      if (m.querySelector('input[type="password"]')) return "Anlegen-Dialog sofort offen";
+      const add = [...m.querySelectorAll("button")].find((b) => /add secret|geheimnis hinzu/i.test(b.textContent || ""));
       if (!add) throw new Error("Knopf \\"Add secret…\\" nicht gefunden");
       add.click();
-      return true;
+      return "ueber die Auswahl";
     `);
     await requireUntil(cdp, `${MODAL} && ${MODAL}.querySelector('input[type="password"]')`, "Dialog \"Add secret\" nicht geoeffnet");
 
@@ -550,7 +565,15 @@ async function checkP2bUiAuth(cdp: Cdp, radicale: RunningServer): Promise<void> 
       `warf=${r.threw}${r.msg ? `, Meldung: ${JSON.stringify(r.msg.slice(0, 160))}` : ""}, Sammlungen=${r.collections}, secretId=${JSON.stringify(r.secretId)}, Secret hinterlegt=${secretGesetzt}`,
     );
   } catch (e) {
-    unmeasured("P2b", e instanceof Error ? e.message : String(e));
+    // Lagebild mitschreiben, damit „Secret-Dialog nicht geoeffnet“ nicht ohne Spur bleibt (Modale je Dokument, aktives Dokument).
+    const lage = await cdp
+      .evaluate<string>(`
+        const tab = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}].settingTab.containerEl;
+        const n = (d) => d.querySelectorAll(".modal-container").length;
+        return "Modale: Hauptfenster=" + n(document) + ", Einstellungen=" + n(tab.ownerDocument) + ", aktiv=" + n(activeDocument) + ", activeDocument===document: " + (activeDocument === document) + ", Titel aktiv: " + activeDocument.title + ", Modal-Klassen aktiv: " + [...activeDocument.querySelectorAll(".modal-container")].map((m) => m.className + " / " + (m.querySelector(".modal-title")?.textContent ?? "")).join(" ; ");
+      `)
+      .catch(() => "Lagebild nicht lesbar");
+    unmeasured("P2b", `${e instanceof Error ? e.message : String(e)} — ${lage}`);
   } finally {
     // Aufraeumen im Pruefpunkt selbst, nicht erst am Laufende: das UI-Konto brauchte eine
     // eigene ID, und ein zweites Konto mit denselben Sammlungen wuerde P2 und alles danach
@@ -572,6 +595,7 @@ async function checkP2bUiAuth(cdp: Cdp, radicale: RunningServer): Promise<void> 
         app.setting.close();
         return true;
       `).catch(() => undefined);
+      await schliesseEinstellungen(cdp).catch(() => undefined);
     }
   }
 }
@@ -989,14 +1013,14 @@ async function checkP7(cdp: Cdp): Promise<void> {
 async function checkP10(cdp: Cdp, radicale: RunningServer, source: string): Promise<void> {
   const uid = "simple-1@test";
   const target = { uid, source };
-  const result = await cdp.evaluate<{ planOk: boolean; planError?: string; execOk: boolean; execError?: string }>(
+  const result = await cdp.evaluate<{ planOk: boolean; planError?: string; execOk: boolean; execError?: string; execJson?: string }>(
     `
     const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
     const plan = await plugin.api.plan("event.move", { start: "2026-09-03T09:00:00", end: "2026-09-03T10:00:00", tzid: "Europe/Berlin" }, ${JSON.stringify(target)});
     if ("error" in plan) return { planOk: false, planError: plan.error, execOk: false };
     const exec = await plugin.api.execute(plan);
-    if ("error" in exec) return { planOk: true, execOk: false, execError: exec.error };
-    return { planOk: true, execOk: !!exec.ok };
+    if ("error" in exec) return { planOk: true, execOk: false, execError: exec.error, execJson: JSON.stringify(exec).slice(0, 600) };
+    return { planOk: true, execOk: !!exec.ok, execJson: JSON.stringify(exec).slice(0, 600) };
   `,
   );
   const get = await davGet(radicale, "test/kalender/simple-1.ics");
@@ -1017,6 +1041,27 @@ async function checkP10(cdp: Cdp, radicale: RunningServer, source: string): Prom
   );
 }
 
+/** Zustandsbild fuer den sporadischen P11/P12-Wackler (Task „GUI-Smoke P11 und P12 sind sporadisch rot“): bei Rot das
+ *  Ergebnis von `execute`, die Notiz-Datei so, wie sie auf der Platte steht (NICHT aus dem metadataCache), und den
+ *  Collection-State des Objekts. Trennt „Plugin hat nicht geschrieben“ von „Cache hinkt“. */
+async function dumpZustand(cdp: Cdp, source: string, uid: string, label: string, execJson: string | undefined): Promise<void> {
+  const dump = await cdp
+    .evaluate<string>(`
+      const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+      const state = await plugin.deps.stateStore.load(${JSON.stringify(source)});
+      const obj = Object.entries(state.objects).filter(([, o]) => o.uid === ${JSON.stringify(uid)}).map(([hp, o]) => ({ hp, etag: o.etag, notes: Object.fromEntries(Object.entries(o.notes).map(([k, n]) => [k, { path: n.path, hashLen: n.hash.length }])), at: o.at }));
+      const files = app.vault.getMarkdownFiles().filter((f) => f.path.startsWith("Events/"));
+      const disk = [];
+      for (const f of files) {
+        const raw = await app.vault.adapter.read(f.path);
+        if (raw.includes(${JSON.stringify(uid)})) disk.push({ path: f.path, frontmatter: raw.split("---")[1] });
+      }
+      return JSON.stringify({ stateObjects: obj, snapshotEtags: state.snapshot.etags, disk });
+    `)
+    .catch((e: unknown) => "Zustand nicht lesbar: " + String(e));
+  console.log(`DEBUG ${label} exec=${execJson ?? "(kein)"}\nDEBUG ${label} zustand=${dump}`);
+}
+
 async function checkP11(cdp: Cdp, radicale: RunningServer, source: string): Promise<void> {
   const uid = "simple-1@test";
   const target = { uid, source };
@@ -1029,15 +1074,17 @@ async function checkP11(cdp: Cdp, radicale: RunningServer, source: string): Prom
     icsHasMethod?: boolean;
     icsHasAttendee?: boolean;
     icsSample?: string;
+    execJson?: string;
   }>(
     `
     const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
     const plan = await plugin.api.plan("event.add-attendee", { email: "kim@example.test", name: "Kim" }, ${JSON.stringify(target)});
     if ("error" in plan) return { planOk: false, execOk: false, icsSample: "plan-error:" + plan.error };
     const exec = await plugin.api.execute(plan);
-    if ("error" in exec) return { planOk: true, inviteRoute: plan.inviteRoute, execOk: false, execError: exec.error };
+    if ("error" in exec) return { planOk: true, inviteRoute: plan.inviteRoute, execOk: false, execError: exec.error, execJson: JSON.stringify(exec).slice(0, 600) };
     const ics = exec.invite?.ics ?? "";
     return {
+      execJson: JSON.stringify({ ...exec, invite: exec.invite ? { route: exec.invite.route } : undefined }).slice(0, 600),
       planOk: true,
       inviteRoute: plan.inviteRoute,
       execOk: !!exec.ok,
@@ -1062,7 +1109,10 @@ async function checkP11(cdp: Cdp, radicale: RunningServer, source: string): Prom
     !!result.icsHasMethod &&
     !!result.icsHasAttendee &&
     serverHasAttendee;
-  if (!ok) console.log("DEBUG P11 icsSample:\n" + (result.icsSample ?? "") + "\nDEBUG P11 server body:\n" + get.body);
+  if (!ok) {
+    console.log("DEBUG P11 icsSample:\n" + (result.icsSample ?? "") + "\nDEBUG P11 server body:\n" + get.body);
+    await dumpZustand(cdp, source, uid, "P11", result.execJson);
+  }
   record("P11", ok,
     `plan.inviteRoute=${result.inviteRoute}, exec.invite.route=${result.route}, METHOD:REQUEST=${result.icsHasMethod}, ATTENDEE kim im .ics=${result.icsHasAttendee}, Server hat ATTENDEE=${serverHasAttendee}${result.execError ? `, execError=${result.execError}` : ""}`,
   );
@@ -1094,14 +1144,14 @@ function extractDtstart(ics: string): string | undefined {
 async function checkP12(cdp: Cdp, radicale: RunningServer, source: string, beforeDtstart: string | undefined): Promise<void> {
   const uid = "simple-1@test";
   const target = { uid, source };
-  const result = await cdp.evaluate<{ planOk: boolean; planError?: string; execOk: boolean; execError?: string }>(
+  const result = await cdp.evaluate<{ planOk: boolean; planError?: string; execOk: boolean; execError?: string; execJson?: string }>(
     `
     const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
     const plan = await plugin.api.plan("undo.last", {}, ${JSON.stringify(target)});
     if ("error" in plan) return { planOk: false, planError: plan.error, execOk: false };
     const exec = await plugin.api.execute(plan);
-    if ("error" in exec) return { planOk: true, execOk: false, execError: exec.error };
-    return { planOk: true, execOk: !!exec.ok };
+    if ("error" in exec) return { planOk: true, execOk: false, execError: exec.error, execJson: JSON.stringify(exec).slice(0, 600) };
+    return { planOk: true, execOk: !!exec.ok, execJson: JSON.stringify(exec).slice(0, 600) };
   `,
   );
   const get = await davGet(radicale, "test/kalender/simple-1.ics");
@@ -1125,6 +1175,7 @@ async function checkP12(cdp: Cdp, radicale: RunningServer, source: string, befor
       return JSON.stringify({ path: ev?.path, fm: ev ? app.metadataCache.getFileCache(ev)?.frontmatter : null });
     `);
     console.log(`DEBUG P12 beforeDatePrefix=${beforeDatePrefix} fm=` + dbg);
+    await dumpZustand(cdp, source, uid, "P12", result.execJson);
   }
   const ok = result.planOk && result.execOk && serverRestored && !!fmRestored;
   record("P12", ok,
