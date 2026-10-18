@@ -66,7 +66,7 @@ interface Item {
 
 /** Boolescher Ausdruck, deshalb vom Compiler NICHT als Fallunterscheidung erkannt — die
  *  Erschoepfung steht hier von Hand (Task 4 hat diese beiden Stellen bewusst offen gelassen). */
-function objectInWindow(kind: ProfileKind, raw: string, w: Window | undefined): boolean {
+export function objectInWindow(kind: ProfileKind, raw: string, w: Window | undefined): boolean {
   if (!w) return true;
   if (kind === "contact") return true;
   if (kind === "event") return eventOccursWithin(raw, w.start, w.end);

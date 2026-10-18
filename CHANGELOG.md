@@ -13,6 +13,7 @@ All notable changes to this project are documented here. The format follows
 ### Fixed
 
 - **Linking existing notes no longer pairs the wrong contacts.** A shared e-mail address or phone number (a practice mailbox, a landline two people share) used to count as a sure match on its own, and several people sharing one address were paired in a ring. A feature that more than one server entry or note carries now never counts as sure, a name that contradicts the note title caps the match at “likely”, and the pairing prefers the entry whose name the note carries. A partial name (a note called “Florian” for “Dr. Florian Brandes”) is not a contradiction. The same name on several entries (duplicates) is never sure either.
+- **“N new notes will be created on the next sync” counts the sync window.** The linking window counted every event on the server (1148 in one family calendar) although the sync only mirrors the days set under “Days back” and “Days ahead” (29 there). It now names the number the next sync really creates and how many entries lie outside the window.
 
 ## [0.4.1] — 2026-10-16
 

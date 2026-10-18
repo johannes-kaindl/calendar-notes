@@ -34,6 +34,10 @@ export interface AdoptionModalInput {
    *  geprueft wurden (siehe `countTypeExcluded` in `core/adopt/match.ts`). Sichtbar machen
    *  statt automatisch pruefen — Controller-Entscheidung (Option b, AGENTS.md). */
   typeExcludedCount: number;
+  /** Wie viele der nicht zugeordneten Server-Eintraege der naechste Sync wirklich als Notiz anlegt (Sync-Fenster,
+   *  `countInSyncWindow`), samt Fenster in Tagen fuer den Hinweistext. */
+  unmatchedInWindow: number;
+  syncWindow: { pastDays: number; futureDays: number };
 }
 
 /** Fasst das Ergebnis des Verknuepfens (`main.ts` `confirmAdoption`) fuer die Notice
@@ -72,7 +76,7 @@ export class AdoptionModal extends Modal {
   }
 
   onOpen(): void {
-    const { suggestions, unmatchedItems, unmatchedNotes, skipped, typeExcludedCount } = this.input;
+    const { suggestions, unmatchedItems, unmatchedNotes, skipped, typeExcludedCount, unmatchedInWindow, syncWindow } = this.input;
     this.titleEl.setText(t("adopt.heading"));
     this.contentEl.createEl("p", { text: t("adopt.summary", suggestions.length, unmatchedItems.length, unmatchedNotes.length) });
     if (skipped.length > 0) this.contentEl.createEl("p", { text: t("adopt.skippedItems", skipped.length) });
@@ -100,7 +104,12 @@ export class AdoptionModal extends Modal {
       });
     }
 
-    if (unmatchedItems.length > 0) this.contentEl.createEl("p", { text: t("adopt.unmatchedItems", unmatchedItems.length) });
+    if (unmatchedItems.length > 0) {
+      const text = unmatchedInWindow < unmatchedItems.length
+        ? t("adopt.unmatchedItems.window", unmatchedInWindow, unmatchedItems.length - unmatchedInWindow, syncWindow.pastDays, syncWindow.futureDays)
+        : t("adopt.unmatchedItems", unmatchedItems.length);
+      this.contentEl.createEl("p", { text });
+    }
     if (unmatchedNotes.length > 0) this.contentEl.createEl("p", { text: t("adopt.unmatchedNotes", unmatchedNotes.length) });
 
     const btns = this.contentEl.createDiv({ cls: "modal-button-container" });

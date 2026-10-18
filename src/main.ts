@@ -1,6 +1,7 @@
 import { FuzzySuggestModal, Notice, Plugin, Platform, TFile, getLanguage, type App } from "obsidian";
 import { candidateNotes, countTypeExcluded, matchItems, type CandidateNote, type ServerItem } from "./core/adopt/match";
-import { planAdoption, stateAfterAdoption, type AdoptDecision, type LinkPlan } from "./core/adopt/plan";
+import { countInSyncWindow, planAdoption, stateAfterAdoption, type AdoptDecision, type LinkPlan } from "./core/adopt/plan";
+import { windowFor } from "./core/mirror/window";
 import { loadServerItems } from "./core/adopt/service";
 import { discover, type DiscoveryResult } from "./core/dav/discovery";
 import { discoverScheduling } from "./core/dav/scheduling";
@@ -309,9 +310,11 @@ export default class CalendarNotesPlugin extends Plugin {
     const notes = await this.loadCandidateNotes(profile);
     const { suggestions, unmatchedItems, unmatchedNotes } = matchItems(items, notes, { profile });
     const typeExcludedCount = countTypeExcluded(notes, profile);
+    const { pastDays, futureDays } = this.settings.sync;
+    const unmatchedInWindow = countInSyncWindow(unmatchedItems, profile, windowFor(new Date(), pastDays, futureDays));
     new AdoptionModal(
       this.app,
-      { suggestions, unmatchedItems, unmatchedNotes, profile, skipped, typeExcludedCount },
+      { suggestions, unmatchedItems, unmatchedNotes, profile, skipped, typeExcludedCount, unmatchedInWindow, syncWindow: { pastDays, futureDays } },
       (decisions) => this.confirmAdoption(decisions, profile, source, items),
     ).open();
   }

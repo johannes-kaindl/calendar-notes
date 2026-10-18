@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { defaultContactProfile } from "../../../src/core/mirror/profile";
+import { defaultContactProfile, defaultEventProfile } from "../../../src/core/mirror/profile";
+import { windowFor } from "../../../src/core/mirror/window";
+import { parseEvents } from "../../../src/core/ical/event";
 import { emptyState } from "../../../src/core/state/collection-state";
-import { planAdoption, stateAfterAdoption, type AdoptDecision } from "../../../src/core/adopt/plan";
+import { countInSyncWindow, planAdoption, stateAfterAdoption, type AdoptDecision } from "../../../src/core/adopt/plan";
 import type { AdoptionSuggestion, CandidateNote, ServerItem } from "../../../src/core/adopt/match";
 import { parseContact } from "../../../src/core/vcard/contact";
 
@@ -112,5 +114,19 @@ describe("stateAfterAdoption", () => {
     const before = emptyState("acct/col1");
     const after = stateAfterAdoption(before, links, [], profile, new Date("2026-08-22T10:00:00Z"));
     expect(after.objects).toEqual({});
+  });
+});
+
+describe("countInSyncWindow (Rollout Teil B, Befund 3)", () => {
+  const ics = (uid: string, day: string) => `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//t//t//EN\r\nBEGIN:VEVENT\r\nUID:${uid}\r\nDTSTAMP:20260101T000000Z\r\nDTSTART:${day}T100000Z\r\nSUMMARY:X\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`;
+  const ev = (uid: string, day: string): ServerItem => ({ uid, href: `/d/${uid}.ics`, kind: "event", data: parseEvents(ics(uid, day))[0]!, raw: ics(uid, day), etag: '"e"' });
+  const w = windowFor(new Date("2026-10-18T12:00:00Z"), 90, 365);
+
+  it("zaehlt nur Termine im Sync-Fenster, nicht alle Server-Termine", () => {
+    const items = [ev("in1", "20261101"), ev("in2", "20260801"), ev("alt", "20190101"), ev("fern", "20300101")];
+    expect(countInSyncWindow(items, defaultEventProfile(), w)).toBe(2);
+  });
+  it("Kontakte liegen immer im Fenster", () => {
+    expect(countInSyncWindow([makeItem("a"), makeItem("b")], defaultContactProfile(), w)).toBe(2);
   });
 });

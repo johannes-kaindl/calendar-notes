@@ -3,6 +3,8 @@ import type { AdoptionSuggestion, ServerItem } from "./match";
 import type { CollectionState } from "../state/collection-state";
 import { upsertObject } from "../state/collection-state";
 import { hrefPath } from "../dav/url";
+import { objectInWindow } from "../mirror/apply";
+import type { Window } from "../mirror/window";
 
 export interface AdoptDecision {
   suggestion: AdoptionSuggestion;
@@ -58,4 +60,11 @@ export function stateAfterAdoption(state: CollectionState, links: LinkPlan[], it
     next = upsertObject(next, hrefPath(item.href), { uid: item.uid, etag: item.etag, raw: item.raw, written: {}, hash: "", notePath: link.path, at });
   }
   return next;
+}
+
+/** Wie viele Server-Eintraege der naechste Sync tatsaechlich spiegelt: Termine nur im Sync-Fenster
+ *  (`windowFor` aus den Einstellungen), Kontakte immer. Die Adoption zaehlt ALLE Termine des Servers —
+ *  ohne diese Zahl meldete sie 1148 „neue Notizen“, wo der Sync 29 anlegt (Pallas, Familienkalender). */
+export function countInSyncWindow(items: ServerItem[], profile: MappingProfile, fenster: Window): number {
+  return items.filter((i) => objectInWindow(profile.kind, i.raw, fenster)).length;
 }

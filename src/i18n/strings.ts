@@ -20,6 +20,7 @@ export const EN: Record<string, string> = {
   "adopt.summary": "{0} suggested match(es), {1} unmatched server item(s), {2} unmatched note(s).",
   "adopt.typeExcluded": "{0} note(s) in the folder with a differing type were not checked.",
   "adopt.unmatchedItems": "{0} new note(s) will be created on the next sync.",
+  "adopt.unmatchedItems.window": "{0} new note(s) will be created on the next sync. The other {1} server item(s) lie outside the sync window ({2} days back, {3} days ahead) and get no note.",
   "adopt.unmatchedNotes": "{0} note(s) remain untouched.",
 
   "cmd.adoptCollection": "Match existing notes…",
@@ -415,6 +416,7 @@ export const DE: Record<string, string> = {
   "adopt.summary": "{0} vorgeschlagene Zuordnung(en), {1} nicht zugeordnete(r) Server-Eintrag/-Einträge, {2} nicht zugeordnete Notiz(en).",
   "adopt.typeExcluded": "{0} Notiz(en) im Ordner mit abweichendem Typ wurden nicht geprüft.",
   "adopt.unmatchedItems": "{0} neue Notiz(en) entstehen beim nächsten Sync.",
+  "adopt.unmatchedItems.window": "{0} neue Notiz(en) entstehen beim nächsten Sync. Die übrigen {1} Server-Eintrag/-Einträge liegen außerhalb des Sync-Fensters ({2} Tage zurück, {3} Tage voraus) und bekommen keine Notiz.",
   "adopt.unmatchedNotes": "{0} Notiz(en) bleiben unberührt.",
 
   "cmd.adoptCollection": "Bestehende Notizen verknüpfen…",
