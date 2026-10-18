@@ -340,7 +340,7 @@ Notiz auflöst, die weder im Profil-Index noch im State steht, nennt ihren Pfad 
 
 ## Adoption und erster Abgleich
 
-Zuordnungsregeln (kein `sure` bei mehrfach getragenem Merkmal oder Namenswiderspruch), Verhalten des ersten Abgleichs nach einer Adoption (die Notiz gewinnt, nur einmal) und `attendees_extern`: `docs/ADOPTION.md`. Vor Arbeit an `src/core/adopt/` oder am ersten Abgleich lesen.
+Zuordnungsregeln (kein `sure` bei mehrfach getragenem Merkmal oder Namenswiderspruch), Verhalten des ersten Abgleichs nach einer Adoption (die Notiz gewinnt, nur einmal) und `attendees_extern`: Vault-Cockpit `_Intern/adoption-und-erster-abgleich.md`. Vor Arbeit an `src/core/adopt/` oder am ersten Abgleich lesen.
 ## Release-Checkliste
 
 Kurzfassung — Details in Vault-Cockpit `_Intern/RELEASE.md` (Ablauf) und `_Intern/STORE.md` (Scorecard-
