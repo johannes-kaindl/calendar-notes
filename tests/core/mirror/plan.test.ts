@@ -90,3 +90,73 @@ describe("planRemoval / planArchive", () => {
     expect(planArchive(p, note({ dav_uid: "u" }))).toEqual({ op: "archive", path: "Contacts/X.md", uid: "u", set: { dav_state: "archived" } });
   });
 });
+
+describe("planUpsert — erster Abgleich nach einer Adoption (Rollout Teil B, Befund 2)", () => {
+  const ident = { dav_uid: "u1", dav_source: "acc/kontakte", dav_etag: '"e0"', dav_state: "live" };
+  const org = { ...base, values: { fn: "Kim Test", email: "kim@example.test", org: "Bezirkskrankenhaus Augsburg" }, profile: { ...p, fields: { ...p.fields, org: "organisation" } } };
+  const note = (fm: Record<string, unknown>, body = "") => ({ path: base.path, frontmatter: { ...ident, ...fm }, body });
+
+  it("ein gefuellter, abweichender Notizwert wird nicht ueberschrieben, der Schluessel steht in handEdited", () => {
+    const pl = planUpsert({ ...org, firstAfterAdoption: true, existing: note({ title: "Kim Test", email: "alt@example.test", organisation: "Sparkasse Kissing" }) });
+    if (pl.op !== "update") throw new Error(pl.op);
+    expect(pl.set).not.toHaveProperty("email");
+    expect(pl.set).not.toHaveProperty("organisation");
+    expect(pl.set).toMatchObject({ dav_etag: '"e1"' });
+    expect(pl.handEdited.sort()).toEqual(["email", "organisation"]);
+    // written/hash beschreiben den Serverstand, damit push-hand-edits die Abweichung spaeter findet
+    expect(pl.written["email"]).toBe("kim@example.test");
+  });
+
+  it("Wikilink und Klartext gelten als gleich: weder Aenderung noch Hand-Edit", () => {
+    const pl = planUpsert({ ...org, firstAfterAdoption: true, existing: note({ title: "Kim Test", email: "kim@example.test", organisation: "[[Bezirkskrankenhaus Augsburg]]" }) });
+    if (pl.op !== "update") throw new Error(pl.op);
+    expect(pl.set).not.toHaveProperty("organisation");
+    expect(pl.handEdited).toEqual([]);
+  });
+
+  it("ein Wikilink mit Alias gilt als gleich, wenn der Anzeigetext uebereinstimmt, und als abweichend, wenn nicht", () => {
+    const gleich = planUpsert({ ...org, firstAfterAdoption: true, existing: note({ title: "Kim Test", email: "kim@example.test", organisation: "[[Orga/Bezirkskrankenhaus Augsburg|Bezirkskrankenhaus Augsburg]]" }) });
+    if (gleich.op !== "update") throw new Error(gleich.op);
+    expect(gleich.handEdited).toEqual([]);
+    const anders = planUpsert({ ...org, values: { ...org.values, org: "Sparkasse" }, firstAfterAdoption: true, existing: note({ title: "Kim Test", email: "kim@example.test", organisation: "[[x/Sparkasse Kissing|Sparkasse Kissing]]" }) });
+    if (anders.op !== "update") throw new Error(anders.op);
+    expect(anders.set).not.toHaveProperty("organisation");
+    expect(anders.handEdited).toEqual(["organisation"]);
+  });
+
+  it("leere Notizfelder werden gefuellt", () => {
+    const pl = planUpsert({ ...org, firstAfterAdoption: true, existing: note({ title: "Kim Test", email: "", organisation: null }) });
+    if (pl.op !== "update") throw new Error(pl.op);
+    expect(pl.set).toMatchObject({ email: "kim@example.test", organisation: "Bezirkskrankenhaus Augsburg" });
+    expect(pl.handEdited).toEqual([]);
+  });
+
+  it("ein Feld, das der Server nicht kennt, wird beim ersten Abgleich nicht geleert", () => {
+    const pl = planUpsert({ ...base, values: { fn: "Kim Test", email: "kim@example.test", tel_cell: null }, firstAfterAdoption: true, existing: note({ title: "Kim Test", email: "kim@example.test", phone_mobile: "123" }) });
+    expect(pl.op === "update" ? pl.unset : []).toEqual([]);
+  });
+
+  it("liegen nur Abweichungen vor, entsteht trotzdem ein update (Zustand und handEdited werden festgehalten), kein skip", () => {
+    const pl = planUpsert({ ...base, firstAfterAdoption: true, existing: { path: base.path, frontmatter: { ...ident, dav_etag: '"e1"', title: "Kim Test", email: "hand@example.test" }, body: wrap("- 📧 —: kim@example.test") } });
+    expect(pl.op).toBe("update");
+    if (pl.op !== "update") return;
+    expect(pl.set).toEqual({});
+    expect(pl.handEdited).toEqual(["email"]);
+    expect(pl.hash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("ohne Abweichung bleibt ein unveraenderter Stand ein skip, traegt aber written/hash fuer den State", () => {
+    const pl = planUpsert({ ...base, firstAfterAdoption: true, existing: { path: base.path, frontmatter: { ...ident, dav_etag: '"e1"', title: "Kim Test", email: "kim@example.test" }, body: wrap("- 📧 —: kim@example.test") } });
+    expect(pl.op).toBe("skip");
+    if (pl.op !== "skip") return;
+    expect(pl.hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(pl.written?.["email"]).toBe("kim@example.test");
+  });
+
+  it("ohne das Flag gewinnt der Server wie bisher (Gegenprobe)", () => {
+    const pl = planUpsert({ ...base, existing: note({ title: "Kim Test", email: "alt@example.test" }), prevWritten: {} });
+    if (pl.op !== "update") throw new Error(pl.op);
+    expect(pl.set).toMatchObject({ email: "kim@example.test" });
+  });
+});
+

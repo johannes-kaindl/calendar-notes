@@ -298,3 +298,38 @@ describe("applyDelta — todos", () => {
     expect(out.plans.some((x) => x.op === "create")).toBe(false);
   });
 });
+
+describe("applyDelta — erster Abgleich nach einer Adoption (Rollout Teil B, Befund 2)", () => {
+  const href = "https://s/k/c3.vcf";
+  const adopted = () =>
+    upsertObject(emptyState("acc/kon"), "/k/c3.vcf", { uid: "c3-1@test", etag: '"0"', raw: "", written: {}, hash: "", notePath: "Contacts/Florian.md", at: NOW.toISOString() });
+  const note: ExistingNote = { path: "Contacts/Florian.md", frontmatter: { dav_uid: "c3-1@test", dav_source: "acc/kon", dav_etag: '"0"', dav_state: "live", title: "Florian", email: "von-hand@example.test" }, body: "Meine Notizen" };
+  const run = (state = adopted(), n = note) =>
+    applyDelta({ profile: defaultContactProfile(), source: "acc/kon", now: NOW, state, lookup: lookupOf([n]), delta: delta({ changed: [{ href, etag: '"1"', data: fx("vcard", "v3-full.vcf") }], snapshot: { etags: { "/k/c3.vcf": '"1"' } } }) });
+
+  it("die gepflegte Notiz gewinnt: abweichende Felder bleiben, leere werden gefuellt, die Abweichung steht in handEdited", () => {
+    const r = run();
+    const pl = r.plans[0];
+    if (pl?.op !== "update") throw new Error(String(pl?.op));
+    expect(pl.set).not.toHaveProperty("email");
+    expect(pl.set).not.toHaveProperty("title");
+    expect(pl.set).toMatchObject({ dav_etag: '"1"' });
+    expect(pl.handEdited.sort()).toEqual(["email", "title"]);
+    expect(r.state.objects["/k/c3.vcf"]?.notes[""]?.hash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("danach ist der State initialisiert: der naechste Abgleich gilt nicht mehr als erster und der Server gewinnt wieder", () => {
+    const first = run();
+    const second = run(first.state);
+    const pl = second.plans[0];
+    if (pl?.op !== "update") throw new Error(String(pl?.op));
+    expect(pl.set).toMatchObject({ email: "praxis@example.test" });
+  });
+
+  it("ohne Adoption (State mit Hash) gewinnt der Server wie bisher", () => {
+    const state = upsertObject(emptyState("acc/kon"), "/k/c3.vcf", { uid: "c3-1@test", etag: '"0"', raw: "", written: { email: "alt@example.test" }, hash: "abc", notePath: note.path, at: NOW.toISOString() });
+    const pl = run(state).plans[0];
+    if (pl?.op !== "update") throw new Error(String(pl?.op));
+    expect(pl.set).toMatchObject({ email: "praxis@example.test" });
+  });
+});

@@ -123,7 +123,10 @@ export function applyDelta(i: ApplyInput): ApplyResult {
         }
         const path = existing?.path ?? freePath(i.profile, noteBasename(i.profile, it.data), it.uid, i.lookup, taken);
         taken.add(path);
-        const prevWritten = state.objects[hp]?.notes[rid]?.written;
+        const prevNote = state.objects[hp]?.notes[rid];
+        const prevWritten = prevNote?.written;
+        // Eine Adoption legt den State mit `hash: ""` an; solange der erste Abgleich noch aussteht, gewinnt die Notiz.
+        const firstAfterAdoption = existing !== undefined && prevNote !== undefined && prevNote.hash === "";
         let pl: NotePlan;
         try {
           pl = planUpsert({
@@ -139,6 +142,7 @@ export function applyDelta(i: ApplyInput): ApplyResult {
             ...(prevWritten ? { prevWritten } : {}),
             state: "live",
             now: i.now,
+            ...(firstAfterAdoption ? { firstAfterAdoption } : {}),
           });
         } catch (e) {
           // Beschaedigte Zone: diese Notiz wird nicht geschrieben (kein Plan, kein neuer etag), alle anderen laufen weiter.
@@ -149,8 +153,8 @@ export function applyDelta(i: ApplyInput): ApplyResult {
           continue;
         }
         push(pl);
-        const written = pl.op === "create" || pl.op === "update" ? pl.written : (state.objects[hp]?.notes[rid]?.written ?? {});
-        const hash = pl.op === "create" || pl.op === "update" ? pl.hash : (state.objects[hp]?.notes[rid]?.hash ?? "");
+        const written = pl.op === "create" || pl.op === "update" ? pl.written : (pl.op === "skip" && pl.written) || (state.objects[hp]?.notes[rid]?.written ?? {});
+        const hash = pl.op === "create" || pl.op === "update" ? pl.hash : (pl.op === "skip" && pl.hash) || (state.objects[hp]?.notes[rid]?.hash ?? "");
         state = upsertObject(state, hp, { uid: it.uid, etag: obj.etag, raw: obj.data, written, hash, notePath: pl.path, ...(it.recurrenceId ? { recurrenceId: it.recurrenceId } : {}), at });
       }
     } catch (e) {

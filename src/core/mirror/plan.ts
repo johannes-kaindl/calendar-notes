@@ -15,7 +15,7 @@ export interface ExistingNote {
 export type NotePlan =
   | { op: "create"; path: string; uid: string; recurrenceId?: string; frontmatter: Record<string, FmVal>; body: string; written: Record<string, FmVal>; hash: string }
   | { op: "update"; path: string; uid: string; recurrenceId?: string; set: Record<string, FmVal>; unset: string[]; body?: string; written: Record<string, FmVal>; hash: string; handEdited: string[] }
-  | { op: "skip"; path: string; uid: string; recurrenceId?: string; reason: "unchanged" | "already-archived" | "already-deleted" }
+  | { op: "skip"; path: string; uid: string; recurrenceId?: string; reason: "unchanged" | "already-archived" | "already-deleted"; written?: Record<string, FmVal>; hash?: string }
   | { op: "archive"; path: string; uid: string; set: Record<string, FmVal> }
   | { op: "delete"; path: string; uid: string; mode: "trash" | "mark"; set?: Record<string, FmVal> };
 
@@ -31,6 +31,14 @@ export interface UpsertInput {
   existing?: ExistingNote;
   prevWritten?: Record<string, FmVal>;
   state?: "live" | "archived";
+  /**
+   * Erster Abgleich einer Notiz, die eine Adoption verknuepft hat (State `hash: ""`): Die Notiz ist hier
+   * die Wahrheit. Ein gefuellter, abweichender Notizwert wird nicht vom Server ueberschrieben (Wikilink und
+   * Klartext gelten als gleich), der Schluessel steht in `handEdited`; leere Felder werden gefuellt, ein
+   * Feld, das der Server nicht kennt, wird nicht geleert. `written`/`hash` beschreiben weiter den Serverstand,
+   * damit `push-hand-edits` die Abweichung findet.
+   */
+  firstAfterAdoption?: boolean;
   /** Zeitpunkt des Anlegens fuer `{now}`/`{today}` in `onCreate`. Fehlt er, bleiben die Platzhalter stehen. */
   now?: Date;
 }
@@ -43,6 +51,11 @@ function generatedOnCreate(onCreate: Record<string, FmVal>, now: Date | undefine
     out[k] = typeof v === "string" ? v.replaceAll("{now}", localIso(now)).replaceAll("{today}", localDate(now)) : v;
   }
   return out;
+}
+
+function isFilled(v: unknown): boolean {
+  if (v === undefined || v === null || v === "") return false;
+  return !(Array.isArray(v) && v.length === 0);
 }
 
 export function planUpsert(i: UpsertInput): NotePlan {
@@ -79,13 +92,27 @@ export function planUpsert(i: UpsertInput): NotePlan {
     const next = nextEventStatus(p.eventStatusMap, rawStatus, fm[statusKey]);
     if (next !== undefined) effSet[statusKey] = next;
   }
-  const effUnset = unset.filter((k) => Object.hasOwn(fm, k) && fm[k] !== undefined);
+  let effUnset = unset.filter((k) => Object.hasOwn(fm, k) && fm[k] !== undefined);
+  const kept: string[] = [];
+  if (i.firstAfterAdoption) {
+    const system = new Set([p.uidField, p.sourceField, p.etagField, p.stateField, p.recurrenceIdField]);
+    if (statusKey) system.add(statusKey);
+    for (const k of Object.keys(effSet)) {
+      if (system.has(k) || !isFilled(fm[k])) continue;
+      // `effSet` enthaelt nur strikt abweichende Werte; locker gleich (Wikilink gegen Klartext) ist keine Abweichung.
+      if (!fmEquals(fm[k], set[k], { linkAware: true })) kept.push(k);
+      delete effSet[k];
+    }
+    effUnset = effUnset.filter((k) => system.has(k));
+  }
   const newBody = mergeBody(i.existing.body, i.block, p.body);
   const bodyChanged = newBody !== i.existing.body;
   const handEdited: string[] = [];
   if (i.prevWritten) for (const [k, v] of Object.entries(i.prevWritten)) if (!fmEquals(fm[k], v)) handEdited.push(k);
-  if (Object.keys(effSet).length === 0 && effUnset.length === 0 && !bodyChanged) {
-    return { op: "skip", path: i.existing.path, uid: i.uid, ...rid, reason: "unchanged" };
+  for (const k of kept) if (!handEdited.includes(k)) handEdited.push(k);
+  if (Object.keys(effSet).length === 0 && effUnset.length === 0 && !bodyChanged && kept.length === 0) {
+    // Beim ersten Abgleich nach einer Adoption traegt auch ein skip den Stand, sonst bliebe der State auf `hash: ""`.
+    return { op: "skip", path: i.existing.path, uid: i.uid, ...rid, reason: "unchanged", ...(i.firstAfterAdoption ? { written, hash } : {}) };
   }
   return { op: "update", path: i.existing.path, uid: i.uid, ...rid, set: effSet, unset: effUnset, ...(bodyChanged ? { body: newBody } : {}), written, hash, handEdited };
 }

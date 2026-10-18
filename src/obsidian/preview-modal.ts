@@ -58,6 +58,9 @@ export function summarizeRun(r: RunResult): RunSummary {
 
 const OPS: NotePlan["op"][] = ["create", "update", "archive", "delete", "skip"];
 
+/** So viele Notizen mit Hand-Edit-Schluesseln zeigt die Vorschau einzeln, der Rest steht als Zaehler. */
+const HAND_EDITED_ROWS = 20;
+
 /** Vorschau eines Trockenlaufs: Gesamtzahl, Zähler/Fehler je Sammlung, Zahlen je Operation,
  *  Hand-Edit-Hinweis. „Jetzt ausführen" ruft `onExecute` und schließt; „Schließen" schließt nur. */
 export class PreviewModal extends Modal {
@@ -93,7 +96,14 @@ export class PreviewModal extends Modal {
     }
 
     const handEdited = this.result.collections.reduce((n, c) => n + c.handEdited.length, 0);
-    if (handEdited > 0) this.contentEl.createEl("p", { text: t("preview.handEdited", handEdited) });
+    if (handEdited > 0) {
+      this.contentEl.createEl("p", { text: t("preview.handEdited", handEdited) });
+      this.contentEl.createEl("p", { text: t("preview.handEdited.hint"), cls: "setting-item-description" });
+      const rows = this.result.collections.flatMap((c) => c.handEdited);
+      const list = this.contentEl.createEl("ul");
+      for (const row of rows.slice(0, HAND_EDITED_ROWS)) list.createEl("li", { text: t("preview.handEdited.item", row.path, row.keys.join(", ")) });
+      if (rows.length > HAND_EDITED_ROWS) list.createEl("li", { text: t("preview.handEdited.more", rows.length - HAND_EDITED_ROWS) });
+    }
 
     const btns = this.contentEl.createDiv({ cls: "modal-button-container" });
     new ButtonComponent(btns).setButtonText(t("preview.close")).onClick(() => this.close());
