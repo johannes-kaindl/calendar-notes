@@ -10,6 +10,10 @@ All notable changes to this project are documented here. The format follows
 
 - **Attendees without a contact note go to their own field.** New event profiles carry a second server field, `attendees_extern`: with linking on, `attendees` holds only links to your contact notes, and every attendee who has no contact note lands there as plain text (`Name <mail>`), instead of plain text sitting between the links of a field your schema wants as a link list. No contact notes are created for them. Profiles you already have are not changed (they have no `attendees_extern` key, so nothing moves); to use it, add `"attendees_extern": "<your field>"` under `fields` in the profile JSON. “Create profile from the open note” maps a `teilnehmer_extern` field.
 
+### Fixed
+
+- **Linking existing notes no longer pairs the wrong contacts.** A shared e-mail address or phone number (a practice mailbox, a landline two people share) used to count as a sure match on its own, and several people sharing one address were paired in a ring. A feature that more than one server entry or note carries now never counts as sure, a name that contradicts the note title caps the match at “likely”, and the pairing prefers the entry whose name the note carries. A partial name (a note called “Florian” for “Dr. Florian Brandes”) is not a contradiction. The same name on several entries (duplicates) is never sure either.
+
 ## [0.4.1] — 2026-10-16
 
 ### Fixed

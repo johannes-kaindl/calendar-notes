@@ -25,6 +25,12 @@ describe("filename", () => {
     const c = parseContact("BEGIN:VCARD\nVERSION:3.0\nUID:u-1\nFN:\nEND:VCARD");
     expect(noteBasename(defaultContactProfile(), c)).toBe("u-1");
   });
+  it("der Dateiname folgt dem Server-FN wörtlich: ein FN „Buni Buni“ bleibt so, aus Vor- und Nachname setzt das Plugin nichts zusammen (Rollout Teil B, Befund 4)", () => {
+    const doppelt = parseContact("BEGIN:VCARD\nVERSION:3.0\nUID:u-2\nFN:Buni Buni\nN:Mustermann;Buni;;;\nEND:VCARD");
+    expect(noteBasename(defaultContactProfile(), doppelt)).toBe("Buni Buni");
+    const nurN = parseContact("BEGIN:VCARD\nVERSION:3.0\nUID:u-3\nN:Mustermann;Erika;;;\nEND:VCARD");
+    expect(noteBasename(defaultContactProfile(), nurN)).toBe("u-3");
+  });
   it("eine Aufgabe ohne DTSTART und ohne DUE bekommt einen Namen statt eines Wurfs", () => {
     const [t] = parseTodos(fx("ical", "todo-minimal.ics"));
     expect(noteBasename(defaultTodoProfile(), t!)).toBe("Irgendwann mal aufräumen");

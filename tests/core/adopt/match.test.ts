@@ -177,6 +177,80 @@ describe("matchItems — contacts", () => {
   });
 });
 
+describe("matchItems — contacts: Namenswiderspruch und mehrfach getragene Merkmale (Rollout Teil B, Befund 1)", () => {
+  const profile = defaultContactProfile();
+  const vcard = (uid: string, fn: string, lines = ""): ServerItem =>
+    contactItem(`BEGIN:VCARD\r\nVERSION:3.0\r\nUID:${uid}\r\nFN:${fn}\r\n${lines}END:VCARD\r\n`, `/dav/${uid}.vcf`);
+  const byHref = (r: ReturnType<typeof matchItems>, href: string) => r.suggestions.find((s) => s.item.href === href);
+
+  it("eine gemeinsame E-Mail dreier Server-Eintraege ordnet nicht reihum zu: jede Notiz bekommt den Eintrag ihres Namens", () => {
+    const mail = "EMAIL:info@mvz-am-marktplatz.de\r\n";
+    const items = [vcard("mvz", "MVZ am Marktplatz", mail), vcard("brandes", "Dr. Florian Brandes", mail), vcard("falkner", "Dr. Christine Falkner", mail)];
+    const notes = [
+      note("K/Dr. Christine Falkner.md", { email: "info@mvz-am-marktplatz.de" }),
+      note("K/MVZ am Marktplatz.md", { email: "info@mvz-am-marktplatz.de" }),
+      note("K/Dr. Florian Brandes.md", { email: "info@mvz-am-marktplatz.de" }),
+    ];
+    const r = matchItems(items, notes, { profile });
+    expect(r.suggestions).toHaveLength(3);
+    expect(byHref(r, "/dav/mvz.vcf")?.note.basename).toBe("MVZ am Marktplatz");
+    expect(byHref(r, "/dav/brandes.vcf")?.note.basename).toBe("Dr. Florian Brandes");
+    expect(byHref(r, "/dav/falkner.vcf")?.note.basename).toBe("Dr. Christine Falkner");
+    for (const s of r.suggestions) expect(s.reason).toBe("name");
+  });
+
+  it("ein gemeinsames Festnetz zweier Eintraege ist kein sure-Merkmal und ordnet Johannes nicht Astrid zu", () => {
+    const tel = "TEL;TYPE=HOME:+49 8233 123456\r\n";
+    const items = [vcard("astrid", "Astrid Kaindl", tel), vcard("johannes", "Johannes Kaindl", tel)];
+    const notes = [note("K/Johannes Kaindl.md", { telefon: "+49 8233 123456" })];
+    const r = matchItems(items, notes, { profile });
+    expect(r.suggestions).toHaveLength(1);
+    expect(r.suggestions[0]?.item.uid).toBe("johannes");
+    const nur = matchItems([items[0] as ServerItem], notes, { profile });
+    expect(nur.suggestions[0]?.confidence).not.toBe("sure");
+  });
+
+  it("widerspricht der Name, ist ein eindeutiges Merkmal hoechstens likely (Praxis-Mail gegen Dr. Lange)", () => {
+    const items = [vcard("lange", "Dr. Florian Lange", "EMAIL:praxis@kurpark.example\r\n")];
+    const notes = [note("K/KIRINUS Praxis Am Kurpark.md", { email: "praxis@kurpark.example" })];
+    const r = matchItems(items, notes, { profile });
+    expect(r.suggestions).toHaveLength(1);
+    expect(r.suggestions[0]?.reason).toBe("email");
+    expect(r.suggestions[0]?.confidence).toBe("likely");
+  });
+
+  it("ein Teilname gilt nicht als Widerspruch: Notiz „Florian“ mit eindeutiger Mail bleibt sure", () => {
+    const items = [vcard("fb", "Dr. Florian Brandes", "EMAIL:fb@example.test\r\n")];
+    const notes = [note("K/Florian.md", { email: "fb@example.test" })];
+    expect(matchItems(items, notes, { profile }).suggestions[0]?.confidence).toBe("sure");
+  });
+
+  it("die Notiz Unknown mit nur der Handynummer von Johannes wird ihm nicht als sure zugeordnet", () => {
+    const items = [vcard("johannes", "Johannes Kaindl", "TEL;TYPE=CELL:+49 171 6922233\r\n")];
+    const notes = [note("K/Unknown.md", { mobil: "+49 171 6922233" }), note("K/Johannes Kaindl.md", { mobil: "+49 171 6922233" })];
+    const r = matchItems(items, notes, { profile });
+    expect(r.suggestions).toHaveLength(1);
+    expect(r.suggestions[0]?.note.basename).toBe("Johannes Kaindl");
+    expect(r.unmatchedNotes.map((n) => n.basename)).toEqual(["Unknown"]);
+  });
+
+  it("HC24 und HC24 Augsburg mit gemeinsamer Mail werden nicht vertauscht", () => {
+    const mail = "EMAIL:hc24@example.test\r\n";
+    const items = [vcard("a", "HC24 Augsburg", mail), vcard("b", "HC24", mail)];
+    const notes = [note("K/HC24.md", { email: "hc24@example.test" }), note("K/HC24 Augsburg.md", { email: "hc24@example.test" })];
+    const r = matchItems(items, notes, { profile });
+    expect(byHref(r, "/dav/a.vcf")?.note.basename).toBe("HC24 Augsburg");
+    expect(byHref(r, "/dav/b.vcf")?.note.basename).toBe("HC24");
+  });
+
+  it("gleicher Name bei zwei Eintraegen und zwei Notizen ist nie sure (Dubletten wie Buni Buni)", () => {
+    const items = [vcard("b1", "Buni Buni"), vcard("b2", "Buni Buni")];
+    const notes = [note("K/Buni Buni.md", {}), note("K/Buni Buni 2.md", {})];
+    const r = matchItems(items, notes, { profile });
+    expect(r.suggestions.every((s) => s.confidence !== "sure")).toBe(true);
+  });
+});
+
 describe("matchItems — events", () => {
   const profile = defaultEventProfile();
   const ics = read("ical/attendees.ics"); // UID att-1@test, SUMMARY Planung, DTSTART 20260910T120000Z

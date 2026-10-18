@@ -181,6 +181,31 @@ function bestNameSim(name: string, note: CandidateNote, aliasesKey: string): num
   return candidates.reduce((max, c) => Math.max(max, nameSimilarity(name, c)), 0);
 }
 
+/** Ein Name WIDERSPRICHT dem Server-Namen nur, wenn er weder aehnlich (>= 0.7) noch ein Teilname ist: „Florian“
+ *  gegen „Dr. Florian Brandes“ ist unvollstaendig, „Unknown“ gegen „Johannes Kaindl“ ein Widerspruch. */
+const NAME_CONSISTENT_MIN = 0.7;
+
+function nameIsSubset(a: string, b: string): boolean {
+  const ta = withoutHonorifics(nameTokens(normalizeName(a)));
+  const tb = withoutHonorifics(nameTokens(normalizeName(b)));
+  if (ta.length === 0 || tb.length === 0) return false;
+  const [small, big] = ta.length <= tb.length ? [ta, tb] : [tb, ta];
+  const bigSet = new Set(big);
+  return small.every((t) => bigSet.has(t));
+}
+
+function nameCandidates(note: CandidateNote, aliasesKey: string): string[] {
+  const out: string[] = [note.basename];
+  const title = note.frontmatter["title"];
+  if (typeof title === "string") out.push(title);
+  collectStrings(note.frontmatter[aliasesKey], out);
+  return out;
+}
+
+function nameConsistent(name: string, note: CandidateNote, aliasesKey: string, sim: number): boolean {
+  return sim >= NAME_CONSISTENT_MIN || nameCandidates(note, aliasesKey).some((c) => nameIsSubset(name, c));
+}
+
 // Termin-Notizen sind haeufig datumsgepraegt benannt ("2026-09-01 Zahnärztin.md" bzw. mit Uhrzeit
 // "2026-09-01T09-00 Zahnärztin.md") — das Datum/die Uhrzeit gehoert nicht zum Titel und wuerde den
 // Namensvergleich sonst unnoetig verwaessern.
@@ -243,38 +268,54 @@ interface MatchCtx {
   aliasesKey: string;
 }
 
-function computeMatch(item: ServerItem, note: CandidateNote, ctx: MatchCtx): { reason: MatchReason; confidence: MatchConfidence; detail: string } | null {
-  if (item.kind === "contact") {
-    const c = item.data as ContactData;
-    const itemEmails = c.emails.map((e) => e.value.toLowerCase()).filter((v) => v.length > 0);
-    const nEmails = noteEmails(note, ctx.profile);
-    for (const e of itemEmails) if (nEmails.includes(e)) return { reason: "email", confidence: "sure", detail: e };
-    const itemTels = c.tels.map((t) => normalizePhone(t.value)).filter((v): v is string => v !== null);
-    const nTels = noteTels(note, ctx.profile);
-    for (const t of itemTels) if (nTels.includes(t)) return { reason: "phone", confidence: "sure", detail: t };
-    const sim = bestNameSim(c.fn, note, ctx.aliasesKey);
-    if (sim >= 0.95) return { reason: "name", confidence: "sure", detail: sim.toFixed(2) };
-    if (sim >= ctx.nameThreshold) return { reason: "name", confidence: "likely", detail: sim.toFixed(2) };
-    if (sim >= 0.7) return { reason: "name", confidence: "weak", detail: sim.toFixed(2) };
-    return null;
+interface ContactSignals {
+  /** Gemeinsame Merkmale in Praezedenz E-Mail vor Telefon, mit Praefix als Zaehlschluessel. */
+  hits: { reason: "email" | "phone"; value: string }[];
+  nameSim: number;
+  nameConsistent: boolean;
+}
+
+function contactSignals(item: ServerItem, note: CandidateNote, ctx: MatchCtx): ContactSignals | null {
+  const c = item.data as ContactData;
+  const hits: ContactSignals["hits"] = [];
+  const nEmails = noteEmails(note, ctx.profile);
+  for (const e of c.emails.map((x) => x.value.toLowerCase()).filter((v) => v.length > 0)) {
+    if (nEmails.includes(e)) hits.push({ reason: "email", value: e });
   }
+  const nTels = noteTels(note, ctx.profile);
+  for (const t of c.tels.map((x) => normalizePhone(x.value)).filter((v): v is string => v !== null)) {
+    if (nTels.includes(t)) hits.push({ reason: "phone", value: t });
+  }
+  const nameSim = bestNameSim(c.fn, note, ctx.aliasesKey);
+  if (hits.length === 0 && nameSim < 0.7) return null;
+  return { hits, nameSim, nameConsistent: nameConsistent(c.fn, note, ctx.aliasesKey, nameSim) };
+}
+
+interface EventMatch {
+  reason: MatchReason;
+  confidence: MatchConfidence;
+  detail: string;
+  score: number;
+}
+
+function computeEventMatch(item: ServerItem, note: CandidateNote, ctx: MatchCtx): EventMatch | null {
   const e = item.data as EventData;
   const noteMoment = noteEventMoment(note, ctx.profile);
   const serverMoment = parseEventMoment(e.start);
   if (!noteMoment || !serverMoment || noteMoment.date !== serverMoment.date) return null;
   if (e.allDay) {
     const titleSim = bestTitleSim(e.summary, note);
-    if (titleSim >= 0.6) return { reason: "start+title", confidence: "likely", detail: titleSim.toFixed(2) };
-    return { reason: "start+title", confidence: "weak", detail: titleSim.toFixed(2) };
+    if (titleSim >= 0.6) return { reason: "start+title", confidence: "likely", detail: titleSim.toFixed(2), score: titleSim };
+    return { reason: "start+title", confidence: "weak", detail: titleSim.toFixed(2), score: titleSim };
   }
   if (noteMoment.minutes === null || serverMoment.minutes === null) return null;
   const diff = Math.abs(noteMoment.minutes - serverMoment.minutes);
   if (diff === 0) {
     const titleSim = bestTitleSim(e.summary, note);
-    if (titleSim >= 0.6) return { reason: "start+title", confidence: "likely", detail: titleSim.toFixed(2) };
-    return { reason: "start+title", confidence: "weak", detail: titleSim.toFixed(2) };
+    if (titleSim >= 0.6) return { reason: "start+title", confidence: "likely", detail: titleSim.toFixed(2), score: titleSim };
+    return { reason: "start+title", confidence: "weak", detail: titleSim.toFixed(2), score: titleSim };
   }
-  if (diff <= START_TOLERANCE_MINUTES) return { reason: "start+title", confidence: "weak", detail: `Δ${diff}min` };
+  if (diff <= START_TOLERANCE_MINUTES) return { reason: "start+title", confidence: "weak", detail: `Δ${diff}min`, score: 0 };
   return null;
 }
 
@@ -288,6 +329,63 @@ interface Pair {
   reason: MatchReason;
   confidence: MatchConfidence;
   detail: string;
+  /** Namensaehnlichkeit (Kontakte) bzw. Titelaehnlichkeit (Termine): Tie-Break innerhalb einer Konfidenzstufe. */
+  score: number;
+}
+
+/** Zaehlt je Merkmalswert, wie viele verschiedene Server-Eintraege und Notizen ihn tragen. Ein Merkmal, das
+ *  mehr als einer Seite gehoert (Sammel-Mailbox, gemeinsames Festnetz), identifiziert niemanden. */
+function holderCounts(signals: { item: ServerItem; note: CandidateNote; sig: ContactSignals }[]): Map<string, { items: Set<ServerItem>; notes: Set<CandidateNote> }> {
+  const out = new Map<string, { items: Set<ServerItem>; notes: Set<CandidateNote> }>();
+  for (const { item, note, sig } of signals) {
+    for (const h of sig.hits) {
+      const key = `${h.reason}:${h.value}`;
+      const e = out.get(key) ?? { items: new Set(), notes: new Set() };
+      e.items.add(item);
+      e.notes.add(note);
+      out.set(key, e);
+    }
+  }
+  return out;
+}
+
+const NAME_SURE = 0.95;
+
+function contactConfidences(
+  all: { item: ServerItem; itemIdx: number; note: CandidateNote; noteIdx: number; sig: ContactSignals }[],
+  nameThreshold: number,
+): Pair[] {
+  const holders = holderCounts(all);
+  // Mehrdeutiger Name: derselbe Name steht bei mehreren Eintraegen bzw. Notizen (Dubletten).
+  const sureNameItemsPerNote = new Map<CandidateNote, number>();
+  const sureNameNotesPerItem = new Map<ServerItem, number>();
+  for (const { item, note, sig } of all) {
+    if (sig.nameSim < NAME_SURE) continue;
+    sureNameItemsPerNote.set(note, (sureNameItemsPerNote.get(note) ?? 0) + 1);
+    sureNameNotesPerItem.set(item, (sureNameNotesPerItem.get(item) ?? 0) + 1);
+  }
+  const out: Pair[] = [];
+  for (const { item, itemIdx, note, noteIdx, sig } of all) {
+    let best: { reason: MatchReason; confidence: MatchConfidence; detail: string } | null = null;
+    const consider = (c: { reason: MatchReason; confidence: MatchConfidence; detail: string }): void => {
+      if (best === null || CONFIDENCE_RANK[c.confidence] > CONFIDENCE_RANK[best.confidence]) best = c;
+    };
+    for (const h of sig.hits) {
+      const held = holders.get(`${h.reason}:${h.value}`);
+      const unique = held !== undefined && held.items.size === 1 && held.notes.size === 1;
+      const confidence: MatchConfidence = unique ? (sig.nameConsistent ? "sure" : "likely") : sig.nameConsistent ? "likely" : "weak";
+      consider({ reason: h.reason, confidence, detail: h.value });
+    }
+    if (sig.nameSim >= NAME_SURE) {
+      const mehrdeutig = (sureNameItemsPerNote.get(note) ?? 0) > 1 || (sureNameNotesPerItem.get(item) ?? 0) > 1;
+      consider({ reason: "name", confidence: mehrdeutig ? "likely" : "sure", detail: sig.nameSim.toFixed(2) });
+    } else if (sig.nameSim >= nameThreshold) consider({ reason: "name", confidence: "likely", detail: sig.nameSim.toFixed(2) });
+    else if (sig.nameSim >= 0.7) consider({ reason: "name", confidence: "weak", detail: sig.nameSim.toFixed(2) });
+    if (best === null) continue;
+    const b: { reason: MatchReason; confidence: MatchConfidence; detail: string } = best;
+    out.push({ item, itemIdx, note, noteIdx, reason: b.reason, confidence: b.confidence, detail: b.detail, score: sig.nameSim });
+  }
+  return out;
 }
 
 export function matchItems(
@@ -297,14 +395,22 @@ export function matchItems(
 ): { suggestions: AdoptionSuggestion[]; unmatchedItems: ServerItem[]; unmatchedNotes: CandidateNote[] } {
   const ctx: MatchCtx = { profile: opts.profile, nameThreshold: opts.nameThreshold ?? 0.85, aliasesKey: opts.aliasesKey ?? "aliases" };
   const pairs: Pair[] = [];
+  const contactSigs: { item: ServerItem; itemIdx: number; note: CandidateNote; noteIdx: number; sig: ContactSignals }[] = [];
   items.forEach((item, itemIdx) => {
     notes.forEach((note, noteIdx) => {
-      const m = computeMatch(item, note, ctx);
-      if (m) pairs.push({ item, itemIdx, note, noteIdx, ...m });
+      if (item.kind === "contact") {
+        const sig = contactSignals(item, note, ctx);
+        if (sig) contactSigs.push({ item, itemIdx, note, noteIdx, sig });
+      } else {
+        const m = computeEventMatch(item, note, ctx);
+        if (m) pairs.push({ item, itemIdx, note, noteIdx, ...m });
+      }
     });
   });
-  // Beste Konfidenz gewinnt zuerst; bei gleicher Konfidenz entscheidet die Item-Reihenfolge.
-  pairs.sort((a, b) => CONFIDENCE_RANK[b.confidence] - CONFIDENCE_RANK[a.confidence] || a.itemIdx - b.itemIdx || a.noteIdx - b.noteIdx);
+  pairs.push(...contactConfidences(contactSigs, ctx.nameThreshold));
+  // Beste Konfidenz gewinnt zuerst; innerhalb einer Stufe der aehnlichere Name (so entsteht bei gemeinsamen
+  // Merkmalen kein Ring: jede Notiz bekommt zuerst den Eintrag, dessen Namen sie traegt), danach die Reihenfolge.
+  pairs.sort((a, b) => CONFIDENCE_RANK[b.confidence] - CONFIDENCE_RANK[a.confidence] || b.score - a.score || a.itemIdx - b.itemIdx || a.noteIdx - b.noteIdx);
   const usedItems = new Set<ServerItem>();
   const usedNotes = new Set<CandidateNote>();
   const chosen: Pair[] = [];
