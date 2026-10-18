@@ -1,4 +1,4 @@
-// vendored from code-kit@0.28.2, src/ts/pure/filename-template.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.31.0, src/ts/pure/filename-template.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** Konfigurierbares Dateinamen-Schema: `{platzhalter}` auflösen, das Ergebnis auf
  *  dateisystem- und Obsidian-sichere Zeichen bringen, und über eine Fallback-Kette
  *  absichern, dass kein leerer Dateiname entsteht. Obsidian-frei (PROF-OBS-03/04) und

@@ -1,10 +1,10 @@
-// vendored from code-kit@0.28.2, src/ts/pure/marker-zone.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.31.0, src/ts/pure/marker-zone.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** Finds, wraps and defends a **managed zone** in a note: a block between two marker lines that a sync or an importer owns and
  *  replaces, with text before and after it that belongs to the user.
  *
  *  Origin: calendar-notes `src/core/mirror/body.ts` (`splitBody`, `%% dav:begin %%`), mailstone `src/core/merge/fences.ts`
  *  (`splitBody`, `wrapBlock`, `%% mailstone:begin %%`) and finance-ledger `src/core/notes/markers.ts` (`splitBody`,
- *  `<!-- BEGIN: AUTO-GENERATED -->`). Three copies of one idea with three different answers to the same questions. What is fixed
+ *  `<!-- BEGIN: AUTO-GENERATED -->`). Three copies of one idea (five, with the two in yijing-oracle) with different answers to the same questions. What is fixed
  *  here, and why:
  *
  *  0. Five copies exist, not three: yijing-oracle `src/core/llm/insert.ts` and `src/core/artwork.ts` find a zone with `indexOf` on

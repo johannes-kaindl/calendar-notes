@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.61.0, src/pure/tool-provider.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.63.0, src/pure/tool-provider.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** Vertrag `tool-provider` — ein Plugin bietet seine Fähigkeiten als LLM-Werkzeuge an, ein Wirt mit
  *  Agenten-Loop (koda-agent, später vault-crews) montiert sie, statt sie nachzubauen. Stern statt Netz:
  *  N Anbieter, 2 Wirte, ein Vertrag. Muster `pure/endpoint-source.ts`: EINE Quelle, der Anbieter

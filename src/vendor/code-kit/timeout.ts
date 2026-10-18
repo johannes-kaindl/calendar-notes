@@ -1,4 +1,4 @@
-// vendored from code-kit@0.28.2, src/ts/pure/timeout.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.31.0, src/ts/pure/timeout.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** Timer-Port für `withTimeout`. Strukturell erfüllt von `ClockPort` (`obsidian/clock`),
  *  von `window` selbst und von einem Fake im Test. Bewusst injiziert statt `setTimeout`
  *  direkt zu rufen: vendorierter Kit-Code wird vom Lint des Consumers erfasst, und

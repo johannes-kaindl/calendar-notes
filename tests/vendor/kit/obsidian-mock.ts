@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.61.0, src/testing/obsidian-mock.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.63.0, src/testing/obsidian-mock.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Self-contained Obsidian test double for obsidian-kit.
 // - Zero external imports (NOT from "obsidian", NOT from "vitest").
 // - Consumed via vitest `resolve.alias` as a drop-in for `import ... from "obsidian"`,
@@ -203,7 +203,12 @@ export function makeFakeEl(tagName = "DIV"): any {
       if (arr) { const i = arr.indexOf(cb); if (i >= 0) arr.splice(i, 1); }
     },
     dispatchEvent: (evt: any) => { (listeners[evt?.type] ?? []).forEach((cb) => cb(evt)); return true; },
-    click: () => { (listeners["click"] ?? []).forEach((cb) => cb()); },
+    /** Löst die Click-Handler mit einem Minimal-Ereignis aus (`preventDefault`/`stopPropagation`, 0.63.0): Kit-Module,
+     *  die einen Klick abfangen (Kopier-Knopf im `<summary>` des Denkblocks), rufen beides ohne Prüfung auf. */
+    click: () => {
+      const evt = { type: "click", defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, stopPropagation() {} };
+      (listeners["click"] ?? []).forEach((cb) => cb(evt));
+    },
 
     // Permissive guard stub (markdown-presentation): refine per test if needed.
     instanceOf: (_type: any) => true,
@@ -847,6 +852,7 @@ export function normalizePath(path: string): string {
   const out = String(path)
     .replace(/\\/g, "/")
     .replace(/\/{2,}/g, "/")
+    .replace(/^\/+/, "")   // seit 0.61.1 wie Obsidian: „/a“ → „a“ (vorher blieb der führende Schrägstrich)
     .replace(/^\.\//, "")
     .replace(/\/$/, "")
     .trim();
@@ -985,13 +991,107 @@ export class App {
 }
 
 // ---------------------------------------------------------------------------
-// Type-only exports (no runtime stub; not part of MockStubs).
+// Weitere benannte Exporte: Typen ohne Laufzeit-Stub (`PluginManifest`) und die Klassen/Objekte, die `defaultStubs` unten trägt.
 // ---------------------------------------------------------------------------
-/** Lebensdauer-Anker für `MarkdownRenderer.render`; im Mock ohne Wirkung. */
+/** Lebensdauer-Anker für `MarkdownRenderer.render`; im Mock ohne Wirkung. Die `register*`-Methoden und `addChild` (seit 0.61.1) liegen wie in
+ *  Obsidian auf der Basisklasse und tun nichts; ein Test, der Abmeldung prüft, überschreibt sie. */
 export class Component {
   load(): void {}
   unload(): void {}
+  register(_cb: () => unknown): void {}
+  registerEvent(_ref: unknown): void {}
+  registerDomEvent(..._args: unknown[]): void {}
+  registerInterval(id: number): number { return id; }
+  addChild<T>(child: T): T { return child; }
 }
+
+/** Basisklasse eines Codeblock-Kindes (`registerMarkdownCodeBlockProcessor`). Seit 0.61.1 im Kit-Mock; vorher trugen health-vitals und
+ *  3d-codeblocks eigene Stubs. */
+export class MarkdownRenderChild extends Component {
+  containerEl: any;
+  constructor(containerEl: any) {
+    super();
+    this.containerEl = containerEl;
+  }
+  onload(): void {}
+  onunload(): void {}
+}
+
+const MOMENT_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const MOMENT_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const pad = (n: number, w = 2): string => String(n).padStart(w, "0");
+const dayOfYear = (d: Date): number => Math.round((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(d.getFullYear(), 0, 0)) / 86400000);
+/** ISO-Woche (Montag als Wochenbeginn, Woche 1 enthält den 4. Januar), wie `moment` `W`/`WW`. */
+function isoWeek(d: Date): number {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
+  return Math.ceil(((t.getTime() - Date.UTC(t.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7);
+}
+const ordinal = (n: number): string => {
+  const r = n % 100;
+  if (r >= 11 && r <= 13) return `${n}th`;
+  return `${n}${({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th"}`;
+};
+/** Tokens von `moment`, die dieser Mock NICHT nachbildet: ein Format mit einem von ihnen wirft, statt still etwas Falsches zu liefern. */
+const MOMENT_UNSUPPORTED = /^(?:Mo|DDDo|do|w[ow]?|Wo|Qo|N{1,5}|y{1,4}o?|YYYYY|YYYYYY|gg(?:ggg?)?|GG(?:GGG?)?|e|E|kk?|S{1,9}|x|X|zz?|ZZ?|L{1,4}|l{1,4}|LT|LTS|lt|lts)$/;
+const MOMENT_TOKEN_RE = /\[[^\[]*\]|Mo|MM?M?M?|DDDo|Do|DD?D?D?|ddd?d?|do?|w[ow]?|Wo|WW?|Qo|Q|N{1,5}|YYYYYY|YYYYY|YYYY|YY|y{1,4}o?|gg(?:ggg?)?|GG(?:GGG?)?|e|E|a|A|hh?|HH?|kk?|mm?|ss?|S{1,9}|x|X|zz?|ZZ?|LTS|LT|L{1,4}|lts|lt|l{1,4}/g;
+function momentFormat(d: Date, fmt: string): string {
+  const h12 = d.getHours() % 12 === 0 ? 12 : d.getHours() % 12;
+  return fmt.replace(MOMENT_TOKEN_RE, (tok: string): string => {
+    if (tok.startsWith("[")) return tok.slice(1, -1);
+    if (MOMENT_UNSUPPORTED.test(tok)) throw new Error(`moment-Mock: Token "${tok}" wird nicht nachgebildet; das echte Paket nehmen oder moment im eigenen Mock überschreiben`);
+    switch (tok) {
+      case "YYYY": return pad(d.getFullYear(), 4);
+      case "YY": return pad(d.getFullYear() % 100);
+      case "Q": return String(Math.ceil((d.getMonth() + 1) / 3));
+      case "MMMM": return MOMENT_MONTHS[d.getMonth()] ?? "";
+      case "MMM": return (MOMENT_MONTHS[d.getMonth()] ?? "").slice(0, 3);
+      case "MM": return pad(d.getMonth() + 1);
+      case "M": return String(d.getMonth() + 1);
+      case "WW": return pad(isoWeek(d));
+      case "W": return String(isoWeek(d));
+      case "DDDD": return pad(dayOfYear(d), 3);
+      case "DDD": return String(dayOfYear(d));
+      case "DD": return pad(d.getDate());
+      case "D": return String(d.getDate());
+      case "Do": return ordinal(d.getDate());
+      case "dddd": return MOMENT_DAYS[d.getDay()] ?? "";
+      case "ddd": return (MOMENT_DAYS[d.getDay()] ?? "").slice(0, 3);
+      case "dd": return (MOMENT_DAYS[d.getDay()] ?? "").slice(0, 2);
+      case "d": return String(d.getDay());
+      case "HH": return pad(d.getHours());
+      case "H": return String(d.getHours());
+      case "hh": return pad(h12);
+      case "h": return String(h12);
+      case "mm": return pad(d.getMinutes());
+      case "m": return String(d.getMinutes());
+      case "ss": return pad(d.getSeconds());
+      case "s": return String(d.getSeconds());
+      case "A": return d.getHours() < 12 ? "AM" : "PM";
+      case "a": return d.getHours() < 12 ? "am" : "pm";
+      default: return tok;
+    }
+  });
+}
+
+/** Teilmenge von Obsidians `moment` (englisch, Ortszeit): `moment(date?).format(fmt)` mit `YYYY YY Q MMMM MMM MM M WW W DDDD DDD DD D Do dddd ddd dd d
+ *  HH H hh h mm m ss s A a` und `[Literal]` — genug für das Datumsformat der Daily Notes. **Ein Token, das der Mock nicht kennt (`w`, `gggg`, `x`, `LL` …),
+ *  wirft** statt es roh durchzureichen: still falsche Ausgabe ließe einen Test den Mock prüfen statt den Prüfling. Die unterstützten Tokens sind in
+ *  `tests/daily-notes.test.ts` gegen das echte Paket gemessen. Wer mehr braucht, überschreibt `moment` im eigenen `tests/__mocks__/obsidian.ts`
+ *  (das echte Paket kommt mit `obsidian` ins `node_modules`; der Mock selbst bleibt ohne externe Importe). `moment.locale()` liefert `"en"`. */
+export function moment(input?: Date | number | string, format?: string, strict?: boolean): { format(fmt?: string): string; toDate(): Date; valueOf(): number; isValid(): boolean } {
+  // Die Parse-Form `moment(text, format, strict)` (kuro-gamification `VaultReader`) kennt der Mock nicht: ein stilles `new Date(text)` ließe
+  // einen Test den Mock prüfen statt den Prüfling. Wer parst, überschreibt `moment` im eigenen Mock (echtes Paket).
+  if (format !== undefined) throw new Error(`obsidian-mock: moment(${JSON.stringify(input)}, ${JSON.stringify(format)}, ${String(strict)}) parst nicht nach — moment im eigenen Mock überschreiben.`);
+  const d = input === undefined ? new Date() : new Date(input);
+  return {
+    format: (fmt = "YYYY-MM-DDTHH:mm:ss") => momentFormat(d, fmt),
+    toDate: () => new Date(d.getTime()),
+    valueOf: () => d.getTime(),
+    isValid: () => !Number.isNaN(d.getTime()),
+  };
+}
+moment.locale = (_name?: string): string => "en";
 
 /** `render` schreibt den Markdown als Text ins Element (kein Parser im Mock); Tests ersetzen `render`. */
 export const MarkdownRenderer = {
@@ -1022,6 +1122,9 @@ export interface MarkdownPostProcessorContext {
 // named exports and the factory defaults can never drift apart.
 // ---------------------------------------------------------------------------
 export const defaultStubs = {
+  // Lebensdauer-Anker und Markdown-Renderer (seit 0.61.1 hier, vorher nur benannte Exporte)
+  Component,
+  MarkdownRenderer,
   // base (>=4/5)
   Notice,
   Plugin,
@@ -1068,6 +1171,9 @@ export const defaultStubs = {
   getLanguage,
   setCssStyles,
   debounce,
+  // seit 0.61.1
+  moment,
+  MarkdownRenderChild,
 };
 
 export type MockStubs = typeof defaultStubs;

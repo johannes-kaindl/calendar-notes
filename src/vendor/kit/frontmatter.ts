@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.61.0, src/pure/frontmatter.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.63.0, src/pure/frontmatter.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // frontmatter.ts — yaml_lite: flache Skalare + einfache Listen. Kein obsidian-Import.
 //
 // Gehoben aus vault-rag/src/frontmatter.ts (Serialisier-/Parse-Pfad); die smart-apply-
@@ -194,16 +194,65 @@ export function serializeFrontmatter(data: Record<string, FmValue>, order: strin
   return lines.join("\n") + "\n";
 }
 
-/** Wertgleichheit für FmValue. Skalare werden über String(v) verglichen — ein `number`
- *  199801046 gilt als gleich zum reparsten String "199801046" (siehe Typ-Asymmetrie). */
-export function valueEquals(a: FmValue | undefined, b: FmValue | undefined): boolean {
-  if (a === undefined || b === undefined) return a === b;
+/** Anzeigetext eines Wikilinks, der den GANZEN Wert ausmacht — die Entlinkung, die ein Spiegel (calendar-notes) oder eine Vorlesefunktion
+ *  (audio-interface) braucht, um einen Link-Wert mit seinem Klartext zu vergleichen:
+ *  `[[Ordner/Name|Alias]]` → `Alias`, `[[Ordner/Name]]` → `Name` (letztes Pfadsegment), `[[Name#Abschnitt]]` → `Name` (der `#…`-Teil entfällt),
+ *  `[[#Abschnitt]]` → `Abschnitt` (kein Name da, dann der Abschnitt). Alles, was kein einzelner Wikilink ist, kommt **unverändert** zurück
+ *  (Klartext, eine Liste von Links, Text mit einem Link darin). Ein leerer Alias (`[[a|]]`) zählt als fehlend. Wirft nie.
+ *
+ *  Herkunft und begründete Unterschiede (Dach-AGENTS § Kit-first Punkt 3), gelesen am 2026-10-18:
+ *  - calendar-notes `src/core/mirror/hash.ts:28` (`unlink`): dieselbe Regel (Alias gewinnt, sonst letztes Segment ohne `#`). Dort trimmt
+ *    die Funktion auch Klartext; das tut `valueEquals` mit `linkAware` im Vergleich, nicht diese Funktion („Klartext unverändert“).
+ *  - audio-interface `src/core/speech-text.ts:30-33` und wikijs-maintainer `src/core/links.ts:32-36`: gleiche Alias-gewinnt-Regel, aber
+ *    **im Fließtext** (jeder Wikilink in einem Absatz, dazu Embeds, Markdown-Links, Formatierung) — das ist ein anderer Gegenstand als ein
+ *    Wert, der selbst ein Link ist, und bleibt dort. Der Unterschied am Ende der Kette: wikijs nimmt ohne Alias den Abschnitt vor dem
+ *    Namen und den **ganzen** Pfad statt des letzten Segments, weil sein Label zugleich der Text eines Wiki.js-Links `[label](/pfad#anker)` ist;
+ *    dafür gibt es hier keinen Grund (eine Eigenschaft heißt nicht „Ordner/Name“), das Kit folgt calendar-notes und audio-interface. */
+export function wikilinkDisplayText(value: string): string {
+  const m = /^\s*\[\[([^\]]*)\]\]\s*$/.exec(value);
+  const inner = m?.[1];
+  if (inner === undefined) return value;
+  const bar = inner.indexOf("|");
+  const alias = bar >= 0 ? inner.slice(bar + 1).trim() : "";
+  if (alias !== "") return alias;
+  const target = bar >= 0 ? inner.slice(0, bar) : inner;
+  const hash = target.indexOf("#");
+  const path = (hash >= 0 ? target.slice(0, hash) : target).trim();
+  const name = (path.split("/").pop() ?? path).trim();
+  if (name !== "") return name;
+  return hash >= 0 ? target.slice(hash + 1).trim() : "";
+}
+
+export interface ValueEqualsOptions {
+  /** Ein Wikilink und sein Klartext gelten als gleich (`[[Ordner/Ort|Ort]]` = `[[Ort]]` = `Ort`), verglichen über `wikilinkDisplayText` und
+   *  ohne Rand-Leerraum. Ein anderer Anzeigetext bleibt eine Abweichung (`[[a|Ort]]` ≠ `Orte`). Default `false`. */
+  linkAware?: boolean;
+}
+
+function strictEquals(a: FmValue, b: FmValue): boolean {
   if (Array.isArray(a) || Array.isArray(b)) {
     const aa = Array.isArray(a) ? a : [String(a)];
     const bb = Array.isArray(b) ? b : [String(b)];
     return aa.length === bb.length && aa.every((x, i) => x === bb[i]);
   }
   return String(a) === String(b);
+}
+
+/** Wertgleichheit für FmValue. Skalare werden über String(v) verglichen — ein `number`
+ *  199801046 gilt als gleich zum reparsten String "199801046" (siehe Typ-Asymmetrie).
+ *  Mit `{ linkAware: true }` gilt zusätzlich ein Wikilink als gleich zu seinem Anzeigetext (`wikilinkDisplayText`); die strenge Gleichheit
+ *  gilt weiter (sie ist die Vorbedingung, nie lockerer). */
+export function valueEquals(a: FmValue | undefined, b: FmValue | undefined, opts?: ValueEqualsOptions): boolean {
+  if (a === undefined || b === undefined) return a === b;
+  if (strictEquals(a, b)) return true;
+  if (opts?.linkAware !== true) return false;
+  const display = (v: string): string => wikilinkDisplayText(v).trim();
+  if (Array.isArray(a) || Array.isArray(b)) {
+    const aa = Array.isArray(a) ? a : [String(a)];
+    const bb = Array.isArray(b) ? b : [String(b)];
+    return aa.length === bb.length && aa.every((x, i) => display(x) === display(bb[i] ?? ""));
+  }
+  return display(String(a)) === display(String(b));
 }
 
 export function assertParseable(fm: { data: Record<string, FmValue>; order: string[] }): void {
