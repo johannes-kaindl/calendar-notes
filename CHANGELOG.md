@@ -10,6 +10,10 @@ All notable changes to this project are documented here. The format follows
 
 - **A gap of 0 now also stops the sync at startup.** Until now, Obsidian started a sync after every launch as soon as one calendar or address book was switched on, even with “Gap between runs” set to 0, although the setting says 0 turns automatic syncing off. The startup sync now runs only if the gap of the platform in use (desktop or mobile) is above 0. If you rely on a sync at startup, check that the gap is not 0; on a phone that is “Gap between runs (mobile, minutes)”.
 
+### Changed
+
+- **README screenshots show the English interface.** All five images were taken again in one run; the event note is cropped tighter.
+
 ## [0.5.0] — 2026-10-18
 
 ### Added
