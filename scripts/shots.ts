@@ -167,7 +167,10 @@ async function closeModals(cdp: Cdp): Promise<void> {
     const r = await schliesseDialog(cdp);
     if (r.offenVorher === 0) break;
   }
+  // Offene Notizen weg: event-note.png laesst die Termin-Notiz stehen, und ihr Text schaute in adoption.png und
+  // command-form.png am rechten Rand des Ausschnitts neben dem Modal hervor (fremder UI-Rest).
   await cdp.evaluate(`
+    for (const l of app.workspace.getLeavesOfType("markdown")) l.detach();
     for (const m of Array.from(document.querySelectorAll(".modal-container"))) m.remove();
     await new Promise((r) => setTimeout(r, 300));
     return true;

@@ -109,7 +109,7 @@ Repository: [git.jkaindl.de/jkaindl/calendar-notes](https://git.jkaindl.de/jkain
 
 ### Einrichtung: Konto → Discovery → Sammlungen → Profil
 
-<img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/preview.png" width="584" alt="Das Vorschau-Modal nach dem Trockenlauf: Kalender 3 neu, Kontakte 2 neu, noch nichts geschrieben — Schließen oder Jetzt ausführen">
+<img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/preview.png" width="584" alt="Das Vorschau-Modal nach dem Trockenlauf: Kalender 3 neu, Aufgaben 3 neu, Kontakte 2 neu (8 Änderungen insgesamt), noch nichts geschrieben — Schließen oder Jetzt ausführen">
 
 1. **Einstellungen → Calendar and Contact Notes → Konten → Konto hinzufügen.** Name,
    Server-Basis-URL und Benutzername eintragen, dann **Verbindung prüfen und Kalender suchen**. Das Passwort landet im eigenen Schlüsselbund von Obsidian — siehe
