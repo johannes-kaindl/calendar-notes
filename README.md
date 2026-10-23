@@ -167,11 +167,11 @@ appear under their German names instead.
 | Calendars & address books → Mirror as notes | Whether a discovered calendar/address book is synced | off |
 | Calendars & address books → Profile | Which mapping profile a collection uses | the matching default profile |
 | Calendars & address books → Different target folder | Overrides the profile's folder for this collection only | profile's folder |
-| Gap between runs (desktop, minutes) | Minutes between automatic syncs | 15 |
-| Gap between runs (mobile, minutes) | Minutes between automatic syncs on mobile | 60 |
+| Gap between runs (desktop, minutes) | Minutes between automatic syncs; 0 turns them off, including the sync at startup | 15 |
+| Gap between runs (mobile, minutes) | Minutes between automatic syncs on mobile; 0 turns them off there, including the sync at startup | 60 |
 | Days back | How far into the past events are mirrored (older ones are archived, not deleted) | 90 |
 | Days ahead | How far into the future events are mirrored | 365 |
-| Wait after startup (seconds) | Seconds after Obsidian loads before the first sync runs | 10 |
+| Wait after startup (seconds) | Seconds after Obsidian loads before the first sync runs (only if the gap between runs of the platform is above 0) | 10 |
 | Language of the plugin's texts | UI language: Automatic (follows Obsidian), English, German | Automatic |
 
 ## How it works

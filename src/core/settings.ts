@@ -84,6 +84,13 @@ export const DEFAULT_SYNC: SyncSettings = {
   batchSize: 50,
 };
 
+/** Ob beim Start ein Lauf eingeplant wird: mindestens eine Sammlung an UND der Abstand der laufenden
+ *  Plattform > 0. Der Abstand ist der Schalter für jeden automatischen Lauf (0 = nur von Hand). */
+export function shouldSyncOnStartup(s: PluginSettings, isMobile: boolean): boolean {
+  if (!s.collections.some((c) => c.enabled)) return false;
+  return (isMobile ? s.sync.mobileIntervalMinutes : s.sync.intervalMinutes) > 0;
+}
+
 export function defaultSettings(): PluginSettings {
   return {
     version: 1,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { defaultSettings, normalizeSettings, repairSecretLinks, secretIdFor, newId, sourceOf, effectiveProfile, DEFAULT_SYNC } from "../../src/core/settings";
+import { defaultSettings, normalizeSettings, shouldSyncOnStartup, repairSecretLinks, secretIdFor, newId, sourceOf, effectiveProfile, DEFAULT_SYNC } from "../../src/core/settings";
 import type { SecretStore } from "../../src/core/sync/types";
 describe("settings", () => {
   it("defaults carry all default profiles", () => {
@@ -185,5 +185,34 @@ describe("collectionSupports", () => {
 
   it("ein Kalender traegt keine Kontakte", () => {
     expect(collectionSupports(cal(), "contact")).toBe(false);
+  });
+  describe("shouldSyncOnStartup: der Abstand der Plattform ist der Schalter", () => {
+    const col = (enabled: boolean) => ({ id: "c1", accountId: "a1", href: "https://d/k/", kind: "calendar" as const, displayName: "K", enabled, profileId: "default-event", readOnly: false });
+    const make = (enabled: boolean, desktop: number, mobile: number) => {
+      const s = defaultSettings();
+      s.collections = [col(enabled)];
+      s.sync = { ...s.sync, intervalMinutes: desktop, mobileIntervalMinutes: mobile };
+      return s;
+    };
+    it("keine Sammlung an → nein", () => {
+      expect(shouldSyncOnStartup(make(false, 15, 60), false)).toBe(false);
+      expect(shouldSyncOnStartup({ ...make(true, 15, 60), collections: [] }, false)).toBe(false);
+    });
+    it("Sammlung an, Abstand 0 → nein (auch mobil)", () => {
+      expect(shouldSyncOnStartup(make(true, 0, 60), false)).toBe(false);
+      expect(shouldSyncOnStartup(make(true, 15, 0), true)).toBe(false);
+    });
+    it("Sammlung an, Abstand > 0 → ja", () => {
+      expect(shouldSyncOnStartup(make(true, 15, 60), false)).toBe(true);
+      expect(shouldSyncOnStartup(make(true, 15, 60), true)).toBe(true);
+    });
+    it("Desktop 0 / Mobil 60: Desktop nein, Mobil ja", () => {
+      expect(shouldSyncOnStartup(make(true, 0, 60), false)).toBe(false);
+      expect(shouldSyncOnStartup(make(true, 0, 60), true)).toBe(true);
+    });
+    it("Desktop 15 / Mobil 0: Desktop ja, Mobil nein", () => {
+      expect(shouldSyncOnStartup(make(true, 15, 0), false)).toBe(true);
+      expect(shouldSyncOnStartup(make(true, 15, 0), true)).toBe(false);
+    });
   });
 });

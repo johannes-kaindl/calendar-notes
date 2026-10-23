@@ -171,11 +171,11 @@ Die mittlere Spalte ist, was in der Befehlspalette getippt wird.
 | Kalender & Adressbücher → Als Notizen spiegeln | Ob ein gefundener Kalender/Adressbuch synchronisiert wird | aus |
 | Kalender & Adressbücher → Profil | Welches Zuordnungsprofil eine Sammlung nutzt | das passende Standardprofil |
 | Kalender & Adressbücher → Abweichender Zielordner | Überschreibt den Ordner des Profils nur für diese Sammlung | Ordner des Profils |
-| Abstand zwischen zwei Läufen (Desktop, Minuten) | Minuten zwischen automatischen Syncs | 15 |
-| Abstand zwischen zwei Läufen (Mobil, Minuten) | Minuten zwischen automatischen Syncs auf Mobilgeräten | 60 |
+| Abstand zwischen zwei Läufen (Desktop, Minuten) | Minuten zwischen automatischen Syncs; 0 schaltet sie ab, auch den Sync beim Start | 15 |
+| Abstand zwischen zwei Läufen (Mobil, Minuten) | Minuten zwischen automatischen Syncs auf Mobilgeräten; 0 schaltet sie dort ab, auch den Sync beim Start | 60 |
 | Tage zurück | Wie weit rückwirkend Termine gespiegelt werden (ältere werden archiviert, nicht gelöscht) | 90 |
 | Tage voraus | Wie weit vorausschauend Termine gespiegelt werden | 365 |
-| Wartezeit nach dem Start (Sekunden) | Sekunden nach dem Laden von Obsidian bis zum ersten Sync | 10 |
+| Wartezeit nach dem Start (Sekunden) | Sekunden nach dem Laden von Obsidian bis zum ersten Sync (nur wenn der Abstand zwischen zwei Läufen der Plattform über 0 liegt) | 10 |
 | Sprache der Plugin-Texte | UI-Sprache: Automatisch (folgt Obsidian), Englisch, Deutsch | Automatisch |
 
 ## Wie es denkt

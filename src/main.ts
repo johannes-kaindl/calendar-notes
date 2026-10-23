@@ -9,7 +9,7 @@ import { withBasicAuth } from "./core/dav/transport";
 import type { MappingProfile, ProfileKind } from "./core/mirror/profile";
 import { suggestProfileFromNote } from "./core/mirror/profile-from-note";
 import { assertNever } from "./core/mirror/kind";
-import { effectiveProfile, normalizeSettings, repairSecretLinks, sourceOf, type Account, type CollectionConfig, type PluginSettings } from "./core/settings";
+import { effectiveProfile, normalizeSettings, repairSecretLinks, shouldSyncOnStartup, sourceOf, type Account, type CollectionConfig, type PluginSettings } from "./core/settings";
 import type { CalendarNotesApi } from "./core/api/types";
 import { ensureDefaultCommands } from "./core/commands/registry";
 import type { RunInfo } from "./core/state/collection-state";
@@ -414,7 +414,7 @@ export default class CalendarNotesPlugin extends Plugin {
 
   private scheduleStartupSync(): void {
     this.app.workspace.onLayoutReady(() => {
-      if (!this.settings.collections.some((c) => c.enabled)) return;
+      if (!shouldSyncOnStartup(this.settings, Platform.isMobile)) return;
       const id = window.setTimeout(() => this.fireAndForget(this.runAll(), t("notice.what.sync")), this.settings.sync.startupDelaySeconds * 1000);
       this.register(() => window.clearTimeout(id));
     });
