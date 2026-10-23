@@ -47,6 +47,7 @@ import {
   schliesseDialog,
 } from "../../tools/obsidian-cdp/cdp.js";
 import {
+  boxAround,
   boxOf,
   capture,
   setWindowSize,
@@ -224,7 +225,18 @@ const SHOTS: Shot[] = [
       if (!gefunden) return null;
       if (!(await openExisting(cdp, gefunden, "preview"))) return null;
       await closeExtraLeaves(cdp);
-      return boxOf(cdp, ".workspace-leaf.mod-active .markdown-reading-view", PADDING);
+      // Nur Titel und Eigenschaften, nicht die ganze Lesefläche: der Rest des Fensters war leerer Hintergrund
+      // (31 % identische Zeilen im Bild, readme_lint image-whitespace, Grenze 25 %).
+      const leaf = ".workspace-leaf.mod-active .markdown-reading-view";
+      // Eine Eigenschaftszeile trägt unter dem Mauszeiger einen Rahmen (im Bild die Zeile „title“): Zeiger an den rechten
+      // Fensterrand setzen, weg vom Aufnahmeausschnitt, und den Fokus lösen.
+      await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: FENSTER_BREITE - 4, y: FENSTER_HOEHE / 2, buttons: 0 });
+      await cdp.evaluate(`
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+        await new Promise((r) => setTimeout(r, 300));
+        return true;
+      `);
+      return boxAround(cdp, [`${leaf} .inline-title`, `${leaf} .metadata-container`], 3 * PADDING);
     },
   },
   {
@@ -407,6 +419,13 @@ async function main(): Promise<void> {
     await new Promise((r) => setTimeout(r, 2000));
 
     await setWindowSize(cdp, FENSTER_BREITE, FENSTER_HOEHE);
+
+    // `--only` überspringt settings.png, das Konto und Sammlungen anlegt: ohne diese Voraussetzung
+    // hat der Sync nichts zu tun und jedes andere Bild scheitert mit „Zustand kam nicht zustande“.
+    if (nur && nur !== "settings.png") {
+      await seedAccount(cdp, radicale);
+      await discoverAndEnable(cdp);
+    }
 
     let ok = 0;
     let fehlend = 0;
