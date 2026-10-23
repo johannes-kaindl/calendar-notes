@@ -1,7 +1,8 @@
 node_modules/
 main.js
 data.json
-.claude/
+.claude/*
+!.claude/rules/
 .DS_Store
 .mcp.json
 .superpowers/
