@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.2] — 2026-10-25
+
 ### Fixed
 
 - README image alt texts name the labels the screenshots show.
