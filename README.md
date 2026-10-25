@@ -106,7 +106,7 @@ Repository: [git.jkaindl.de/jkaindl/calendar-notes](https://git.jkaindl.de/jkain
 
 ### Setup: account → discovery → collections → profile
 
-<img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/preview.png" width="584" alt="The dry-run preview modal after discovery: Kalender 3 new, Aufgaben 3 new, Kontakte 2 new (8 changes in total), nothing written yet — Close or Run now">
+<img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/preview.png" width="584" alt="The preview dialog “Preview — 8 change(s)” after discovery: “Kalender: 3 created”, “Aufgaben: 3 created”, “Kontakte: 2 created” and “Create: 8”, with the buttons “Close” and “Run now” — nothing is written yet">
 
 1. **Settings → Calendar and Contact Notes → Accounts → Add account.** Enter a name, the
    server's base URL and your username, then **Test connection and find calendars**. The
@@ -126,7 +126,7 @@ Repository: [git.jkaindl.de/jkaindl/calendar-notes](https://git.jkaindl.de/jkain
 
 ### Adoption: link existing notes instead of duplicating them
 
-<img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/adoption.png" width="584" alt="The adoption modal proposing to link the existing note 2026-09-01 Zahnärztin to the server entry Zahnärztin Dr. Müller (start+title, likely 0.75), with Adopt all sure matches, Cancel and Link buttons">
+<img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/adoption.png" width="584" alt="The dialog “Match existing notes” proposing to link the note “2026-09-01 Zahnärztin” to the server entry “Zahnärztin Dr. Müller” (“start+title (likely, 0.75)”), with the buttons “Adopt all sure matches”, “Cancel” and “Link”">
 
 If a collection's target folder already has notes — migrated from another system, written by
 hand — run **Match existing notes…** (or the button next to a collection). The plugin proposes
@@ -138,7 +138,7 @@ generating a duplicate.
 
 ### Commands
 
-<a href="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/command-form.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/thumbs/command-form.png" width="380" alt="The schema-generated New event form: title, start, end, all-day toggle, location, description and URL — nothing is written until Save"></a><br><sub>Click the preview for full size</sub>
+<a href="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/command-form.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/thumbs/command-form.png" width="380" alt="The schema-generated form “Create event”: “Title”, “Start”, “End”, “All day”, “Location”, “Description” and “URL”, with the buttons “Cancel” and “Save” — nothing is written until “Save”"></a><br><sub>Click the preview for full size</sub>
 
 The middle column is what you type in the command palette; on a German Obsidian the commands
 appear under their German names instead.
@@ -159,7 +159,7 @@ appear under their German names instead.
 
 ### Configuration
 
-<a href="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/settings.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/thumbs/settings.png" width="380" alt="The settings tab with one account (name, server URL, username, password stored on this device) and the discovered collection group with a toggle each for calendar, tasks and contacts"></a><br><sub>Click the preview for full size</sub>
+<a href="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/settings.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/thumbs/settings.png" width="380" alt="The settings tab: the “Accounts” group with “Name”, “Server address”, “Username”, “Password” and the button “Test connection and find calendars”, below it “Found — what should be mirrored?” with a toggle each for “Kalender”, “Aufgaben” and “Kontakte”"></a><br><sub>Click the preview for full size</sub>
 
 | Setting | What it does | Default |
 |---|---|---|

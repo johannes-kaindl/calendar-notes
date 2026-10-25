@@ -11,6 +11,8 @@ Kommando.**
 [![Release](https://img.shields.io/github/v/release/johannes-kaindl/calendar-notes?label=release)](https://github.com/johannes-kaindl/calendar-notes/releases)
 ![Obsidian](https://img.shields.io/badge/obsidian-1.13.0%2B%20·%20desktop%20%26%20mobile-7c3aed)
 
+Die Bilder zeigen die englische Oberfläche.
+
 <p align="center"><img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/event-note.png" width="820" alt="Eine gespiegelte Termin-Notiz im Lesemodus: Frontmatter mit type, dav_uid, dav_source, dav_etag, dav_state, title, start, end, all_day, online und rrule"></p>
 
 Kalender, Aufgaben und Kontakte liegen normalerweise auf einem Server, den man aus Obsidian
@@ -109,7 +111,7 @@ Repository: [git.jkaindl.de/jkaindl/calendar-notes](https://git.jkaindl.de/jkain
 
 ### Einrichtung: Konto → Discovery → Sammlungen → Profil
 
-<img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/preview.png" width="584" alt="Das Vorschau-Modal nach dem Trockenlauf: Kalender 3 neu, Aufgaben 3 neu, Kontakte 2 neu (8 Änderungen insgesamt), noch nichts geschrieben — Schließen oder Jetzt ausführen">
+<img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/preview.png" width="584" alt="Der Vorschau-Dialog „Preview — 8 change(s)“ nach der Discovery: „Kalender: 3 created“, „Aufgaben: 3 created“, „Kontakte: 2 created“ und „Create: 8“, mit den Knöpfen „Close“ und „Run now“ — es wird noch nichts geschrieben">
 
 1. **Einstellungen → Calendar and Contact Notes → Konten → Konto hinzufügen.** Name,
    Server-Basis-URL und Benutzername eintragen, dann **Verbindung prüfen und Kalender suchen**. Das Passwort landet im eigenen Schlüsselbund von Obsidian — siehe
@@ -130,7 +132,7 @@ Repository: [git.jkaindl.de/jkaindl/calendar-notes](https://git.jkaindl.de/jkain
 
 ### Adoption: bestehende Notizen verknüpfen statt duplizieren
 
-<img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/adoption.png" width="584" alt="Das Adoptions-Modal schlägt vor, die bestehende Notiz 2026-09-01 Zahnärztin mit dem Server-Eintrag Zahnärztin Dr. Müller zu verknüpfen (start+title, likely 0,75) — mit Alle sicheren übernehmen, Abbrechen und Verknüpfen">
+<img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/adoption.png" width="584" alt="Der Dialog „Match existing notes“ schlägt vor, die bestehende Notiz „2026-09-01 Zahnärztin“ mit dem Server-Eintrag „Zahnärztin Dr. Müller“ zu verknüpfen („start+title (likely, 0.75)“), mit den Knöpfen „Adopt all sure matches“, „Cancel“ und „Link“">
 
 Liegen im Zielordner einer Sammlung bereits Notizen — aus einem anderen System migriert, von
 Hand geschrieben —, **Bestehende Notizen verknüpfen…** ausführen (oder den Button neben der
@@ -143,7 +145,7 @@ ein Duplikat zu erzeugen.
 
 ### Kommandos
 
-<a href="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/command-form.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/thumbs/command-form.png" width="380" alt="Das aus dem Schema erzeugte Formular „Termin anlegen“: Titel, Start, Ende, Ganztägig, Ort, Beschreibung und URL — geschrieben wird erst mit Speichern"></a><br><sub>Vorschau anklicken für volle Größe</sub>
+<a href="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/command-form.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/thumbs/command-form.png" width="380" alt="Das aus dem Schema erzeugte Formular „Create event“: „Title“, „Start“, „End“, „All day“, „Location“, „Description“ und „URL“, mit den Knöpfen „Cancel“ und „Save“ — geschrieben wird erst mit „Save“"></a><br><sub>Vorschau anklicken für volle Größe</sub>
 
 Die mittlere Spalte ist, was in der Befehlspalette getippt wird.
 
@@ -163,7 +165,7 @@ Die mittlere Spalte ist, was in der Befehlspalette getippt wird.
 
 ### Konfiguration
 
-<a href="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/settings.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/thumbs/settings.png" width="380" alt="Der Einstellungen-Tab mit einem Konto (Name, Server-URL, Benutzername, Passwort auf diesem Gerät hinterlegt) und der gefundenen Sammlungsgruppe mit je einem Schalter für Kalender, Aufgaben und Kontakte"></a><br><sub>Vorschau anklicken für volle Größe</sub>
+<a href="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/settings.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/calendar-notes/main/docs/images/thumbs/settings.png" width="380" alt="Der Einstellungen-Tab: die Gruppe „Accounts“ mit „Name“, „Server address“, „Username“, „Password“ und dem Knopf „Test connection and find calendars“, darunter „Found — what should be mirrored?“ mit je einem Schalter für „Kalender“, „Aufgaben“ und „Kontakte“"></a><br><sub>Vorschau anklicken für volle Größe</sub>
 
 | Einstellung | Was sie tut | Standard |
 |---|---|---|
