@@ -36,7 +36,7 @@ describe("suggestProfileFromNote — contact", () => {
   });
 
   // Pallas-Rollout 2026-10-14: 99 Kontaktnotizen tragen `vcard_uid` mit 16 Hex-Zeichen, der Server
-  // vergibt UUIDs, nur 1 von 99 Werten kommt dort vor. `adoptionPlan` beschreibt uidField mit der
+  // vergibt UUIDs, nur 1 von 99 Werten kommt dort vor. `planAdoption` beschreibt uidField mit der
   // Server-UID und haette 98 fremde Kennungen ueberschrieben. Ein Fremd-UID-Feld wird deshalb nur
   // uebernommen, wenn der Wert die Form einer Server-UID hat (UUID oder `...@domain`).
   it("does not take vcard_uid as uidField when its value is a foreign identifier", () => {
@@ -131,7 +131,7 @@ describe("suggestProfileFromNote — event", () => {
   // Entscheidungs-Pin (2026-08-30), kein Verhaltenswunsch: `event_uid` gehoert BEWUSST nicht in
   // UID_KEYS. Gemessen an den 24 Pallas-Terminnotizen tragen 9 den Schluessel, und seine Werte sind
   // Apple-Kalender-UUIDs (Grossbuchstaben-Form, `kalender:` daneben) — also die Identitaet eines
-  // FREMDEN Systems. `adoptionPlan` schreibt `profile.uidField` bei der Verknuepfung mit der
+  // FREMDEN Systems. `planAdoption` schreibt `profile.uidField` bei der Verknuepfung mit der
   // Server-UID (`src/core/adopt/plan.ts:33`); waere `event_uid` das uidField, zerstoerte die
   // Adoption diesen Bezug unwiederbringlich. Zwei der gemessenen Notizen teilen sich zudem
   // denselben Wert — als Identitaet taugt er auch dort nicht. Wer `event_uid` doch als uidField
