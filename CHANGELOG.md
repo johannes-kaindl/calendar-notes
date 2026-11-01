@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- **Two commands in the command palette now say what they do.** *New event…* is *Create event…* (German *Termin anlegen…*) and *New contact…* is *Create contact…* (German *Kontakt anlegen…*). In a German Obsidian the preview command is now *Synchronisation als Vorschau anzeigen* (it was *Synchronisation als Vorschau (Trockenlauf)*); its English name *Preview sync (dry run)* stays. Hotkeys you bound to these commands stay, because they hang on the command id, which did not change. The README and the getting-started guide use the new names.
+
 ## [0.5.2] — 2026-10-25
 
 ### Fixed

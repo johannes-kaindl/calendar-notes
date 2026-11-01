@@ -79,7 +79,7 @@ GIF ≤ 2 MB, Ordner ≤ 5 MB.
 | `preview.png` | feature | `README.md`/`README.de.md` (Usage → Setup) | Die Vorschau-Modal (`PreviewModal`, Kommando **Preview sync (dry run)**) nach einem Trockenlauf gegen das Fixture-Radicale: Gesamtzahl der geplanten Operationen und die Aufschlüsselung nach Sammlung (create/update/skip/archive/delete). Zeigt, dass vor jedem echten Lauf ein Trockenlauf möglich ist. |
 | `event-note.png` | hero | `README.md`/`README.de.md` (Kopf, direkt nach den Badges — CORE-META-01 verlangt das erste Bild dort) | Eine gespiegelte Termin-Notiz im **Lesemodus** nach einem echten Sync-Lauf: Frontmatter mit `dav_uid`/`dav_source`/`dav_etag`/`start`/`end` (Properties-Ansicht) und darunter der verwaltete Body-Block. Zeigt den „Server ist Wahrheit, Notiz ist Spiegel"-Kern ohne ein Wort Text. |
 | `adoption.png` | feature | `README.md`/`README.de.md` (Adoption) | Die AdoptionModal (Kommando **Adopt existing notes…**) mit vorbelegten Zeilen: Spalten Server-Eintrag/Notiz/Grund-Konfidenz/Aktion, mindestens eine Zeile mit `sure`→`link` und eine mit `weak`→`skip` sichtbar, dazu der Button **Adopt all sure matches**. Zeigt, dass Verknüpfen ein bestätigter Schritt ist, kein automatischer. |
-| `command-form.png` | detail | `README.md`/`README.de.md` (Commands) | Das schema-generierte Formular (`SchemaFormModal`) für **New event…** — Titel-/Orts-/Zeitfelder aus dem Kommando-Schema, bevor irgendetwas geschrieben wird. Zeigt, dass Schreiben immer über ein Formular läuft, nie über Frontmatter-Editieren. |
+| `command-form.png` | detail | `README.md`/`README.de.md` (Commands) | Das schema-generierte Formular (`SchemaFormModal`) für **Create event…** — Titel-/Orts-/Zeitfelder aus dem Kommando-Schema, bevor irgendetwas geschrieben wird. Zeigt, dass Schreiben immer über ein Formular läuft, nie über Frontmatter-Editieren. |
 
 ## UI-Strings (verbatim aus `src/i18n/strings.ts`)
 
@@ -91,7 +91,7 @@ GIF ≤ 2 MB, Ordner ≤ 5 MB.
   / **Note** / **Reason / confidence** / **Action**
 - Befehle (Palette, EN): **Sync all collections** · **Preview sync (dry run)** ·
   **Sync one collection…** · **Adopt existing notes…** · **Create mapping profile from
-  active note** · **Change event/contact…** · **New event…** · **New contact…** ·
+  active note** · **Change event/contact…** · **Create event…** · **Create contact…** ·
   **Undo last change** · **Write hand edits to the server**
 
 ## Fixture

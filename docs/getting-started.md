@@ -33,7 +33,7 @@ From here the plugin syncs on its own every 15 minutes while Obsidian is open.
 
 ## Where next
 
-- Change an event or contact on the server through a command — **Change event/contact…**, **New event…**, **Undo last change**. Each one shows a diff before anything is sent.
+- Change an event or contact on the server through a command — **Change event/contact…**, **Create event…**, **Undo last change**. Each one shows a diff before anything is sent.
 - Tasks from your calendar server show up as TaskNotes-compatible notes; the README explains how to build the profile from your own TaskNotes settings.
 - **Add profile** (under Profiles) offers templates for the usual cases. Under each calendar the status line tells you after a sync how many events are all-day and how many have a time — pick the *All-day calendar* template for birthday and holiday calendars.
 - To name notes after a convention like `2026-09-01_doctor_dm_dentist`, use `{start_date}_{fm:category}_{fm:short}_{title_slug}` as the file name of a profile: `{fm:key}` takes the value of `key` from the profile's `onCreate` (empty if it is not set), and `{title_slug}` (events, tasks) or `{fn_slug}` (contacts) is the title in lower case with `-` between words and no accents.

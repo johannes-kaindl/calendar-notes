@@ -126,7 +126,7 @@ Repository: [git.jkaindl.de/jkaindl/calendar-notes](https://git.jkaindl.de/jkain
    bestehenden Notiz ableiten (**Aus Notiz erzeugen**, oder das Kommando **Zuordnungsprofil aus aktueller Notiz erzeugen**) — praktisch,
    wenn der Vault bereits eine eigene Kontakt-/Termin-Struktur hat.
 4. **Alle Sammlungen synchronisieren** ausführen (oder **Jetzt alles abgleichen** unter **Aktionen**, oder das Intervall abwarten), um die erste
-   Charge Notizen zu holen. **Synchronisation als Vorschau (Trockenlauf)** (in den Einstellungen: **Vorschau: was würde ein Abgleich ändern?**) zeigt jederzeit, was
+   Charge Notizen zu holen. **Synchronisation als Vorschau anzeigen** (in den Einstellungen: **Vorschau: was würde ein Abgleich ändern?**) zeigt jederzeit, was
    passieren würde — Neu/Aktualisiert/Archiviert/Gelöscht je Sammlung —, ohne etwas zu
    schreiben.
 
@@ -152,13 +152,13 @@ Die mittlere Spalte ist, was in der Befehlspalette getippt wird.
 | Kommando | In der Befehlspalette | Was es tut |
 |---|---|---|
 | Alles synchronisieren | `Alle Sammlungen synchronisieren` | Echter Sync-Lauf über alle aktivierten Sammlungen |
-| Vorschau | `Synchronisation als Vorschau (Trockenlauf)` | Zeigt geplante Operationen, ohne zu schreiben |
+| Vorschau | `Synchronisation als Vorschau anzeigen` | Zeigt geplante Operationen, ohne zu schreiben |
 | Eine Sammlung synchronisieren | `Eine Sammlung synchronisieren…` | Wählt eine einzelne Sammlung zum Synchronisieren |
 | Bestehende Notizen verknüpfen | `Bestehende Notizen verknüpfen…` | Öffnet die Adoptions-Übersicht für eine Sammlung |
 | Profil aus Notiz | `Zuordnungsprofil aus aktueller Notiz erzeugen` | Leitet ein Zuordnungsprofil aus dem Frontmatter der aktiven Notiz ab |
 | Termin/Kontakt ändern | `Termin/Kontakt ändern…` | Schlägt anwendbare Kommandos für die aktive Notiz vor, öffnet ein Formular, zeigt eine Diff-Vorschau |
-| Neuer Termin | `Neuer Termin…` | Legt einen Termin auf dem Server an (und seine Notiz) über ein Formular |
-| Neuer Kontakt | `Neuer Kontakt…` | Legt einen Kontakt auf dem Server an (und seine Notiz) über ein Formular |
+| Termin anlegen | `Termin anlegen…` | Legt einen Termin auf dem Server an (und seine Notiz) über ein Formular |
+| Kontakt anlegen | `Kontakt anlegen…` | Legt einen Kontakt auf dem Server an (und seine Notiz) über ein Formular |
 | Rückgängig | `Letzte Änderung rückgängig machen` | Nimmt die letzte protokollierte Änderung des Ziels zurück |
 | Aufgaben abgleichen | `Aufgaben mit dem Server abgleichen` | Zeigt jeden Unterschied zwischen deinen Aufgaben-Notizen und dem Server und fragt je Zeile, welche Seite gewinnt |
 | Handänderungen übertragen | `Handänderungen auf den Server übertragen` | Vergleicht manuelle Frontmatter-Änderungen mit dem Server und bietet an, sie zu schreiben |

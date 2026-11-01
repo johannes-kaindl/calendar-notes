@@ -151,8 +151,8 @@ appear under their German names instead.
 | Match existing notes | `Match existing notes…` | Opens the adoption review for a collection |
 | Profile from note | `Create mapping profile from active note` | Derives a mapping profile from the active note's frontmatter |
 | Change event/contact | `Change event/contact…` | Suggests applicable commands for the active note, opens a form, shows a diff |
-| New event | `New event…` | Creates an event on the server (and its note) via a form |
-| New contact | `New contact…` | Creates a contact on the server (and its note) via a form |
+| Create event | `Create event…` | Creates an event on the server (and its note) via a form |
+| Create contact | `Create contact…` | Creates a contact on the server (and its note) via a form |
 | Undo | `Undo last change` | Reverts the target's last recorded change |
 | Sync tasks | `Sync tasks with the server` | Shows every difference between your task notes and the server and asks per row which side wins |
 | Push hand edits | `Write hand edits to the server` | Diffs your manual frontmatter edits against the server and offers to write them |
