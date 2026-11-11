@@ -7,5 +7,5 @@
   "vendored": "frontmatter.ts, vault-path.ts, tool-provider.ts",
   "code_kit_version": "0.31.0",
   "code_kit_sha": "7e3bdb3",
-  "code_kit_vendored": "secrets.ts"
+  "code_kit_vendored": "secrets.ts, split-list.ts (code-kit@0.63.0, ce90bf0)"
 }

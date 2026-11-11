@@ -105,4 +105,13 @@ describe("tool-provider — Schreiben (plan → confirm → execute)", () => {
     expect(seen).toEqual([["contact.set-email", { value: "neu@example.test", index: "0" }], ["contact.set-org", { org: ["A", "B"] }]]);
     expect(await p.executeTool("update_contact", { uid: "k1", source: "s", field: "shoe", value: "x" })).toMatchObject({ ok: false, reason: "bad-args", field: "field" });
   });
+  it("update_contact: die Organisationsliste ignoriert Leerraum und leere Einträge", async () => {
+    const seen: Record<string, unknown>[] = [];
+    const h = host({ plan: async (id, input) => { if (id === "contact.set-org") seen.push(input); return plan({ commandId: id }); } });
+    const p = createToolProvider(h);
+    for (const value of [" A ,, B , ", "A,B", ",A,", "A\t, \nB", ",", " , ", "Eine Firma GmbH", "A;B"]) {
+      await p.executeTool("update_contact", { uid: "k1", source: "acc/adr", field: "org", value }, { confirm: async () => true });
+    }
+    expect(seen.map((i) => i["org"])).toEqual([["A", "B"], ["A", "B"], ["A"], ["A", "B"], [], [], ["Eine Firma GmbH"], ["A;B"]]);
+  });
 });

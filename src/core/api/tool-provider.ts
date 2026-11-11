@@ -1,4 +1,5 @@
 import type { ProviderCallOptions, ProviderResult, ProviderToolDef, ToolLang } from "../../vendor/kit/tool-provider";
+import { splitList } from "../../vendor/kit/split-list";
 import type { ApiContact, ApiError, ApiEvent, ApiPlan, ApiTargetRef, ContactsQuery, EventsQuery } from "./types";
 
 /**
@@ -200,7 +201,7 @@ export function createToolProvider(host: ToolProviderHost): {
             // E-Mail und Telefon: der erste vorhandene Eintrag wird ersetzt, gibt es keinen, kommt einer dazu.
             const got = command === "contact.set-email" || command === "contact.set-phone" ? await host.get({ uid, source }) : null;
             const existing = got && !isError(got) && "fn" in got.data ? (command === "contact.set-email" ? got.data.emails.length : got.data.tels.length) : 0;
-            const input: Record<string, unknown> = key === "org" ? { org: value.split(",").map((s) => s.trim()).filter(Boolean) } : { [key]: value };
+            const input: Record<string, unknown> = key === "org" ? { org: splitList(value) } : { [key]: value };
             if (command === "contact.set-email" || command === "contact.set-phone") input["index"] = existing > 0 ? "0" : "new";
             return write(lang, command, input, { uid, source }, opts);
           }
