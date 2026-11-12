@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **A contact's birthday can now be removed.** The new command *Remove birthday* (`contact.clear-birthday`) deletes the BDAY from the contact on the server; until now the *Change birthday* command could only set a date, its remove path never ran. *Change birthday* without a date is now an error instead of a silent no-op.
+
 ## [0.6.0] — 2026-11-01
 
 ### Changed

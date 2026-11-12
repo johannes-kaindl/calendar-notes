@@ -75,7 +75,7 @@ function realPlans(): CommandPlan[] {
   plans.push(findCmd(CONTACT_COMMANDS, "contact.set-note").plan({ note: "Text" }, contact));
   plans.push(findCmd(CONTACT_COMMANDS, "contact.set-note").plan({ note: "" }, contact));
   plans.push(findCmd(CONTACT_COMMANDS, "contact.set-birthday").plan({ bday: "1980-01-01" }, contact));
-  plans.push(findCmd(CONTACT_COMMANDS, "contact.set-birthday").plan({ bday: "" }, contact));
+  plans.push(findCmd(CONTACT_COMMANDS, "contact.clear-birthday").plan({}, contact));
   plans.push(findCmd(CONTACT_COMMANDS, "contact.create").plan({ fn: "Neuer Kontakt" }, contactCtx(undefined as unknown as string, NEW_CONTACT_TARGET)));
 
   const history = [{ etag: "\"e0\"", raw: read("ical/simple.ics"), at: "2026-08-20T09:00:00Z" }];

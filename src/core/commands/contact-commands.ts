@@ -274,21 +274,31 @@ const contactSetNote: CommandDescriptor = {
 const contactSetBirthday: CommandDescriptor = {
   id: "contact.set-birthday", kind: "contact",
   title: "Change birthday", titleKey: "cmd.contact.set-birthday.title",
-  description: "Set or clear a contact's BDAY", descriptionKey: "cmd.contact.set-birthday.desc",
+  description: "Set a contact's BDAY (to remove it: contact.clear-birthday)", descriptionKey: "cmd.contact.set-birthday.desc",
   schema: { type: "object", properties: { bday: { type: "string", format: "date" } }, required: ["bday"] },
   appliesTo: appliesToExistingContact,
   plan(input, ctx) {
-    const bday = str(input["bday"]) ?? "";
-    const plan = planForContactMutations("contact.set-birthday", ctx, [{ kind: "bday", bday: bday || null }]);
-    if (bday) {
-      plan.summary = `Birthday changed: ${bday}`;
-      plan.summaryKey = "plan.contact.set-birthday.changed";
-      plan.summaryArgs = [bday];
-    } else {
-      plan.summary = "Birthday removed";
-      plan.summaryKey = "plan.contact.set-birthday.removed";
-      plan.summaryArgs = [];
-    }
+    const bday = str(input["bday"]);
+    if (!bday) throw new CoreError("fieldMissing", "contact.set-birthday: bday is missing", ["contact.set-birthday", "bday"]);
+    const plan = planForContactMutations("contact.set-birthday", ctx, [{ kind: "bday", bday }]);
+    plan.summary = `Birthday changed: ${bday}`;
+    plan.summaryKey = "plan.contact.set-birthday.changed";
+    plan.summaryArgs = [bday];
+    return plan;
+  },
+};
+
+const contactClearBirthday: CommandDescriptor = {
+  id: "contact.clear-birthday", kind: "contact",
+  title: "Remove birthday", titleKey: "cmd.contact.clear-birthday.title",
+  description: "Remove a contact's BDAY", descriptionKey: "cmd.contact.clear-birthday.desc",
+  schema: { type: "object", properties: {} },
+  appliesTo: appliesToExistingContact,
+  plan(_input, ctx) {
+    const plan = planForContactMutations("contact.clear-birthday", ctx, [{ kind: "bday", bday: null }]);
+    plan.summary = "Birthday removed";
+    plan.summaryKey = "plan.contact.clear-birthday.summary";
+    plan.summaryArgs = [];
     return plan;
   },
 };
@@ -323,5 +333,5 @@ const contactCreate: CommandDescriptor = {
 
 export const CONTACT_COMMANDS: CommandDescriptor[] = [
   contactSetName, contactSetEmail, contactRemoveEmail, contactSetPhone, contactRemovePhone,
-  contactSetOrg, contactSetTitle, contactSetNote, contactSetBirthday, contactCreate,
+  contactSetOrg, contactSetTitle, contactSetNote, contactSetBirthday, contactClearBirthday, contactCreate,
 ];

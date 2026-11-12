@@ -185,6 +185,38 @@ describe("contact.set-org / set-title / set-note / set-birthday", () => {
   });
 });
 
+describe("contact.clear-birthday / set-birthday ohne Löschzweig", () => {
+  const c = ctx(read("v3-full.vcf"), existingTarget("c3-1@test", "v3-full.vcf"));
+
+  it("Vorbedingung: die Fixture hat einen Geburtstag", () => {
+    expect(parseContact(c.raw ?? "").bday).toBeDefined();
+  });
+
+  it("clear-birthday entfernt BDAY und meldet es in der Zusammenfassung", () => {
+    const plan = find("contact.clear-birthday").plan({}, c);
+    expect(parseContact(plan.newRaw).bday).toBeUndefined();
+    expect(plan.summary).toBe("Birthday removed");
+    expect(plan.summaryKey).toBe("plan.contact.clear-birthday.summary");
+    expect(plan.diff.some((d) => d.field === "bday" && d.after === undefined)).toBe(true);
+  });
+
+  it("clear-birthday nimmt keine Eingabe: das Schema ist ohne Pflichtfeld und gilt für {}", () => {
+    const d = find("contact.clear-birthday");
+    expect(validateInput(d.schema, {}).ok).toBe(true);
+    expect(d.appliesTo(c)).toBe(true);
+    expect(d.appliesTo({ ...c, target: { kind: "contact", source: "a1/ab1", new: true } })).toBe(false);
+  });
+
+  it("set-birthday ohne Datum ist ein Fehler statt stillem Löschen", () => {
+    expect(() => find("contact.set-birthday").plan({ bday: "" }, c)).toThrow(/bday/);
+    expect(() => find("contact.set-birthday").plan({}, c)).toThrow(/bday/);
+  });
+
+  it("set-birthday weist einen leeren Wert auch im Schema ab (der Löschzweig war nie erreichbar)", () => {
+    expect(validateInput(find("contact.set-birthday").schema, { bday: "" }).ok).toBe(false);
+  });
+});
+
 describe("contact.create", () => {
   it("baut einen neuen Kontakt mit generierter uid und hrefForPut", () => {
     const c = ctx(undefined as unknown as string, { kind: "contact", source: "a1/ab1", new: true });
