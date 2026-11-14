@@ -8,6 +8,7 @@ import { contactValues, eventValues, type AttendeeResolver } from "./fields";
 import { BrokenZoneError, renderContactBlock, renderEventBlock } from "./body";
 import { renderTodoBlock, todoInWindow, todoValues } from "./todo-values";
 import { noteBasename, notePath } from "./filename";
+import { firstFreeName } from "../../vendor/kit/filename-policy";
 import { planUpsert, planRemoval, planArchive, type ExistingNote, type NotePlan } from "./plan";
 import { fmKeyFor, type MappingProfile, type ProfileKind } from "./profile";
 import type { Window } from "./window";
@@ -48,12 +49,12 @@ export interface ApplyResult {
 }
 
 function freePath(profile: MappingProfile, base: string, uid: string, lookup: NoteLookup, taken: Set<string>): string {
-  for (let n = 1; n < 100; n++) {
-    const p = notePath(profile, base, n === 1 ? undefined : n);
-    if (!lookup.exists(p) && !taken.has(p)) return p;
-  }
-  const suffix = sha256HexUtf8(uid).slice(-6);
-  return notePath(profile, `${base} ${suffix}`);
+  // Zählung " (n).md" bis 99, danach ein Hash der UID statt einer Zahl (onExhausted).
+  return firstFreeName(notePath(profile, base), "file", (p) => lookup.exists(p) || taken.has(p), {
+    style: "paren",
+    limit: 99,
+    onExhausted: () => notePath(profile, `${base} ${sha256HexUtf8(uid).slice(-6)}`),
+  });
 }
 
 interface Item {

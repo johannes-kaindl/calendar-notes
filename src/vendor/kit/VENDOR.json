@@ -7,6 +7,6 @@
   "vendored": "frontmatter.ts, vault-path.ts, tool-provider.ts",
   "code_kit_version": "0.31.0",
   "code_kit_sha": "7e3bdb3",
-  "code_kit_vendored": "secrets.ts, split-list.ts (code-kit@0.63.0, ce90bf0)",
+  "code_kit_vendored": "secrets.ts, split-list.ts (code-kit@0.63.0, ce90bf0), filename-policy.ts (code-kit@0.68.0, 70b5b41), text-window.ts (code-kit@0.68.0, 70b5b41)",
   "license": "AGPL-3.0-or-later"
 }

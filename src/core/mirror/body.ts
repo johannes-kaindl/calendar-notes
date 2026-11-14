@@ -1,6 +1,7 @@
 import type { ContactData } from "../vcard/contact";
 import type { EventData, Attendee } from "../ical/event";
 import { formatAddress } from "./fields";
+import { detectEol } from "../../vendor/kit/text-window";
 import { neutralizeMarkers, splitZone, wrapZone, type ZoneMarkers, type ZoneSplit } from "../../vendor/code-kit/marker-zone";
 
 export const BLOCK_BEGIN = "%% dav:begin %%";
@@ -57,7 +58,7 @@ function stripStart(t: string): string {
 /** Wirft `BrokenZoneError`, wenn die Zone der Notiz beschaedigt ist (nur im Modus `block`). */
 export function mergeBody(existing: string, block: string, mode: "block" | "none"): string {
   if (mode === "none") return existing;
-  const eol = existing.includes("\r\n") ? "\r\n" : "\n";
+  const eol = detectEol(existing);
   // Serverinhalt kann die Marker enthalten und die Zone aufbrechen: entschaerfen, bevor er hineingeht.
   const wrapped = wrapZone(neutralizeMarkers(block, MARKERS), MARKERS, eol);
   const parts = splitBody(existing);

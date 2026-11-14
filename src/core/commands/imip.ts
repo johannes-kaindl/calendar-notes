@@ -1,5 +1,6 @@
 import { parseEvents, primaryEvent } from "../ical/event";
 import type { CommandPlan } from "./types";
+import { detectEol } from "../../vendor/kit/text-window";
 
 /** RFC 6047 iMIP — Vertrag mit `mailstone` (s. `../mailstone/docs/2026-08-22-anforderungen-aus-calendar-notes.md`).
  *  `from` ist eine Absender-Konto-ID aus `MailTransport.accounts()`, kein Adress-String. */
@@ -30,7 +31,7 @@ export interface ImipLabels {
  *  ical.js-Re-Serialize noetig), robust gegen CRLF/LF. Wirft, wenn weder eine METHOD- noch
  *  eine PRODID-Zeile gefunden wird (kein gueltiges VCALENDAR fuer diesen Zweck). */
 export function insertMethod(ics: string, method: string): string {
-  const eol = ics.includes("\r\n") ? "\r\n" : "\n";
+  const eol = detectEol(ics);
   const lines = ics.split(/\r\n|\n/);
   const methodIdx = lines.findIndex((l) => l.startsWith("METHOD:"));
   if (methodIdx !== -1) {

@@ -34,6 +34,17 @@ describe("applyDelta — contacts", () => {
     expect(r.state.snapshot.etags["/k/c4.vcf"]).toBe('"2"');
     expect(r.counts).toEqual({ created: 2, updated: 0, skipped: 0, archived: 0, deleted: 0, errors: 0 });
   });
+  it("Namenskollision: belegt sind 1 bis 99, dann hängt der Pfad einen UID-Hash statt einer Zahl an", () => {
+    const belegt = new Set(["Contacts/Alex Aguado.md", ...Array.from({ length: 98 }, (_, i) => `Contacts/Alex Aguado (${i + 2}).md`)]);
+    const run = (exists: (p: string) => boolean) => applyDelta({
+      profile: defaultContactProfile(), source: "acc/kon", now: NOW, state: emptyState("acc/kon"),
+      lookup: { ...lookupOf([]), exists },
+      delta: delta({ changed: [{ href: "https://s/k/c4.vcf", etag: '"2"', data: fx("vcard", "v4-min.vcf") }], snapshot: { etags: { "/k/c4.vcf": '"2"' } } }),
+    });
+    expect(run((p) => belegt.has(p) && p !== "Contacts/Alex Aguado (99).md").plans[0]?.path).toBe("Contacts/Alex Aguado (99).md");
+    const voll = run((p) => belegt.has(p) || p === "Contacts/Alex Aguado (99).md").plans[0]?.path;
+    expect(voll).toMatch(/^Contacts\/Alex Aguado [0-9a-f]{6}\.md$/);
+  });
   it("unparsable object → error, others proceed; snapshot keeps no etag for the bad href (or the previous one, if given)", () => {
     const r = applyDelta({
       profile: defaultContactProfile(),
