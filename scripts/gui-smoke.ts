@@ -140,6 +140,7 @@ const PUNKT = {
   P12: "P12 Undo (Letzte Änderung zurücknehmen) — DTSTART zurueck auf Vor-P10-Stand",
   P11: "P11 Einladung ohne Scheduling/Transport (Route ics)",
   P13: "P13 API-Lesen (events/contacts/commandTools==commands, tools() = sechs Werkzeuge mit writes)",
+  P14: "P14 contact.clear-title und contact.clear-note entfernen TITLE und NOTE am Server, set-title mit leerem Wert wird abgewiesen",
   P20: "P20 Aufgaben-Sammlung erkannt und aktivierbar",
   P21: "P21 Aufgaben-Profil automatisch zugewiesen",
   P22: "P22 Sync legt Notiz fuer die offene Aufgabe an",
@@ -158,7 +159,7 @@ type PunktName = (typeof PUNKT)[PunktId];
 
 const GRUND: PunktId[] = ["P0", "P1", "P2b", "P2a", "P2"];
 const SOLL_JE_ABSCHNITT: Record<Section, readonly PunktId[]> = {
-  generic: [...GRUND, "P4a", "P4b", "P5", "P9", "P6", "P7", "P10", "P12", "P11", "P13"],
+  generic: [...GRUND, "P4a", "P4b", "P5", "P9", "P6", "P7", "P10", "P12", "P11", "P13", "P14"],
   pallas: [...GRUND, "P3", "P3b"],
   todo: [...GRUND, "P21", "P20", "P22", "P23", "P24", "P25", "P26", "P30", "P27", "P28", "P29"],
 };
@@ -1041,6 +1042,36 @@ async function checkP10(cdp: Cdp, radicale: RunningServer, source: string): Prom
   const ok = result.planOk && result.execOk && serverMoved && !!fmMoved;
   record("P10", ok,
     `plan=${result.planOk} exec=${result.execOk}${result.execError ? ` (${result.execError})` : ""}, Server-GET moved=${serverMoved} (HTTP ${get.status}), Frontmatter moved=${!!fmMoved}`,
+  );
+}
+
+/** P14: die Befehle `contact.clear-title` / `contact.clear-note` ueber die Plugin-API (plan → execute) gegen den echten Server.
+ *  Gegenprobe im selben Punkt: `contact.set-title` mit leerem Wert muss die Pruefung der API abweisen (frueher lief der tote
+ *  Loeschzweig nie, der Weg ueber `validateInput` blieb unbemerkt). Kontakt `c3-1@test` traegt TITLE und NOTE (Fixture). */
+async function checkP14(cdp: Cdp, radicale: RunningServer, source: string): Promise<void> {
+  const target = { uid: "c3-1@test", source };
+  const vorher = await davGet(radicale, "test/kontakte/c3-1.vcf");
+  const hatVorher = /^TITLE:/m.test(vorher.body) && /^NOTE:/m.test(vorher.body);
+  const lauf = await cdp.evaluate<{ title: string; note: string; leer: string }>(`
+    const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+    const fuehre = async (id, input) => {
+      const plan = await plugin.api.plan(id, input, ${JSON.stringify(target)});
+      if ("error" in plan) return "plan-fehler: " + String(plan.error).slice(0, 200);
+      const exec = await plugin.api.execute(plan);
+      return "error" in exec ? "exec-fehler: " + String(exec.error).slice(0, 200) : (exec.ok ? "ok" : "nicht-ok: " + JSON.stringify(exec).slice(0, 200));
+    };
+    const title = await fuehre("contact.clear-title", {});
+    const note = await fuehre("contact.clear-note", {});
+    const leerPlan = await plugin.api.plan("contact.set-title", { title: "" }, ${JSON.stringify(target)});
+    return { title, note, leer: "error" in leerPlan ? "abgewiesen" : "ANGENOMMEN" };
+  `);
+  const nachher = await davGet(radicale, "test/kontakte/c3-1.vcf");
+  const titelWeg = nachher.status === 200 && !/^TITLE/m.test(nachher.body);
+  const notizWeg = nachher.status === 200 && !/^NOTE/m.test(nachher.body);
+  const rest = /^FN:/m.test(nachher.body) && /^ORG:/m.test(nachher.body);
+  const ok = hatVorher && lauf.title === "ok" && lauf.note === "ok" && titelWeg && notizWeg && rest && lauf.leer === "abgewiesen";
+  record("P14", ok,
+    `Vorbedingung TITLE+NOTE=${hatVorher}, clear-title=${lauf.title}, clear-note=${lauf.note}, Server ohne TITLE=${titelWeg}, ohne NOTE=${notizWeg}, FN/ORG erhalten=${rest}, set-title leer=${lauf.leer}`,
   );
 }
 
@@ -1996,6 +2027,7 @@ async function main(): Promise<void> {
       await checkP12(cdp, radicale, commandSource, beforeDtstart);
       await checkP11(cdp, radicale, commandSource);
       await checkP13(cdp);
+      await checkP14(cdp, radicale, `${ACCOUNT_ID}/${discovery.addressbookId}`);
     }
 
     if (focus) await checkP8(port, vault);
