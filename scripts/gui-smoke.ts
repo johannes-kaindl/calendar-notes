@@ -104,6 +104,9 @@ const FIELD_USERNAME_LABELS = ["Username", "Benutzername"];
 const FIELD_PASSWORD_LABELS = ["Password", "Passwort"];
 const UI_ACCOUNT_NAME = "Smoke-UI";
 const UI_SECRET_ID = "calendar-notes-smoke-ui";
+// `deleteSecret` statt `setSecret(id, "")`: das Leeren lässt den Meta-Eintrag im Schlüsselbund stehen (Task „Treiber-Skripte räumen ihren Platzhalter-Schlüssel nicht ab“).
+const SECRET_WEG = (idAusdruck: string): string =>
+  `{ const s = app.secretStorage; if (typeof s.deleteSecret === "function") await s.deleteSecret(${idAusdruck}); else await s.setSecret(${idAusdruck}, ""); }`;
 
 // `import.meta.url` zeigt nach dem esbuild-Buendeln auf `.gui-smoke.mjs` — das liegt im
 // Repo-Root (esbuild schreibt dorthin, `outfile` ohne Pfadpraefix), NICHT in `scripts/`.
@@ -1898,7 +1901,7 @@ async function main(): Promise<void> {
         plugin.settings.accounts = (plugin.settings.accounts ?? []).filter((a) => a.id !== ${JSON.stringify(ACCOUNT_ID)});
         plugin.settings.collections = (plugin.settings.collections ?? []).filter((c) => c.accountId !== ${JSON.stringify(ACCOUNT_ID)});
         await plugin.saveSettings();
-        app.secretStorage.setSecret(${JSON.stringify(SECRET_ID)}, "");
+        ${SECRET_WEG(JSON.stringify(SECRET_ID))}
         return true;
       `);
     }
@@ -1915,7 +1918,7 @@ async function main(): Promise<void> {
           const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
           plugin.settings = ${settingsSnapshot};
           await plugin.saveSettings();
-          app.secretStorage.setSecret(${JSON.stringify(SECRET_ID)}, "");
+          ${SECRET_WEG(JSON.stringify(SECRET_ID))}
           return true;
         `),
       );

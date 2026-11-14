@@ -72,6 +72,9 @@ const RADICALE_PORT = 5299;
 const ACCOUNT_ID = "acc-shots";
 const ACCOUNT_NAME = "Demo";
 const SECRET_ID = `calendar-notes-${ACCOUNT_ID}`;
+// `deleteSecret` statt `setSecret(id, "")`: das Leeren lässt den Meta-Eintrag im Schlüsselbund stehen (Task „Treiber-Skripte räumen ihren Platzhalter-Schlüssel nicht ab“).
+const SECRET_WEG = (idAusdruck: string): string =>
+  `{ const s = app.secretStorage; if (typeof s.deleteSecret === "function") await s.deleteSecret(${idAusdruck}); else await s.setSecret(${idAusdruck}, ""); }`;
 // `settings.accounts.collectionsHeading` aus src/i18n/strings.ts, DE + EN — dasselbe Muster
 // wie `scripts/gui-smoke.ts::COLLECTION_PICKER_LABELS`, hier lokal, weil die beiden Treiber
 // keine gemeinsame Konstantendatei teilen.
@@ -408,8 +411,11 @@ async function main(): Promise<void> {
   });
   console.log(`Radicale (Fixture) auf ${radicale.baseUrl}.`);
 
+  // Der Platzhalter-Schlüssel (seedAccount) wird im finally entfernt, auch wenn ein Bild scheitert.
+  let cdpFuerAufraeumen: Cdp | null = null;
   try {
     const cdp = await attachTo("workspace", port, REPO_NAME);
+    cdpFuerAufraeumen = cdp;
     if (!cdp) {
       throw new Error(
         `Kein Obsidian-Fenster mit dem Vault "${REPO_NAME}" auf Port ${port}.\n` +
@@ -472,6 +478,7 @@ async function main(): Promise<void> {
     console.log(`\n${ok} Bild(er) geschrieben, ${fehlend} offen.`);
     if (fehlend) exit(1);
   } finally {
+    await cdpFuerAufraeumen?.evaluate(`${SECRET_WEG(JSON.stringify(SECRET_ID))} return true;`).catch(() => undefined);
     await radicale.stop();
   }
 }
