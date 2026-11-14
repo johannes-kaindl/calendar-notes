@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-11-14
+
 ### Added
 - **A contact's job title and note can now be removed.** The new commands *Remove job title* (`contact.clear-title`) and *Remove note* (`contact.clear-note`) delete the TITLE or NOTE from the contact on the server; until now *Change job title* and *Change note* could only set a value, their remove path never ran. Both change commands without a value are now an error instead of a silent no-op.
 
