@@ -230,21 +230,31 @@ const contactSetOrg: CommandDescriptor = {
 const contactSetTitle: CommandDescriptor = {
   id: "contact.set-title", kind: "contact",
   title: "Change job title", titleKey: "cmd.contact.set-title.title",
-  description: "Set or clear a contact's TITLE", descriptionKey: "cmd.contact.set-title.desc",
+  description: "Set a contact's TITLE (to remove it: contact.clear-title)", descriptionKey: "cmd.contact.set-title.desc",
   schema: { type: "object", properties: { title: { type: "string" } }, required: ["title"] },
   appliesTo: appliesToExistingContact,
   plan(input, ctx) {
-    const title = str(input["title"]) ?? "";
-    const plan = planForContactMutations("contact.set-title", ctx, [{ kind: "title", title: title || null }]);
-    if (title) {
-      plan.summary = `Job title changed: "${title}"`;
-      plan.summaryKey = "plan.contact.set-title.changed";
-      plan.summaryArgs = [title];
-    } else {
-      plan.summary = "Job title removed";
-      plan.summaryKey = "plan.contact.set-title.removed";
-      plan.summaryArgs = [];
-    }
+    const title = str(input["title"]);
+    if (!title) throw new CoreError("fieldMissing", "contact.set-title: title is missing", ["contact.set-title", "title"]);
+    const plan = planForContactMutations("contact.set-title", ctx, [{ kind: "title", title }]);
+    plan.summary = `Job title changed: "${title}"`;
+    plan.summaryKey = "plan.contact.set-title.changed";
+    plan.summaryArgs = [title];
+    return plan;
+  },
+};
+
+const contactClearTitle: CommandDescriptor = {
+  id: "contact.clear-title", kind: "contact",
+  title: "Remove job title", titleKey: "cmd.contact.clear-title.title",
+  description: "Remove a contact's TITLE", descriptionKey: "cmd.contact.clear-title.desc",
+  schema: { type: "object", properties: {} },
+  appliesTo: appliesToExistingContact,
+  plan(_input, ctx) {
+    const plan = planForContactMutations("contact.clear-title", ctx, [{ kind: "title", title: null }]);
+    plan.summary = "Job title removed";
+    plan.summaryKey = "plan.contact.clear-title.summary";
+    plan.summaryArgs = [];
     return plan;
   },
 };
@@ -252,21 +262,31 @@ const contactSetTitle: CommandDescriptor = {
 const contactSetNote: CommandDescriptor = {
   id: "contact.set-note", kind: "contact",
   title: "Change note", titleKey: "cmd.contact.set-note.title",
-  description: "Set or clear a contact's NOTE", descriptionKey: "cmd.contact.set-note.desc",
+  description: "Set a contact's NOTE (to remove it: contact.clear-note)", descriptionKey: "cmd.contact.set-note.desc",
   schema: { type: "object", properties: { note: { type: "string", format: "multiline" } }, required: ["note"] },
   appliesTo: appliesToExistingContact,
   plan(input, ctx) {
-    const note = str(input["note"]) ?? "";
-    const plan = planForContactMutations("contact.set-note", ctx, [{ kind: "note", note: note || null }]);
-    if (note) {
-      plan.summary = "Note changed";
-      plan.summaryKey = "plan.contact.set-note.changed";
-      plan.summaryArgs = [];
-    } else {
-      plan.summary = "Note removed";
-      plan.summaryKey = "plan.contact.set-note.removed";
-      plan.summaryArgs = [];
-    }
+    const note = str(input["note"]);
+    if (!note) throw new CoreError("fieldMissing", "contact.set-note: note is missing", ["contact.set-note", "note"]);
+    const plan = planForContactMutations("contact.set-note", ctx, [{ kind: "note", note }]);
+    plan.summary = "Note changed";
+    plan.summaryKey = "plan.contact.set-note.changed";
+    plan.summaryArgs = [];
+    return plan;
+  },
+};
+
+const contactClearNote: CommandDescriptor = {
+  id: "contact.clear-note", kind: "contact",
+  title: "Remove note", titleKey: "cmd.contact.clear-note.title",
+  description: "Remove a contact's NOTE", descriptionKey: "cmd.contact.clear-note.desc",
+  schema: { type: "object", properties: {} },
+  appliesTo: appliesToExistingContact,
+  plan(_input, ctx) {
+    const plan = planForContactMutations("contact.clear-note", ctx, [{ kind: "note", note: null }]);
+    plan.summary = "Note removed";
+    plan.summaryKey = "plan.contact.clear-note.summary";
+    plan.summaryArgs = [];
     return plan;
   },
 };
@@ -333,5 +353,5 @@ const contactCreate: CommandDescriptor = {
 
 export const CONTACT_COMMANDS: CommandDescriptor[] = [
   contactSetName, contactSetEmail, contactRemoveEmail, contactSetPhone, contactRemovePhone,
-  contactSetOrg, contactSetTitle, contactSetNote, contactSetBirthday, contactClearBirthday, contactCreate,
+  contactSetOrg, contactSetTitle, contactClearTitle, contactSetNote, contactClearNote, contactSetBirthday, contactClearBirthday, contactCreate,
 ];

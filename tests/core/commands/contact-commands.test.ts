@@ -162,14 +162,6 @@ describe("contact.set-org / set-title / set-note / set-birthday", () => {
     expect(after.org).toEqual(["Neue Praxis", "Abteilung"]);
   });
 
-  it("set-title mit leerem String entfernt TITLE", () => {
-    const c = ctx(read("v3-full.vcf"), existingTarget("c3-1@test", "v3-full.vcf"));
-    const plan = find("contact.set-title").plan({ title: "" }, c);
-    const after = parseContact(plan.newRaw);
-    expect(after.title).toBeUndefined();
-    expect(plan.summary).toBe("Job title removed");
-  });
-
   it("set-note setzt NOTE", () => {
     const c = ctx(read("v3-full.vcf"), existingTarget("c3-1@test", "v3-full.vcf"));
     const plan = find("contact.set-note").plan({ note: "Neue Notiz" }, c);
@@ -214,6 +206,52 @@ describe("contact.clear-birthday / set-birthday ohne Löschzweig", () => {
 
   it("set-birthday weist einen leeren Wert auch im Schema ab (der Löschzweig war nie erreichbar)", () => {
     expect(validateInput(find("contact.set-birthday").schema, { bday: "" }).ok).toBe(false);
+  });
+});
+
+describe("contact.clear-title / clear-note / set-title / set-note ohne Löschzweig", () => {
+  const c = ctx(read("v3-full.vcf"), existingTarget("c3-1@test", "v3-full.vcf"));
+  const newContact = { ...c, target: { kind: "contact" as const, source: "a1/ab1", new: true as const } };
+
+  it("Vorbedingung: die Fixture hat Titel und Notiz", () => {
+    const parsed = parseContact(c.raw ?? "");
+    expect(parsed.title).toBeDefined();
+    expect(parsed.note).toBeDefined();
+  });
+
+  it("clear-title entfernt TITLE und meldet es in der Zusammenfassung", () => {
+    const plan = find("contact.clear-title").plan({}, c);
+    expect(parseContact(plan.newRaw).title).toBeUndefined();
+    expect(plan.summary).toBe("Job title removed");
+    expect(plan.summaryKey).toBe("plan.contact.clear-title.summary");
+    expect(plan.diff.some((d) => d.field === "title" && d.after === undefined)).toBe(true);
+  });
+
+  it("clear-note entfernt NOTE und meldet es in der Zusammenfassung", () => {
+    const plan = find("contact.clear-note").plan({}, c);
+    expect(parseContact(plan.newRaw).note).toBeUndefined();
+    expect(plan.summary).toBe("Note removed");
+    expect(plan.summaryKey).toBe("plan.contact.clear-note.summary");
+    expect(plan.diff.some((d) => d.field === "note" && d.after === undefined)).toBe(true);
+  });
+
+  it.each(["contact.clear-title", "contact.clear-note"])("%s nimmt keine Eingabe: Schema ohne Pflichtfeld, gilt für {}, nicht für neue Kontakte", (id) => {
+    const d = find(id);
+    expect(validateInput(d.schema, {}).ok).toBe(true);
+    expect(d.appliesTo(c)).toBe(true);
+    expect(d.appliesTo(newContact)).toBe(false);
+  });
+
+  it("set-title und set-note ohne Wert sind ein Fehler statt stilles Löschen", () => {
+    expect(() => find("contact.set-title").plan({ title: "" }, c)).toThrow(/title/);
+    expect(() => find("contact.set-title").plan({}, c)).toThrow(/title/);
+    expect(() => find("contact.set-note").plan({ note: "" }, c)).toThrow(/note/);
+    expect(() => find("contact.set-note").plan({}, c)).toThrow(/note/);
+  });
+
+  it("set-title und set-note weisen einen leeren Wert auch im Schema ab (der Löschzweig war nie erreichbar)", () => {
+    expect(validateInput(find("contact.set-title").schema, { title: "" }).ok).toBe(false);
+    expect(validateInput(find("contact.set-note").schema, { note: "" }).ok).toBe(false);
   });
 });
 

@@ -71,9 +71,9 @@ function realPlans(): CommandPlan[] {
   plans.push(findCmd(CONTACT_COMMANDS, "contact.set-org").plan({ org: ["A", "B"] }, contact));
   plans.push(findCmd(CONTACT_COMMANDS, "contact.set-org").plan({ org: [] }, contact));
   plans.push(findCmd(CONTACT_COMMANDS, "contact.set-title").plan({ title: "Arzt" }, contact));
-  plans.push(findCmd(CONTACT_COMMANDS, "contact.set-title").plan({ title: "" }, contact));
+  plans.push(findCmd(CONTACT_COMMANDS, "contact.clear-title").plan({}, contact));
   plans.push(findCmd(CONTACT_COMMANDS, "contact.set-note").plan({ note: "Text" }, contact));
-  plans.push(findCmd(CONTACT_COMMANDS, "contact.set-note").plan({ note: "" }, contact));
+  plans.push(findCmd(CONTACT_COMMANDS, "contact.clear-note").plan({}, contact));
   plans.push(findCmd(CONTACT_COMMANDS, "contact.set-birthday").plan({ bday: "1980-01-01" }, contact));
   plans.push(findCmd(CONTACT_COMMANDS, "contact.clear-birthday").plan({}, contact));
   plans.push(findCmd(CONTACT_COMMANDS, "contact.create").plan({ fn: "Neuer Kontakt" }, contactCtx(undefined as unknown as string, NEW_CONTACT_TARGET)));
