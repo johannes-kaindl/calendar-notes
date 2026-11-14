@@ -4,6 +4,7 @@ import type { MailTransport } from "../core/api/types";
 import type { CommandPlan } from "../core/commands/types";
 import type { Account } from "../core/settings";
 import { t } from "../i18n/strings";
+import { firstFreeName } from "../vendor/kit/filename-policy";
 import { joinVaultPath, vaultDirname } from "../vendor/kit/vault-path";
 import { describeError } from "./error-i18n";
 
@@ -103,12 +104,10 @@ class IcsModal extends Modal {
 
   private async saveToVault(): Promise<void> {
     const folder = this.notePath ? vaultDirname(this.notePath) : "";
-    let path = joinVaultPath(folder, `${t("invite.filePrefix")}-${this.uid}.ics`);
-    let n = 1;
-    while (this.app.vault.getAbstractFileByPath(path)) {
-      n += 1;
-      path = joinVaultPath(folder, `${t("invite.filePrefix")}-${this.uid}-${n}.ics`);
-    }
+    const path = firstFreeName(
+      joinVaultPath(folder, `${t("invite.filePrefix")}-${this.uid}.ics`), "file",
+      (candidate) => Boolean(this.app.vault.getAbstractFileByPath(candidate)), { style: "dash" },
+    );
     try {
       await this.app.vault.create(path, this.ics);
       new Notice(t("invite.saved", path));
