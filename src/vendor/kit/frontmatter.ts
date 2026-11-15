@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.63.0, src/pure/frontmatter.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.92.0, src/pure/frontmatter.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // frontmatter.ts — yaml_lite: flache Skalare + einfache Listen. Kein obsidian-Import.
 //
 // Gehoben aus vault-rag/src/frontmatter.ts (Serialisier-/Parse-Pfad); die smart-apply-
@@ -9,8 +9,20 @@
 // macht keine Typinferenz. Deshalb normalisiert valueEquals Skalare über String(v),
 // sonst schlüge der Round-Trip-Selbstcheck für Zahlen fehl.
 //
+// WAS IST BLOCK (Welle 34, Paket C1; gemessen 2026-11-14 in Obsidian 1.15.1, Pilot `pilot/frontmatter-leser.ts`, Lauf ohne Abweichung: `parseFrontmatter` stimmt in `exists` und Textbeginn mit `getFrontMatterInfo` in allen 17 Dokumenten überein):
+//   Zaun, Zaun, Text                      → Block (null Zeilen), Text ab 8        | mit späterer Trennlinie im Text: derselbe Block, die Trennlinie ist Text
+//   Zaun, Leerzeile, Zaun, Text           → Block (eine Leerzeile), Text ab 9     | Zaun, Zaun am Dateiende: Block, Text ab 7 | CRLF: Block, Text ab 10 | Zaun, Zaun, Zaun: Block, der dritte Zaun ist Text
+//   `---  ` oder `---\t` als ÖFFNENDER Zaun → kein Block                          | als SCHLIESSENDER Zaun → schließt nicht (leerer Block mit `---  `: kein Block; mit späterem echtem Zaun: der schließt, Text ab 24)
+//   BOM vor dem ersten Zaun               → kein Block                              | Text, der nie mit einer Zeile `---` schließt → kein Block | `---x` im Block ist Text im Block
+//   Text nach einem Zaun mit späterer Trennlinie (ohne gültiges YAML) → Block (`getFrontMatterInfo`), `metadataCache` kennt keinen Schlüssel
+// ⚠️ Obsidian liest an zwei Stellen verschieden: `getFrontMatterInfo` (diese Regel) ist streng, der `metadataCache` schließt auch an `---  `, `---\t` und `---x` und liest einen BOM davor mit (gemessen: `---\na: 1\n---  \nText` → Cache `{a:1}`,
+// `getFrontMatterInfo` `exists: false`). Dieses Kit folgt `getFrontMatterInfo`, weil sie den Textbeginn nennt, den `insertAtCursor` und `patchFrontmatter` brauchen; ein Dokument mit `---  ` als einzigem Schluss hat damit für `patchFrontmatter` keinen
+// lesbaren Block (`unparseable`, nie geschrieben, auch nicht mit `create: true`). Tabelle (Dokument, `getFrontMatterInfo`, `metadataCache`, Kit) als Datei: Ausgabeordner des Laufs, `frontmatter-leser.md`.
+//
 // Diese Datei muss unter `noUncheckedIndexedAccess` fehlerfrei sein (lig compiliert
 // damit) — siehe npm-Skript `check:index-strict`.
+
+import { baseName } from "../code-kit/rel-path";
 
 export type FmValue = string | number | string[];
 export interface ParsedFrontmatter {
@@ -20,8 +32,33 @@ export interface ParsedFrontmatter {
   comments?: Record<string, string>;
 }
 
-// Matches "---\n<block>\n---\n" at the very start of a document.
-const DELIM_RE = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*\r?\n?/;
+/** Wo ein Dokument seinen Frontmatter-Block hat (Welle 34, Paket C1). Die EINE Antwort auf „was ist Block, was ist Text“ für `parseFrontmatter` und `patchFrontmatter` (und den Fake `getFrontMatterInfo`):
+ *  `open` ist der öffnende Zaun samt Zeilenende, `raw` der Text dazwischen ohne das Zeilenende vor dem schließenden Zaun, `close` der schließende Zaun samt dem Zeilenende davor (bei einem leeren Block ohne), `bodyFrom` der Beginn des Textes,
+ *  `empty` ein Block ohne eine Zeile (`---` direkt auf `---`, `raw` und die Zeilenende-Teile sind dann leer). */
+export interface FrontmatterSpan { open: string; raw: string; close: string; bodyFrom: number; empty: boolean }
+
+/** Findet den Frontmatter-Block am Anfang von `text`, sonst `null` (kein öffnender Zaun in Zeile 1, oder der Block schließt nie). Zeilenweise, linear: ein Block ist alles zwischen dem öffnenden Zaun und der ERSTEN Zeile, die genau `---` ist
+ *  (bis zum Zeilenende oder Dateiende; `---x` und `---` mit Leerzeichen oder Tab dahinter sind keine Zaunzeile). Regel gemessen am 2026-11-14 in Obsidian 1.15.1 (`getFrontMatterInfo`, Pilot `frontmatter-leser`, Tabelle im Kopf dieser Datei); der `metadataCache` ist dort großzügiger, das Kit folgt `getFrontMatterInfo`. Zwei Zaunzeilen direkt nacheinander sind ein leerer Block, der Text beginnt hinter der zweiten (die alte Regex las dort die erste spätere
+ *  Trennlinie im Text als schließenden Zaun, `patchFrontmatter` schrieb dann in den Text). Der öffnende Zaun ist genau `---` in Zeile 1 (Leerzeichen dahinter und ein BOM davor ergeben keinen Block). */
+export function locateFrontmatter(text: string): FrontmatterSpan | null {
+  const first = /^---\r?\n/.exec(text);
+  if (!first) return null;
+  const open = first[0];
+  let pos = open.length;
+  for (;;) {
+    const nl = text.indexOf("\n", pos);
+    const lineEnd = nl === -1 ? text.length : nl;
+    const line = text.slice(pos, text[lineEnd - 1] === "\r" && lineEnd > pos ? lineEnd - 1 : lineEnd);
+    if (/^---$/.test(line)) {
+      const bodyFrom = nl === -1 ? text.length : nl + 1;
+      if (pos === open.length) return { open, raw: "", close: text.slice(pos, bodyFrom), bodyFrom, empty: true };
+      const eolLen = text[pos - 2] === "\r" ? 2 : 1;
+      return { open, raw: text.slice(open.length, pos - eolLen), close: text.slice(pos - eolLen, bodyFrom), bodyFrom, empty: false };
+    }
+    if (nl === -1) return null;
+    pos = nl + 1;
+  }
+}
 
 function unquote(raw: string): string {
   const s = raw.trim();
@@ -95,10 +132,10 @@ function splitComment(rest: string): { value: string; comment: string } {
 
 export function parseFrontmatter(text: string, opts?: { comments?: boolean }): ParsedFrontmatter {
   const extractComments = opts?.comments ?? false;
-  const m = DELIM_RE.exec(text);
-  if (!m) return { data: {}, order: [], body: text };
-  const block = m[1] ?? "";
-  const body = text.slice(m[0].length);
+  const span = locateFrontmatter(text);
+  if (!span) return { data: {}, order: [], body: text };
+  const block = span.raw;
+  const body = text.slice(span.bodyFrom);
   const data: Record<string, FmValue> = {};
   const order: string[] = [];
   const comments: Record<string, string> = {};
@@ -171,7 +208,8 @@ function needsQuoting(v: string): boolean {
   return false;
 }
 
-function quoteScalar(v: string): string {
+/** Ein Skalar so, wie `serializeFrontmatter` ihn schreibt: bei Bedarf in Anführungszeichen (auch für die Einträge einer Blockliste in `frontmatter-patch`). */
+export function quoteScalar(v: string): string {
   if (!needsQuoting(v)) return v;
   return '"' + v.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
 }
@@ -218,9 +256,31 @@ export function wikilinkDisplayText(value: string): string {
   const target = bar >= 0 ? inner.slice(0, bar) : inner;
   const hash = target.indexOf("#");
   const path = (hash >= 0 ? target.slice(0, hash) : target).trim();
-  const name = (path.split("/").pop() ?? path).trim();
+  const name = baseName(path).trim();
   if (name !== "") return name;
   return hash >= 0 ? target.slice(hash + 1).trim() : "";
+}
+
+/** Ein Vault-Pfad als Wikilink: `A/B/Notiz.md` → `[[A/B/Notiz]]`. Die Endung `.md` fällt (ohne Rücksicht auf Groß und Klein, nur am Ende), jede andere bleibt (`bild.png` → `[[bild.png]]`).
+ *  `null`, wenn sich der Pfad nicht als Link schreiben lässt: leer, mit einem der Zeichen `[ ] # ^ |` (in `[[…]]` gibt es kein Fluchtzeichen, der Link zeigte auf etwas anderes), mit leerem Ziel (nur `.md`) oder mit `/` am Ende (kein Dateiname).
+ *  Bei `null` schreibt der Aufrufer den Pfad als Text: ein sichtbarer Pfad ist eine Unbequemlichkeit, ein Link auf die falsche Notiz ein Fehler. Mit `{ alias: true }` bekommt ein Pfad MIT Ordner den Dateinamen als Anzeige (`[[A/B/Notiz|Notiz]]`),
+ *  ein Pfad ohne Ordner nie; die Vorgabe ist ohne Alias (ein Link als Wert einer Eigenschaft braucht keinen, ein Link im Fließtext liest sich mit ihm besser). Das Gegenstück zum Lesen ist `wikilinkDisplayText`. Wirft nie, ein Wert, der kein Text ist, ist `null`.
+ *
+ *  Herkunft und begründete Unterschiede (Dach-AGENTS, Bibliothek ab Eins), gelesen am 2026-11-14:
+ *  - mailstone `src/core/render/wikilink.ts:15` (`wikilink`): derselbe Guard und dasselbe `null`; ließ `.md` stehen, ohne Grund (dort kommen nur Pfade ohne Endung an), das Kit folgt den beiden anderen.
+ *  - vault-rag `src/link_writer.ts:23` (`wikilinkFor`): `.md` fällt, bei einem Pfad mit Ordner IMMER der Alias, weil der Link dort im Fließtext einer Notiz steht: hier `alias: true`.
+ *  - diachronic (`src/core/commit-note.ts`, dritte Kopie, vom Gegenleser des Bibliothek-Gates abgelehnt): `.md` fällt, kein Alias; das ist die Vorgabe.
+ *  Leeres Ziel und `/` am Ende prüfte keine Kopie; beide ergäben einen Link auf keine Datei (`[[]]`, `[[A/]]`).
+ *  @example
+ *  wikilinkOf("A/B/Notiz.md")                  // → "[[A/B/Notiz]]"
+ *  wikilinkOf("A/B/Notiz.md", { alias: true }) // → "[[A/B/Notiz|Notiz]]"
+ *  wikilinkOf("Was #1.md")                     // → null */
+export function wikilinkOf(path: string, opts?: { alias?: boolean }): string | null {
+  if (typeof path !== "string" || path === "" || /[[\]#^|]/.test(path)) return null;
+  const target = path.replace(/\.md$/i, "");
+  const name = baseName(target);
+  if (target === "" || name === "") return null;
+  return opts?.alias === true && name !== target ? `[[${target}|${name}]]` : `[[${target}]]`;
 }
 
 export interface ValueEqualsOptions {

@@ -1,4 +1,4 @@
-// vendored from code-kit@0.31.0, src/ts/pure/filename-template.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.74.0, src/ts/pure/filename-template.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** Konfigurierbares Dateinamen-Schema: `{platzhalter}` auflösen, das Ergebnis auf
  *  dateisystem- und Obsidian-sichere Zeichen bringen, und über eine Fallback-Kette
  *  absichern, dass kein leerer Dateiname entsteht. Obsidian-frei (PROF-OBS-03/04) und
@@ -75,10 +75,29 @@
  *  `[]` Wikilink). Byte-identisch aus allen drei Quellfassungen — siehe ⚠️ im Modulkopf. */
 const INVALID = /[\\/:*?"<>|#^[\]]/g;
 
+/** Steuerzeichen U+0000–U+001F und U+007F: nie Teil eines Dateinamens, in jeder `onInvalid`-Stellung entfernt.
+ *  Bewusst kein Regex-Literal: `no-control-regex` (Kernregel in js.configs.recommended und im obsidianmd-Preset) lehnt Steuerzeichen im Muster ab, und jeder Konsument, der dieses Modul vendort, lintet es mit. */
+function stripControl(s: string): string {
+  let out = "";
+  for (const ch of s) {
+    const c = ch.codePointAt(0) ?? 0;
+    if (c > 0x1f && c !== 0x7f) out += ch;
+  }
+  return out;
+}
+
+/** Tab, Zeilenumbruch, Seitenvorschub und Wagenrücklauf trennen Wörter: sie werden zu einem Leerzeichen (danach zieht der Leerraum zusammen), nicht gelöscht. */
+const WHITESPACE_CONTROL = /[\t\n\v\f\r]/g;
+
 /** Was mit einem ungültigen Zeichen geschieht.
  *  - `"replace"` — durch `_` ersetzen (paperize, letterhead; Default)
- *  - `"strip"` — ersatzlos löschen (yijing-oracle) */
-export type InvalidCharMode = "strip" | "replace";
+ *  - `"strip"` — ersatzlos löschen (yijing-oracle)
+ *  - `"space"` — durch ein Leerzeichen ersetzen, danach Leerraum zusammenziehen und trimmen
+ *    („Sitzung: OV/Vorstand“ → „Sitzung OV Vorstand“; protocol-droid, Besprechungstitel)
+ *
+ *  Steuerzeichen (U+0000–U+001F, U+007F) entfernt jede Stellung, noch vor der Behandlung der übrigen Zeichen; Tab und Zeilenumbruch
+ *  (U+0009–U+000D) trennen dabei Wörter und werden zu einem Leerzeichen, alle anderen verschwinden ersatzlos. */
+export type InvalidCharMode = "strip" | "replace" | "space";
 
 /** Optionen für {@link buildFilename}; {@link sanitizeFilename} nutzt nur `onInvalid`. */
 export interface FilenameOptions {
@@ -126,8 +145,9 @@ export function sanitizeFilename(
   s: string,
   opts: Pick<FilenameOptions, "onInvalid"> = {},
 ): string {
-  return (s || "")
-    .replace(INVALID, opts.onInvalid === "strip" ? "" : "_")
+  const mode = opts.onInvalid;
+  return stripControl((s || "").replace(WHITESPACE_CONTROL, " "))
+    .replace(INVALID, mode === "strip" ? "" : mode === "space" ? " " : "_")
     .replace(/\s+/g, " ")
     .trim();
 }

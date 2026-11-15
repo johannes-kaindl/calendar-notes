@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.63.0, src/pure/vault-path.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.92.0, src/pure/vault-path.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** Vault-relative Pfade fügen und zerlegen — obsidian-frei, in Node testbar (PROF-OBS-03/04).
  *  Genau die drei Rechnungen, die im Ausgabe-Pfad jedes Export-Plugins vorkommen: Ordner
  *  normalisieren, Ordner + Dateiname fügen, Elternordner eines fertigen Pfads bestimmen.
@@ -52,6 +52,14 @@
  *  Leerstring vorher abfängt (`if (dir && !await adapter.exists(dir)) …`). */
 export function normalizeVaultDir(dir: string | null | undefined): string {
   return (dir ?? "").replace(/[\\/]+/g, "/").replace(/^\/+|\/+$/g, "");
+}
+
+/** Vergleichsform eines Ordnerpfads: `normalizeVaultDir` plus Unicode-NFC. Obsidians Adapter liefert Pfade in der Form des Dateisystems (macOS: oft NFD),
+ *  Einstellungen und Eingaben tragen NFC; nur gleiche Form vergleicht richtig. Für Vergleiche und Mengen von Ordnern, NIE für einen Namen, der auf die
+ *  Platte geschrieben wird (der Dateiname soll bleiben, wie der Nutzer ihn tippte). Vorher dreimal gebaut, jedes Mal anders: protocol-droid (diese Form),
+ *  docs-mirror `norm` (NFC, `\` zu `/`, Schluss-Schrägstrich weg) und koda-agent `nf` (nur NFC). */
+export function canonVaultDir(dir: string | null | undefined): string {
+  return normalizeVaultDir(dir).normalize("NFC");
 }
 
 /** Vault-relativer Pfad aus Ordner + fertigem Dateinamen (inklusive Endung).

@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.63.0, src/obsidian/confirm.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.92.0, src/obsidian/confirm.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 import { App, ButtonComponent, Modal } from "obsidian";
 
 export interface ConfirmOptions {
@@ -21,7 +21,7 @@ export interface ConfirmOptions {
  *  also in beide Richtungen falsch: `setWarning()` erzeugt einen Review-Befund, ein direktes
  *  `setDestructive()` wirft bei jedem Konsumenten mit `minAppVersion < 1.13` zur Laufzeit.
  *  Deshalb Laufzeit-Check statt Compile-Time-Annahme, mit der nativen CSS-Klasse als
- *  Fallback — sie ist genau das, was `setWarning()` intern setzt. */
+ *  Fallback — sie ist genau das, was `setWarning()` intern setzt. Der Rückfall auf `mod-warning` wird noch gebraucht (gemessen am 2026-11-14 über alle `manifest.json` im Dach: 8 Plugins auf `minAppVersion` 1.8.7, 20 auf 1.11.4, je eines auf 1.12.4 und 1.12.7, nur 4 ab 1.13). */
 export function applyDestructive(b: ButtonComponent): ButtonComponent {
   const bx = b as unknown as { setDestructive?: () => void };
   if (typeof bx.setDestructive === "function") bx.setDestructive();

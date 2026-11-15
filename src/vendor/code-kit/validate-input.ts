@@ -1,4 +1,4 @@
-// vendored from code-kit@0.31.0, src/ts/pure/validate-input.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.74.0, src/ts/pure/validate-input.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** Checks a tool call's arguments against the JSON Schema that describes the tool — a small, flat subset of it, and
  *  an honest one: what it does not judge it can name ({@link unsupportedSchemaKeywords}).
  *

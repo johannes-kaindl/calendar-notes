@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.63.0, src/pure/tool-provider.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.92.0, src/pure/tool-provider.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** Vertrag `tool-provider` — ein Plugin bietet seine Fähigkeiten als LLM-Werkzeuge an, ein Wirt mit
  *  Agenten-Loop (koda-agent, später vault-crews) montiert sie, statt sie nachzubauen. Stern statt Netz:
  *  N Anbieter, 2 Wirte, ein Vertrag. Muster `pure/endpoint-source.ts`: EINE Quelle, der Anbieter
@@ -50,6 +50,8 @@
  *
  *  Fehler sind Werte, nie Ausnahmen — der Wirt glaubt das aber nicht: `callProviderTool` fängt, was
  *  ein fremdes Plugin trotzdem wirft. */
+import { errorMessage } from "../code-kit/error-message";
+
 export const TOOL_PROVIDER_API_VERSION = 1;
 
 export type ToolLang = "de" | "en";
@@ -235,6 +237,6 @@ export async function callProviderTool(
   try {
     return await api.executeTool(name, args, opts);
   } catch (e) {
-    return { ok: false, reason: "failed", message: e instanceof Error ? e.message : String(e) };
+    return { ok: false, reason: "failed", message: errorMessage(e) };
   }
 }

@@ -1,15 +1,15 @@
 {
   "sources": {
-    "obsidian-kit": { "ref": "0.63.0" },
-    "code-kit": { "ref": "0.31.0" }
+    "obsidian-kit": { "ref": "0.92.0" },
+    "code-kit": { "ref": "0.74.0" }
   },
   "targets": [
-    { "dir": "src/vendor/code-kit", "source": "code-kit", "from": "src/ts/pure", "modules": ["timeout", "sha256", "filename-template", "settings", "i18n", "busy-guard", "slug", "local-stamp", "marker-zone", "validate-input"] },
-    { "dir": "src/vendor/kit", "source": "obsidian-kit", "from": "src/pure", "modules": ["frontmatter", "vault-path", "tool-provider"] },
-    { "dir": "src/vendor/kit", "source": "code-kit", "from": "src/ts/pure", "modules": ["secrets", { "name": "split-list", "ref": "0.63.0" }, { "name": "filename-policy", "ref": "0.68.0" }, { "name": "text-window", "ref": "0.68.0" }] },
+    { "dir": "src/vendor/code-kit", "source": "code-kit", "from": "src/ts/pure", "modules": ["timeout", "sha256", "filename-template", "settings", "i18n", "busy-guard", "slug", "local-stamp", "marker-zone", "validate-input", "coded-error", "error-message", "rel-path"] },
+    { "dir": "src/vendor/kit", "source": "obsidian-kit", "from": "src/pure", "modules": ["frontmatter", "vault-path", "tool-provider"], "rewrite": [["../vendor/code-kit/pure/", "../code-kit/"]] },
+    { "dir": "src/vendor/kit", "source": "code-kit", "from": "src/ts/pure", "modules": ["secrets", "split-list", "filename-policy", "text-window"] },
     {
       "dir": "src/vendor/kit-obsidian", "source": "obsidian-kit", "from": "src/obsidian",
-      "modules": ["settings_walker", "folder-suggest", "confirm", "secrets", "help-setting"],
+      "modules": ["settings_walker", "setting-body-host", "folder-suggest", "confirm", "secrets", "help-setting"],
       "rewrite": [["../vendor/code-kit/pure/", "../kit/"]]
     },
     { "dir": "tests/vendor/kit", "source": "obsidian-kit", "from": "src/testing", "modules": ["obsidian-mock", "window-timers"] }

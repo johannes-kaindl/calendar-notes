@@ -116,8 +116,9 @@ async function ensureFolder(app: App, dir: string): Promise<void> {
   }
 }
 
-// Matches "---\n<block>\n---\n" at the very start of a document — dieselbe Form wie
-// DELIM_RE in vendor/kit/frontmatter.ts (Fallback, wenn metadataCache keinen Eintrag hat).
+// Matches "---\n<block>\n---\n" at the very start of a document (Fallback, wenn metadataCache keinen Eintrag hat).
+// Bewusst locker wie der metadataCache: ein schliessender Zaun mit Leerzeichen oder Tab dahinter gilt. Das Kit
+// (`locateFrontmatter` in vendor/kit/frontmatter.ts, seit 0.89.0) folgt dagegen `getFrontMatterInfo` und schliesst dort nicht.
 const FM_DELIM_RE = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*\r?\n?/;
 
 /** Koerper ohne YAML-Frontmatter fuer den M2a-Mirror-Vertrag (`ExistingNote.body`,
