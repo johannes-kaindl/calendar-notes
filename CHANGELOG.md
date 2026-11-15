@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-11-15
+
 ### Added
 - **A new event can be bound to an existing note and carry reminders.** `create_event` (and the command `event.create`) take `notePath`: the event is created for exactly that note instead of the sync adding a second one, and a note that already belongs to an event is refused, so a repeated run cannot create a second event. They also take `alarms`, a list of offsets such as `-P1D` and `-PT15M`, which become reminders (`VALARM`) on the server. `create_event` now passes the event's URL on as well; before, the field was accepted and dropped.
 - **An event's location, URL and description can be removed.** The new commands *Remove location*, *Remove URL* and *Remove description* (`event.clear-location`, `event.clear-url`, `event.clear-description`) delete the field on the server; until now the *Change …* commands could only set a value, their remove path never ran. They are now an error without a value.
