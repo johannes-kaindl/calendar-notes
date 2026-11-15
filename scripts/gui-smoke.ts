@@ -1084,7 +1084,7 @@ async function checkP15(cdp: Cdp, radicale: RunningServer, calendarId: string): 
   const notePath = "Shiro-Termin-Notiz.md";
   const lauf = await cdp.evaluate<{ planError?: string; claim?: string; uid?: string; href?: string; execOk?: boolean; execError?: string }>(`
     const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
-    await app.vault.create(${JSON.stringify(notePath)}, "---\ntype: termin\n---\n\nCheckliste: Unterlagen mitnehmen\n");
+    await app.vault.create(${JSON.stringify(notePath)}, ${JSON.stringify("---\ntype: termin\n---\n\nCheckliste: Unterlagen mitnehmen\n")});
     const plan = await plugin.api.plan("event.create", { title: "Shiro-Test", start: "2026-12-01T10:00:00", end: "2026-12-01T11:00:00", alarms: ["-P1D", "-PT15M"], notePath: ${JSON.stringify(notePath)} }, { new: true, collectionId: ${JSON.stringify(calendarId)} });
     if ("error" in plan) return { planError: plan.error };
     const exec = await plugin.api.execute(plan);
