@@ -1,11 +1,10 @@
-import { coreErrorOf } from "../core/errors";
+import { codedErrorText } from "../vendor/code-kit/coded-error";
 import { t } from "../i18n/strings";
 
 /** Text eines Fehlers fuer den Nutzer: ein Fehler mit Code (`CoreError`, `DavError` mit Code) wird
- *  uebersetzt, jeder andere bleibt bei seiner Meldung. Einziger Ort, an dem `core.error.<code>`
- *  gelesen wird — `src/core/**` bleibt i18n-frei (Muster wie `describeExecuteError`). */
+ *  uebersetzt, jeder andere bleibt bei seiner Meldung; fehlt zu einem Code die Uebersetzung, steht die
+ *  englische Meldung statt des Schluessels. Einziger Ort, an dem `core.error.<code>` gelesen wird, der
+ *  Mechanismus liegt in code-kit `coded-error`; `src/core/**` bleibt i18n-frei (Muster wie `describeExecuteError`). */
 export function describeError(e: unknown): string {
-  const coded = coreErrorOf(e);
-  if (coded) return t(`core.error.${coded.code}`, ...coded.args);
-  return e instanceof Error ? e.message : String(e);
+  return codedErrorText(e, t, "core.error.");
 }

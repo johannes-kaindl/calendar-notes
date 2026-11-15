@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { initI18n, EN, DE } from "../../src/i18n/strings";
+import { initI18n, EN, DE, t } from "../../src/i18n/strings";
 import { describeError } from "../../src/obsidian/error-i18n";
-import { CORE_ERROR_CODES, CoreError } from "../../src/core/errors";
+import { CORE_ERROR_CODES, CoreError, type CoreErrorCode } from "../../src/core/errors";
+import { codedErrorOf } from "../../src/vendor/code-kit/coded-error";
 import { DavError } from "../../src/core/dav/types";
 
 describe("describeError", () => {
@@ -22,6 +23,21 @@ describe("describeError", () => {
     initI18n("de");
     expect(describeError(new DavError(401, "Access denied (401)", "https://x/", "accessDenied", [401]))).toBe("Zugang verweigert (401)");
     expect(describeError(new DavError(500, "GET /a → 500", "/a"))).toBe("GET /a → 500");
+  });
+
+  it("zeigt bei einem Code ohne Uebersetzung die englische Meldung statt des Schluessels", () => {
+    const e = new CoreError("ohneUebersetzung" as CoreErrorCode, "No translation for this case", [7]);
+    initI18n("de");
+    // Vorbedingung: der Uebersetzer reicht den Schluessel selbst zurueck, sonst prueft der Fall nichts.
+    expect(t("core.error.ohneUebersetzung", 7)).toBe("core.error.ohneUebersetzung");
+    expect(describeError(e)).toBe("No translation for this case");
+  });
+
+  it("erkennt einen Fehler mit Code an seiner Form, nicht an der Klasse (CoreError und DavError)", () => {
+    expect(codedErrorOf(new CoreError("noRaw", "m", [1]))).toEqual({ code: "noRaw", args: [1] });
+    expect(codedErrorOf(new DavError(401, "m", "/x", "accessDenied", [401]))).toEqual({ code: "accessDenied", args: [401] });
+    expect(codedErrorOf(new DavError(500, "m", "/x"))).toBeUndefined();
+    expect(codedErrorOf(new Error("boom"))).toBeUndefined();
   });
 
   it("faellt bei fremden Fehlern und Nicht-Fehlern auf die Meldung zurueck", () => {
