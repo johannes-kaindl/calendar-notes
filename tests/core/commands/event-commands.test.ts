@@ -6,6 +6,7 @@ import { parseEvents, primaryEvent } from "../../../src/core/ical/event";
 import { defaultEventProfile } from "../../../src/core/mirror/profile";
 import type { Account, CollectionConfig } from "../../../src/core/settings";
 import type { CommandContext, CommandTarget } from "../../../src/core/commands/types";
+import { validateInput } from "../../../src/core/commands/schema";
 
 const FIXTURES = join(__dirname, "../../fixtures/ical");
 const read = (name: string): string => readFileSync(join(FIXTURES, name), "utf8");
@@ -107,13 +108,34 @@ describe("event.set-title / set-location / set-url / set-description", () => {
     expect(plan.summary).toContain("Zahnarzt (neu)");
   });
 
-  it("set-location mit leerem String entfernt LOCATION", () => {
+  it("set-location verlangt einen Wert, das Entfernen ist event.clear-location", () => {
     const c = ctx(read("simple.ics"), existingTarget("simple-1@test", "simple.ics"));
-    const plan = find("event.set-location").plan({ location: "" }, c);
+    expect(() => find("event.set-location").plan({ location: "" }, c)).toThrow(expect.objectContaining({ code: "fieldMissing" }));
+    const plan = find("event.clear-location").plan({}, c);
     const afterEv = primaryEvent(parseEvents(plan.newRaw))!;
     expect(afterEv.location).toBeUndefined();
     expect(plan.diff).toEqual([{ field: "location", before: "Praxis am Markt, Hauptstraße 1" }]);
     expect(plan.summary).toBe("Location removed");
+  });
+
+  it("clear-url und clear-description entfernen URL und DESCRIPTION", () => {
+    const c = ctx(read("attendees.ics"), existingTarget("att-1@test", "attendees.ics"));
+    const withBoth = find("event.set-url").plan({ url: "https://example.test/join" }, c);
+    const withDesc = find("event.set-description").plan({ description: "Agenda folgt" }, { ...c, raw: withBoth.newRaw });
+    const c2 = { ...c, raw: withDesc.newRaw };
+    const noUrl = find("event.clear-url").plan({}, c2);
+    expect(primaryEvent(parseEvents(noUrl.newRaw))!.url).toBeUndefined();
+    expect(primaryEvent(parseEvents(noUrl.newRaw))!.description).toBe("Agenda folgt");
+    const noDesc = find("event.clear-description").plan({}, c2);
+    expect(primaryEvent(parseEvents(noDesc.newRaw))!.description).toBeUndefined();
+    expect(primaryEvent(parseEvents(noDesc.newRaw))!.url).toBe("https://example.test/join");
+  });
+
+  it("die set-Befehle weisen den leeren Wert schon an der Schema-Pruefung ab (Ursache des toten Loeschzweigs)", () => {
+    for (const [id, key] of [["event.set-location", "location"], ["event.set-url", "url"], ["event.set-description", "description"]] as const) {
+      const r = validateInput(find(id).schema, { [key]: "" });
+      expect(r.ok, id).toBe(false);
+    }
   });
 
   it("set-url setzt URL", () => {
@@ -256,5 +278,59 @@ describe("event.create", () => {
     const plan = find("event.create").plan({ title: "Kickoff", start: input }, c);
     const afterEv = primaryEvent(parseEvents(plan.newRaw))!;
     expect(afterEv.start).toBe(expected);
+  });
+
+  describe("notePath und alarms", () => {
+    const newCtx = (extra: Partial<CommandContext> = {}) => ({ ...ctx(undefined as unknown as string, { kind: "event", source: "a1/c1", new: true }), ...extra });
+
+    it("notePath setzt den Anspruch auf die Notiz mit der erzeugten UID", () => {
+      const plan = find("event.create").plan({ title: "Kickoff", start: "2026-09-10T09:00:00", notePath: "Termine/Kickoff.md" }, newCtx({ noteInfo: () => ({ exists: true }) }));
+      const uid = primaryEvent(parseEvents(plan.newRaw))!.uid;
+      expect(plan.claimsNote).toEqual({ path: "Termine/Kickoff.md", uid });
+    });
+
+    it("ohne notePath kein Anspruch", () => {
+      const plan = find("event.create").plan({ title: "Kickoff", start: "2026-09-10T09:00:00" }, newCtx());
+      expect(plan.claimsNote).toBeUndefined();
+    });
+
+    it("eine Notiz, die schon eine dav_uid traegt, wird abgelehnt (zweite Ausfuehrung legt keinen zweiten Termin an)", () => {
+      expect(() => find("event.create").plan({ title: "K", start: "2026-09-10T09:00:00", notePath: "a.md" }, newCtx({ noteInfo: () => ({ exists: true, uid: "ev-1@calendar-notes" }) })))
+        .toThrow(expect.objectContaining({ code: "noteAlreadyBound", args: ["a.md"] }));
+    });
+
+    it("eine fehlende Notiz wird abgelehnt statt eine zweite anzulegen", () => {
+      expect(() => find("event.create").plan({ title: "K", start: "2026-09-10T09:00:00", notePath: "a.md" }, newCtx({ noteInfo: () => ({ exists: false }) })))
+        .toThrow(expect.objectContaining({ code: "noteNotFound" }));
+    });
+
+    it("alarms werden als VALARM mit Dauer-Ausloeser geschrieben", () => {
+      const plan = find("event.create").plan({ title: "Zahnarzt", start: "2026-09-10T09:00:00", alarms: ["-P1D", "-PT15M"] }, newCtx());
+      const alarms = plan.newRaw.match(/BEGIN:VALARM[\s\S]*?END:VALARM/g) ?? [];
+      expect(alarms).toHaveLength(2);
+      expect(alarms[0]).toMatch(/ACTION:DISPLAY/);
+      expect(alarms[0]).toMatch(/DESCRIPTION:Zahnarzt/);
+      expect(alarms[0]).toMatch(/TRIGGER:-P1D/);
+      expect(alarms[1]).toMatch(/TRIGGER:-PT15M/);
+    });
+
+    it.each(["-P1D", "-PT15M", "PT0S", "-P1W", "-P1DT2H", "+PT5M"])("alarms: %j ist eine Dauer und wird angenommen", (ok) => {
+      const plan = find("event.create").plan({ title: "K", start: "2026-09-10T09:00:00", alarms: [ok] }, newCtx());
+      expect(plan.newRaw).toContain("BEGIN:VALARM");
+    });
+
+    it.each(["", "gestern", "-PT", "P", "15 Minuten", "-P1X", "-P1DT"])("alarms: %j ist keine Dauer und bricht den Plan ab", (bad) => {
+      expect(() => find("event.create").plan({ title: "K", start: "2026-09-10T09:00:00", alarms: [bad] }, newCtx()))
+        .toThrow(expect.objectContaining({ code: "alarmInvalid" }));
+    });
+
+    it("url wird mitgeschrieben (das Schema versprach sie, der Plan verwarf sie)", () => {
+      const plan = find("event.create").plan({ title: "K", start: "2026-09-10T09:00:00", url: "https://example.test/x" }, newCtx());
+      expect(primaryEvent(parseEvents(plan.newRaw))!.url).toBe("https://example.test/x");
+    });
+
+    it("die Schema-Pruefung nimmt alarms als Liste an", () => {
+      expect(validateInput(find("event.create").schema, { title: "K", start: "2026-09-10T09:00:00", alarms: ["-P1D"], notePath: "a.md" }).ok).toBe(true);
+    });
   });
 });

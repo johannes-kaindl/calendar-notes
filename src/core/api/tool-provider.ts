@@ -43,6 +43,9 @@ const T = {
   allDay: { en: "All-day event", de: "Ganztägiger Termin" },
   location: { en: "Location", de: "Ort" },
   description: { en: "Description", de: "Beschreibung" },
+  url: { en: "URL", de: "URL" },
+  alarms: { en: "Reminders as ISO 8601 durations relative to the start, e.g. -P1D (a day before) and -PT15M (15 minutes before)", de: "Erinnerungen als ISO-8601-Dauer relativ zum Beginn, z. B. -P1D (einen Tag vorher) und -PT15M (15 Minuten vorher)" },
+  notePath: { en: "Path of an existing note that becomes this event's note, instead of the sync creating a new one", de: "Pfad einer vorhandenen Notiz, die zur Notiz dieses Termins wird, statt dass der Sync eine neue anlegt" },
   field: { en: "Which field to change", de: "Welches Feld geändert wird" },
   value: { en: "New value (for org: comma-separated parts)", de: "Neuer Wert (bei org: Teile durch Komma getrennt)" },
   noConfirm: { en: "Not done: this change needs the user's confirmation, and none was given.", de: "Nicht ausgeführt: Diese Änderung braucht die Bestätigung der Nutzerin, und sie lag nicht vor." },
@@ -75,7 +78,7 @@ function providerToolDefs(lang: ToolLang): ProviderToolDef[] {
     { name: "get_item", writes: false, description: d(T.getItem),
       parameters: { type: "object", properties: { uid: str(T.uid), source: str(T.source) }, required: ["uid"] } },
     { name: "create_event", writes: true, description: d(T.createEvent),
-      parameters: { type: "object", properties: { collectionId: str(T.collectionId), title: str(T.title), start: str(T.start), end: str(T.end), allDay: { type: "boolean", description: d(T.allDay) }, location: str(T.location), description: str(T.description) }, required: ["collectionId", "title", "start"] } },
+      parameters: { type: "object", properties: { collectionId: str(T.collectionId), title: str(T.title), start: str(T.start), end: str(T.end), allDay: { type: "boolean", description: d(T.allDay) }, location: str(T.location), description: str(T.description), url: str(T.url), alarms: { type: "array", items: { type: "string" }, description: d(T.alarms) }, notePath: str(T.notePath) }, required: ["collectionId", "title", "start"] } },
     { name: "move_event", writes: true, description: d(T.moveEvent),
       parameters: { type: "object", properties: { uid: str(T.uid), source: str(T.source), start: str(T.start), end: str(T.end), allDay: { type: "boolean", description: d(T.allDay) } }, required: ["uid", "source", "start"] } },
     { name: "update_contact", writes: true, description: d(T.updateContact),
@@ -176,7 +179,9 @@ export function createToolProvider(host: ToolProviderHost): {
             if (!title) return bad("title", "title is required");
             if (!start) return bad("start", "start is required");
             const input: Record<string, unknown> = { title, start };
-            for (const k of ["end", "location", "description"]) { const v = strArg(args, k); if (v) input[k] = v; }
+            for (const k of ["end", "location", "description", "url", "notePath"]) { const v = strArg(args, k); if (v) input[k] = v; }
+            const alarms = args["alarms"];
+            if (Array.isArray(alarms) && alarms.length > 0) input["alarms"] = alarms.map((a) => (typeof a === "string" ? a : String(a)));
             if (typeof args["allDay"] === "boolean") input["allDay"] = args["allDay"];
             return write(lang, "event.create", input, { new: true, collectionId }, opts);
           }

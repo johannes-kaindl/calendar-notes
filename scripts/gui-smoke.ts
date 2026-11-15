@@ -141,6 +141,7 @@ const PUNKT = {
   P11: "P11 Einladung ohne Scheduling/Transport (Route ics)",
   P13: "P13 API-Lesen (events/contacts/commandTools==commands, tools() = sechs Werkzeuge mit writes)",
   P14: "P14 contact.clear-title und contact.clear-note entfernen TITLE und NOTE am Server, set-title mit leerem Wert wird abgewiesen",
+  P15: "P15 event.create mit notePath bindet die vorhandene Notiz (keine zweite), alarms stehen als VALARM auf dem Server, eine zweite Ausfuehrung wird abgewiesen",
   P20: "P20 Aufgaben-Sammlung erkannt und aktivierbar",
   P21: "P21 Aufgaben-Profil automatisch zugewiesen",
   P22: "P22 Sync legt Notiz fuer die offene Aufgabe an",
@@ -159,7 +160,7 @@ type PunktName = (typeof PUNKT)[PunktId];
 
 const GRUND: PunktId[] = ["P0", "P1", "P2b", "P2a", "P2"];
 const SOLL_JE_ABSCHNITT: Record<Section, readonly PunktId[]> = {
-  generic: [...GRUND, "P4a", "P4b", "P5", "P9", "P6", "P7", "P10", "P12", "P11", "P13", "P14"],
+  generic: [...GRUND, "P4a", "P4b", "P5", "P9", "P6", "P7", "P10", "P12", "P11", "P13", "P14", "P15"],
   pallas: [...GRUND, "P3", "P3b"],
   todo: [...GRUND, "P21", "P20", "P22", "P23", "P24", "P25", "P26", "P30", "P27", "P28", "P29"],
 };
@@ -1072,6 +1073,57 @@ async function checkP14(cdp: Cdp, radicale: RunningServer, source: string): Prom
   const ok = hatVorher && lauf.title === "ok" && lauf.note === "ok" && titelWeg && notizWeg && rest && lauf.leer === "abgewiesen";
   record("P14", ok,
     `Vorbedingung TITLE+NOTE=${hatVorher}, clear-title=${lauf.title}, clear-note=${lauf.note}, Server ohne TITLE=${titelWeg}, ohne NOTE=${notizWeg}, FN/ORG erhalten=${rest}, set-title leer=${lauf.leer}`,
+  );
+}
+
+/** P15: `event.create` mit `notePath` und `alarms` ueber die Plugin-API gegen den echten Server (Task „Neuen Termin an eine bestehende
+ *  Note binden“). Die Notiz liegt bewusst AUSSERHALB von `Events/`, wo der Sync sonst eine eigene anlegte: traegt sie danach die
+ *  `dav_uid` und gibt es nirgends eine zweite Notiz zu diesem Termin, hat der Anspruch gewirkt. Gegenprobe im selben Punkt: derselbe
+ *  Plan noch einmal wird abgewiesen (die Notiz gehoert schon zu einem Termin), und es entsteht kein zweiter Termin. */
+async function checkP15(cdp: Cdp, radicale: RunningServer, calendarId: string): Promise<void> {
+  const notePath = "Shiro-Termin-Notiz.md";
+  const lauf = await cdp.evaluate<{ planError?: string; claim?: string; uid?: string; href?: string; execOk?: boolean; execError?: string }>(`
+    const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+    await app.vault.create(${JSON.stringify(notePath)}, "---\ntype: termin\n---\n\nCheckliste: Unterlagen mitnehmen\n");
+    const plan = await plugin.api.plan("event.create", { title: "Shiro-Test", start: "2026-12-01T10:00:00", end: "2026-12-01T11:00:00", alarms: ["-P1D", "-PT15M"], notePath: ${JSON.stringify(notePath)} }, { new: true, collectionId: ${JSON.stringify(calendarId)} });
+    if ("error" in plan) return { planError: plan.error };
+    const exec = await plugin.api.execute(plan);
+    return { claim: plan.claimsNote && plan.claimsNote.path, uid: plan.claimsNote && plan.claimsNote.uid, href: plan.hrefForPut, execOk: !("error" in exec) && !!exec.ok, execError: "error" in exec ? exec.error : undefined };
+  `);
+  if (lauf.planError !== undefined || !lauf.uid || !lauf.href) {
+    record("P15", false, `plan fehlgeschlagen: ${lauf.planError ?? "ohne Anspruch/UID"}`);
+    return;
+  }
+  const uid = lauf.uid;
+  // Wartebedingung: die Notiz traegt die dav_uid (der Resync nach dem PUT schreibt sie).
+  const gebunden = await pollUntil<boolean>(
+    cdp,
+    `
+    const f = app.vault.getAbstractFileByPath(${JSON.stringify(notePath)});
+    const fm = f ? app.metadataCache.getFileCache(f)?.frontmatter : undefined;
+    return fm && fm["dav_uid"] === ${JSON.stringify(uid)} ? true : null;
+  `,
+    10_000,
+    200,
+  ).catch(() => null);
+  const zaehl = await cdp.evaluate<{ mitUid: number; zweite: number }>(`
+    const files = app.vault.getMarkdownFiles();
+    const mitUid = files.filter((f) => app.metadataCache.getFileCache(f)?.frontmatter?.["dav_uid"] === ${JSON.stringify(uid)}).length;
+    const zweite = files.filter((f) => f.path !== ${JSON.stringify(notePath)} && f.basename.includes("Shiro-Test")).length;
+    return { mitUid, zweite };
+  `);
+  const server = await davGet(radicale, lauf.href);
+  const alarme = (server.body.match(/BEGIN:VALARM/g) ?? []).length;
+  const trigger = /TRIGGER:-P1D/.test(server.body) && /TRIGGER:-PT15M/.test(server.body);
+  const nochmal = await cdp.evaluate<string>(`
+    const plugin = app.plugins.plugins[${JSON.stringify(PLUGIN_ID)}];
+    const plan = await plugin.api.plan("event.create", { title: "Shiro-Test", start: "2026-12-01T10:00:00", notePath: ${JSON.stringify(notePath)} }, { new: true, collectionId: ${JSON.stringify(calendarId)} });
+    return "error" in plan ? "abgewiesen: " + String(plan.error).slice(0, 120) : "ANGENOMMEN";
+  `);
+  const ok = lauf.execOk === true && lauf.claim === notePath && gebunden === true && zaehl.mitUid === 1 && zaehl.zweite === 0
+    && server.status === 200 && alarme === 2 && trigger && nochmal.startsWith("abgewiesen");
+  record("P15", ok,
+    `exec=${lauf.execOk}${lauf.execError ? ` (${lauf.execError})` : ""}, Anspruch=${lauf.claim}, Notiz traegt dav_uid=${gebunden === true}, Notizen mit der UID=${zaehl.mitUid} (erwartet 1), zweite Notiz "Shiro-Test"=${zaehl.zweite} (erwartet 0), Server HTTP ${server.status} VALARM=${alarme} (erwartet 2, Ausloeser ok=${trigger}), zweite Ausfuehrung ${nochmal}`,
   );
 }
 
@@ -2028,6 +2080,7 @@ async function main(): Promise<void> {
       await checkP11(cdp, radicale, commandSource);
       await checkP13(cdp);
       await checkP14(cdp, radicale, `${ACCOUNT_ID}/${discovery.addressbookId}`);
+      await checkP15(cdp, radicale, discovery.calendarId);
     }
 
     if (focus) await checkP8(port, vault);

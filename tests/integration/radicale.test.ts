@@ -67,6 +67,24 @@ describe("radicale end-to-end", () => {
     expect(d4.deleted).toEqual([]);             // angelegt+gelöscht zwischen zwei Syncs → nie im Snapshot, also auch nicht "deleted"
   });
 
+  it("VEVENT mit Erinnerungen (VALARM): Neuanlage, Rueckgabe und Aenderung behalten die Ausloeser", async () => {
+    const href = `${kal.href}w35-alarm-1.ics`;
+    const ics = newEventIcs({ uid: "w35-alarm-1@cn", summary: "Zahnarzt", start: "2026-11-20T09:00:00Z", end: "2026-11-20T10:00:00Z", alarms: ["-P1D", "-PT15M"] }, { now: new Date() });
+    expect(await putObject(t, href, ics, { ifNoneMatch: true }, "text/calendar")).toMatchObject({ ok: true });
+    const back = await getObject(t, href);
+    expect(back.data.match(/BEGIN:VALARM/g)).toHaveLength(2);
+    expect(back.data).toContain("TRIGGER:-P1D");
+    expect(back.data).toContain("TRIGGER:-PT15M");
+    expect(parseEvents(back.data)[0]!.summary).toBe("Zahnarzt");
+    // Eine spaetere Aenderung ueber den Mutationsweg laesst die Erinnerungen stehen.
+    const mutated = applyMutation(back.data, { kind: "summary", summary: "Zahnarzt (neu)" }, { now: new Date() });
+    expect(await putObject(t, href, mutated, { ifMatch: back.etag }, "text/calendar")).toMatchObject({ ok: true });
+    const after = await getObject(t, href);
+    expect(after.data.match(/BEGIN:VALARM/g)).toHaveLength(2);
+    expect(parseEvents(after.data)[0]!.summary).toBe("Zahnarzt (neu)");
+    expect(await deleteObject(t, href, after.etag)).toMatchObject({ ok: true });
+  });
+
   it("entdeckt die Aufgaben-Sammlung und liest alle drei VTODOs", async () => {
     const d = await discover(t, server.baseUrl);
     const auf = d.collections.find((c) => c.displayName.toLowerCase().includes("aufgaben"));

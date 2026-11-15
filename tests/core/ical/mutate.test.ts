@@ -78,3 +78,34 @@ describe("parseIsoParts via applyMutation — C1: alle akzeptierten Zeit-Formen 
     expect(e!.start).toBe("2026-09-02T14:00:00Z");
   });
 });
+
+describe("newEventIcs: Erinnerungen und URL", () => {
+  const base = { uid: "ev-1@calendar-notes", summary: "Zahnarzt", start: "2026-09-10T09:00:00" };
+
+  it("schreibt je Ausloeser eine VALARM-Komponente im VEVENT (ACTION, DESCRIPTION, TRIGGER)", () => {
+    const out = newEventIcs({ ...base, alarms: ["-P1D", "-PT15M"] }, NOW);
+    const alarms = out.match(/BEGIN:VALARM[\s\S]*?END:VALARM/g) ?? [];
+    expect(alarms).toHaveLength(2);
+    expect(alarms[0]).toContain("TRIGGER:-P1D");
+    expect(alarms[1]).toContain("TRIGGER:-PT15M");
+    expect(out.indexOf("BEGIN:VALARM")).toBeGreaterThan(out.indexOf("BEGIN:VEVENT"));
+    expect(out.indexOf("END:VALARM")).toBeLessThan(out.indexOf("END:VEVENT"));
+  });
+
+  it("ohne alarms keine VALARM, ohne url keine URL-Zeile", () => {
+    const out = newEventIcs(base, NOW);
+    expect(out).not.toContain("VALARM");
+    expect(out).not.toContain("URL:");
+  });
+
+  it("eine spaetere Aenderung (set-title, move) bewahrt die VALARM-Bloecke", () => {
+    const created = newEventIcs({ ...base, alarms: ["-P1D", "-PT15M"] }, NOW);
+    const renamed = applyMutation(created, { kind: "summary", summary: "Zahnarzt (neu)" }, NOW);
+    const moved = applyMutation(renamed, { kind: "times", start: "2026-09-11T09:00:00" }, NOW);
+    for (const out of [renamed, moved]) {
+      expect(out.match(/BEGIN:VALARM/g)).toHaveLength(2);
+      expect(out).toContain("TRIGGER:-P1D");
+      expect(out).toContain("TRIGGER:-PT15M");
+    }
+  });
+});

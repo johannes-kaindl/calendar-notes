@@ -40,5 +40,11 @@ export function buildCommandContext(input: CommandContextInput): CommandContext 
     ...(history !== undefined ? { history } : {}),
     ...(account.scheduling ? { scheduling: account.scheduling } : {}),
     resolveContact: buildAttendeeIndex(app, settings),
+    noteInfo: (path: string) => {
+      const file = app.vault.getAbstractFileByPath(path);
+      if (!file) return { exists: false };
+      const uid: unknown = app.metadataCache.getCache(path)?.frontmatter?.[profile.uidField];
+      return { exists: true, ...(typeof uid === "string" && uid !== "" ? { uid } : {}) };
+    },
   };
 }

@@ -180,6 +180,8 @@ export function createPluginApi(host: PluginApiHost): CalendarNotesApi {
       const obj = Object.values(state.objects).find((o) => o.uid === targetRef.uid);
       return obj ? Object.values(obj.notes).map((n) => n.path) : [];
     }
+    // An eine vorhandene Notiz gebunden: der Resync schreibt genau diese, nicht den Namen, den er sonst wuerde.
+    if (plan.claimsNote) return [plan.claimsNote.path];
     const collection = settings.collections.find((c) => c.id === targetRef.collectionId);
     const profile = collection ? effectiveProfile(settings, collection) : undefined;
     if (!profile) return [];

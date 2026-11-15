@@ -90,6 +90,18 @@ describe("tool-provider — Schreiben (plan → confirm → execute)", () => {
     await createToolProvider(h).executeTool("create_event", { collectionId: "c1", title: "Neu", start: "2026-09-05", allDay: true }, { confirm: async () => true });
     expect(seen).toEqual(["event.create", { title: "Neu", start: "2026-09-05", allDay: true }, { new: true, collectionId: "c1" }]);
   });
+  it("create_event reicht url, notePath und alarms durch", async () => {
+    const seen: unknown[] = [];
+    const h = host({ plan: async (id, input, target) => { seen.push(id, input, target); return plan({ commandId: id, createsNew: true }); } });
+    await createToolProvider(h).executeTool("create_event", { collectionId: "c1", title: "Neu", start: "2026-09-05T10:00", url: "https://x.test", notePath: "Termine/Neu.md", alarms: ["-P1D", "-PT15M"] }, { confirm: async () => true });
+    expect(seen).toEqual(["event.create", { title: "Neu", start: "2026-09-05T10:00", url: "https://x.test", notePath: "Termine/Neu.md", alarms: ["-P1D", "-PT15M"] }, { new: true, collectionId: "c1" }]);
+  });
+  it("create_event kennt notePath und alarms in der Werkzeug-Definition", () => {
+    const def = createToolProvider(host()).tools({ lang: "de" }).find((t) => t.name === "create_event")!;
+    const props = (def.parameters as { properties: Record<string, { type: string }> }).properties;
+    expect(props["notePath"]?.type).toBe("string");
+    expect(props["alarms"]?.type).toBe("array");
+  });
   it("ein Konflikt (412) wird failed mit Hinweis, ein Plan-Fehler 'validation:' bad-args", async () => {
     const conflict = host({ execute: async () => ({ ok: false, conflict: true }) });
     expect(await createToolProvider(conflict).executeTool("move_event", { uid: "e1", source: "s", start: "x" }, { confirm: async () => true })).toMatchObject({ ok: false, reason: "failed" });

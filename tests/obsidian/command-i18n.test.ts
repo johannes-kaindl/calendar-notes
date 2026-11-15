@@ -52,11 +52,11 @@ function realPlans(): CommandPlan[] {
   plans.push(findCmd(EVENT_COMMANDS, "event.move").plan({ start: "2026-09-02T14:00", end: "2026-09-02T15:30" }, simple));
   plans.push(findCmd(EVENT_COMMANDS, "event.set-title").plan({ title: "Neuer Titel" }, simple));
   plans.push(findCmd(EVENT_COMMANDS, "event.set-location").plan({ location: "Büro" }, simple));
-  plans.push(findCmd(EVENT_COMMANDS, "event.set-location").plan({ location: "" }, simple));
+  plans.push(findCmd(EVENT_COMMANDS, "event.clear-location").plan({}, simple));
   plans.push(findCmd(EVENT_COMMANDS, "event.set-url").plan({ url: "https://x.test" }, simple));
-  plans.push(findCmd(EVENT_COMMANDS, "event.set-url").plan({ url: "" }, simple));
+  plans.push(findCmd(EVENT_COMMANDS, "event.clear-url").plan({}, simple));
   plans.push(findCmd(EVENT_COMMANDS, "event.set-description").plan({ description: "Text" }, simple));
-  plans.push(findCmd(EVENT_COMMANDS, "event.set-description").plan({ description: "" }, simple));
+  plans.push(findCmd(EVENT_COMMANDS, "event.clear-description").plan({}, simple));
   plans.push(findCmd(EVENT_COMMANDS, "event.add-attendee").plan({ email: "neu@example.test" }, attendees));
   plans.push(findCmd(EVENT_COMMANDS, "event.remove-attendee").plan({ email: "sam@example.test" }, attendees));
   plans.push(findCmd(EVENT_COMMANDS, "event.set-partstat").plan({ partstat: "ACCEPTED" }, { ...attendees, scheduling: { addresses: ["sam@example.test"] } }));

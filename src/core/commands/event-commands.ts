@@ -131,21 +131,31 @@ const eventSetTitle: CommandDescriptor = {
 const eventSetLocation: CommandDescriptor = {
   id: "event.set-location", kind: "event",
   title: "Change location", titleKey: "cmd.event.set-location.title",
-  description: "Set or clear the location (LOCATION) of an event", descriptionKey: "cmd.event.set-location.desc",
+  description: "Set the location (LOCATION) of an event (to remove it: event.clear-location)", descriptionKey: "cmd.event.set-location.desc",
   schema: { type: "object", properties: { location: { type: "string" } }, required: ["location"] },
   appliesTo: appliesToExistingEvent,
   plan(input, ctx) {
-    const location = str(input["location"]) ?? "";
-    const plan = planForMutation("event.set-location", ctx, { kind: "location", location: location || null });
-    if (location) {
-      plan.summary = `Location changed: "${location}"`;
-      plan.summaryKey = "plan.event.set-location.changed";
-      plan.summaryArgs = [location];
-    } else {
-      plan.summary = "Location removed";
-      plan.summaryKey = "plan.event.set-location.removed";
-      plan.summaryArgs = [];
-    }
+    const location = str(input["location"]);
+    if (!location) throw new CoreError("fieldMissing", "event.set-location: location is missing", ["event.set-location", "location"]);
+    const plan = planForMutation("event.set-location", ctx, { kind: "location", location });
+    plan.summary = `Location changed: "${location}"`;
+    plan.summaryKey = "plan.event.set-location.changed";
+    plan.summaryArgs = [location];
+    return plan;
+  },
+};
+
+const eventClearLocation: CommandDescriptor = {
+  id: "event.clear-location", kind: "event",
+  title: "Remove location", titleKey: "cmd.event.clear-location.title",
+  description: "Remove the location (LOCATION) of an event", descriptionKey: "cmd.event.clear-location.desc",
+  schema: { type: "object", properties: {} },
+  appliesTo: appliesToExistingEvent,
+  plan(_input, ctx) {
+    const plan = planForMutation("event.clear-location", ctx, { kind: "location", location: null });
+    plan.summary = "Location removed";
+    plan.summaryKey = "plan.event.clear-location.summary";
+    plan.summaryArgs = [];
     return plan;
   },
 };
@@ -153,21 +163,31 @@ const eventSetLocation: CommandDescriptor = {
 const eventSetUrl: CommandDescriptor = {
   id: "event.set-url", kind: "event",
   title: "Change URL", titleKey: "cmd.event.set-url.title",
-  description: "Set or clear the URL of an event", descriptionKey: "cmd.event.set-url.desc",
+  description: "Set the URL of an event (to remove it: event.clear-url)", descriptionKey: "cmd.event.set-url.desc",
   schema: { type: "object", properties: { url: { type: "string", format: "uri" } }, required: ["url"] },
   appliesTo: appliesToExistingEvent,
   plan(input, ctx) {
-    const url = str(input["url"]) ?? "";
-    const plan = planForMutation("event.set-url", ctx, { kind: "url", url: url || null });
-    if (url) {
-      plan.summary = `URL changed: ${url}`;
-      plan.summaryKey = "plan.event.set-url.changed";
-      plan.summaryArgs = [url];
-    } else {
-      plan.summary = "URL removed";
-      plan.summaryKey = "plan.event.set-url.removed";
-      plan.summaryArgs = [];
-    }
+    const url = str(input["url"]);
+    if (!url) throw new CoreError("fieldMissing", "event.set-url: url is missing", ["event.set-url", "url"]);
+    const plan = planForMutation("event.set-url", ctx, { kind: "url", url });
+    plan.summary = `URL changed: ${url}`;
+    plan.summaryKey = "plan.event.set-url.changed";
+    plan.summaryArgs = [url];
+    return plan;
+  },
+};
+
+const eventClearUrl: CommandDescriptor = {
+  id: "event.clear-url", kind: "event",
+  title: "Remove URL", titleKey: "cmd.event.clear-url.title",
+  description: "Remove the URL of an event", descriptionKey: "cmd.event.clear-url.desc",
+  schema: { type: "object", properties: {} },
+  appliesTo: appliesToExistingEvent,
+  plan(_input, ctx) {
+    const plan = planForMutation("event.clear-url", ctx, { kind: "url", url: null });
+    plan.summary = "URL removed";
+    plan.summaryKey = "plan.event.clear-url.summary";
+    plan.summaryArgs = [];
     return plan;
   },
 };
@@ -175,21 +195,31 @@ const eventSetUrl: CommandDescriptor = {
 const eventSetDescription: CommandDescriptor = {
   id: "event.set-description", kind: "event",
   title: "Change description", titleKey: "cmd.event.set-description.title",
-  description: "Set or clear the description (DESCRIPTION) of an event", descriptionKey: "cmd.event.set-description.desc",
+  description: "Set the description (DESCRIPTION) of an event (to remove it: event.clear-description)", descriptionKey: "cmd.event.set-description.desc",
   schema: { type: "object", properties: { description: { type: "string", format: "multiline" } }, required: ["description"] },
   appliesTo: appliesToExistingEvent,
   plan(input, ctx) {
-    const description = str(input["description"]) ?? "";
-    const plan = planForMutation("event.set-description", ctx, { kind: "description", description: description || null });
-    if (description) {
-      plan.summary = "Description changed";
-      plan.summaryKey = "plan.event.set-description.changed";
-      plan.summaryArgs = [];
-    } else {
-      plan.summary = "Description removed";
-      plan.summaryKey = "plan.event.set-description.removed";
-      plan.summaryArgs = [];
-    }
+    const description = str(input["description"]);
+    if (!description) throw new CoreError("fieldMissing", "event.set-description: description is missing", ["event.set-description", "description"]);
+    const plan = planForMutation("event.set-description", ctx, { kind: "description", description });
+    plan.summary = "Description changed";
+    plan.summaryKey = "plan.event.set-description.changed";
+    plan.summaryArgs = [];
+    return plan;
+  },
+};
+
+const eventClearDescription: CommandDescriptor = {
+  id: "event.clear-description", kind: "event",
+  title: "Remove description", titleKey: "cmd.event.clear-description.title",
+  description: "Remove the description (DESCRIPTION) of an event", descriptionKey: "cmd.event.clear-description.desc",
+  schema: { type: "object", properties: {} },
+  appliesTo: appliesToExistingEvent,
+  plan(_input, ctx) {
+    const plan = planForMutation("event.clear-description", ctx, { kind: "description", description: null });
+    plan.summary = "Description removed";
+    plan.summaryKey = "plan.event.clear-description.summary";
+    plan.summaryArgs = [];
     return plan;
   },
 };
@@ -303,6 +333,8 @@ const eventCreate: CommandDescriptor = {
     properties: {
       title: { type: "string", minLength: 1 }, start: { type: "string", format: "date-time" }, end: { type: "string", format: "date-time" },
       allDay: { type: "boolean" }, location: { type: "string" }, description: { type: "string", format: "multiline" }, url: { type: "string", format: "uri" },
+      alarms: { type: "array", items: { type: "string" }, description: "Reminders as ISO 8601 durations relative to the start, e.g. -P1D (a day before), -PT15M (15 minutes before)", descriptionKey: "cmd.event.create.field.alarms" },
+      notePath: { type: "string", description: "Path of an existing note that becomes this event's note (otherwise the sync creates a new one)", descriptionKey: "cmd.event.create.field.notePath" },
     },
     required: ["title", "start"],
   },
@@ -311,9 +343,23 @@ const eventCreate: CommandDescriptor = {
     const title = str(input["title"]);
     const start = str(input["start"]);
     if (!title || !start) throw new CoreError("createNeedsTitleStart", "event.create: title and start are required");
+    const alarms = alarmsOf(input["alarms"]);
+    const notePath = str(input["notePath"]);
+    if (notePath) {
+      // Die Ausgangsnotiz muss es geben und noch frei sein; sonst legte der Resync eine zweite an (nicht angelegt: dann bliebe
+      // der Anspruch wirkungslos) oder ein zweiter Lauf desselben Plans einen zweiten Termin zur selben Notiz.
+      const note = ctx.noteInfo?.(notePath);
+      if (note && !note.exists) throw new CoreError("noteNotFound", `event.create: note ${notePath} does not exist`, [notePath]);
+      if (note?.uid) throw new CoreError("noteAlreadyBound", `event.create: note ${notePath} is already bound to an event`, [notePath]);
+    }
     const uid = `${newId("ev", ctx.rand)}@calendar-notes`;
+    const url = str(input["url"]);
     const newRaw = newEventIcs(
-      { uid, summary: title, start, end: str(input["end"]), allDay: typeof input["allDay"] === "boolean" ? input["allDay"] : undefined, location: str(input["location"]), description: str(input["description"]) },
+      {
+        uid, summary: title, start, end: str(input["end"]), allDay: typeof input["allDay"] === "boolean" ? input["allDay"] : undefined,
+        location: str(input["location"]), description: str(input["description"]),
+        ...(url ? { url } : {}), ...(alarms.length ? { alarms } : {}),
+      },
       { now: ctx.now },
     );
     const afterEv = primaryEvent(parseEvents(newRaw));
@@ -325,11 +371,37 @@ const eventCreate: CommandDescriptor = {
       summary: `Event created: ${range}`, summaryKey: "plan.event.create.summary", summaryArgs: [range],
       diff, newRaw,
       contentType: "text/calendar", hrefForPut: `${ctx.collection.href}${uid}.ics`, createsNew: true,
+      // Die Ausgangsnotiz beansprucht die erzeugte UID (wie bei `todo.create`, s. `CommandPlan.claimsNote`).
+      ...(notePath ? { claimsNote: { path: notePath, uid } } : {}),
     };
   },
 };
 
+/** Ein Dauer-Ausloeser nach RFC 5545 (`dur-value`), z. B. `-P1D` (einen Tag vorher) oder `-PT15M`
+ *  (15 Minuten vorher). Ein positiver Wert loest NACH dem Beginn aus. Bewusst strenger als `ICAL.Duration.fromString`,
+ *  das auch Unsinn wie `-PT` oder `P` still zu einer Null-Dauer macht: ein Alarm, der nie oder sofort klingelt, waere
+ *  ein stiller Fehler. */
+const DURATION = /^[+-]?P(?:\d+W|\d+D(?:T(?:\d+H(?:\d+M(?:\d+S)?)?|\d+M(?:\d+S)?|\d+S))?|T(?:\d+H(?:\d+M(?:\d+S)?)?|\d+M(?:\d+S)?|\d+S))$/;
+
+function isAlarmTrigger(s: string): boolean {
+  return DURATION.test(s);
+}
+
+/** Die Erinnerungen aus der Eingabe: eine Liste von Dauer-Ausloesern; ein Eintrag, der keiner ist, bricht den Plan ab, statt zu
+ *  verschwinden (ein Termin ohne die erbetene Erinnerung ist ein stiller Fehler). */
+function alarmsOf(v: unknown): string[] {
+  if (v === undefined) return [];
+  const list = Array.isArray(v) ? v : [v];
+  const out: string[] = [];
+  for (const raw of list) {
+    const a = typeof raw === "string" ? raw.trim() : "";
+    if (!isAlarmTrigger(a)) throw new CoreError("alarmInvalid", `event.create: not an ISO 8601 duration: ${String(raw)}`, [String(raw)]);
+    out.push(a);
+  }
+  return out;
+}
+
 export const EVENT_COMMANDS: CommandDescriptor[] = [
-  eventMove, eventSetTitle, eventSetLocation, eventSetUrl, eventSetDescription,
+  eventMove, eventSetTitle, eventSetLocation, eventClearLocation, eventSetUrl, eventClearUrl, eventSetDescription, eventClearDescription,
   eventAddAttendee, eventRemoveAttendee, eventSetPartstat, eventDelete, eventCreate,
 ];

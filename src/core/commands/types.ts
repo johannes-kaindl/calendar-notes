@@ -18,6 +18,9 @@ export interface CommandContext {
   /** Vorabgriff auf Account.scheduling (Task 5) — hier direkt am Kontext, damit T2/T3 nicht auf T5 warten muessen. */
   scheduling?: { addresses: string[]; outbox?: string };
   resolveContact?(email: string): { path: string; display?: string } | undefined;
+  /** Zustand einer vorhandenen Notiz, fuer `event.create` mit `notePath`: gibt es sie, und traegt sie schon eine UID
+   *  (`dav_uid`)? Fehlt der Haken, wird nicht geprueft (Kern-Tests, Fremdkontexte). */
+  noteInfo?(path: string): { exists: boolean; uid?: string };
   /** Verlauf des Zielobjekts (`ObjectState.history`, neueste zuerst) — Fix-Runde 1: macht
    *  `undo.last` zu einem regulaeren Registry-Eintrag statt eines Sonderpfads nur in
    *  `CommandFlow` (s. `src/core/commands/undo.ts`). Inline statt Import aus

@@ -236,7 +236,7 @@ export function applyMutation(ics: string, m: EventMutation, opts: { now: Date }
 }
 
 export function newEventIcs(
-  e: { uid: string; summary: string; start: string; end?: string; allDay?: boolean; tzid?: string; location?: string; description?: string },
+  e: { uid: string; summary: string; start: string; end?: string; allDay?: boolean; tzid?: string; location?: string; description?: string; url?: string; alarms?: string[] },
   opts: { now: Date; prodId?: string },
 ): string {
   const root = new ICAL.Component("vcalendar");
@@ -252,6 +252,15 @@ export function newEventIcs(
   if (e.end) setTimeProp(ve, "dtend", e.end, allDay, e.tzid);
   if (e.location) ve.addPropertyWithValue("location", e.location);
   if (e.description) ve.addPropertyWithValue("description", e.description);
+  if (e.url) ve.addPropertyWithValue("url", e.url);
+  // Eine Erinnerung je Ausloeser (ACTION:DISPLAY, Text = Titel); `alarm` ist die Komponente VALARM im VEVENT.
+  for (const trigger of e.alarms ?? []) {
+    const alarm = new ICAL.Component("valarm");
+    alarm.addPropertyWithValue("action", "DISPLAY");
+    alarm.addPropertyWithValue("description", e.summary);
+    alarm.addPropertyWithValue("trigger", ICAL.Duration.fromString(trigger));
+    ve.addSubcomponent(alarm);
+  }
   root.addSubcomponent(ve);
   return root.toString();
 }

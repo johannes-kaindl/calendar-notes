@@ -11,6 +11,7 @@ export const CORE_ERROR_CODES = [
   "noRaw", "noVeventAfter", "noVtodo", "noVtodoAfter", "noVevent",
   "indexOutOfRange", "indexNotNew", "fieldMissing",
   "ownAddressUnknown", "ownAddressNotAttendee", "createNeedsTitleStart", "createNoVevent",
+  "alarmInvalid", "noteAlreadyBound", "noteNotFound",
   "timeRangeUtc", "notMultistatus", "accessDenied", "noCollectionInResponse",
 ] as const;
 export type CoreErrorCode = (typeof CORE_ERROR_CODES)[number];
