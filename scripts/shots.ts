@@ -37,6 +37,7 @@ import { argv, cwd, env, exit } from "node:process";
 
 import {
   attachTo,
+  bereiteInstanzVor,
   Cdp,
   closeExtraLeaves,
   notices,
@@ -426,6 +427,11 @@ async function main(): Promise<void> {
     console.log(`Verbunden auf Port ${port}.\n`);
     await requireVisible(cdp);
     await new Promise((r) => setTimeout(r, 2000));
+
+    // Frisches Profil: Vertrauensdialog bestätigen, Restricted Mode aufheben, Plugin laden, Aufnahmesprache setzen. Ohne den Aufruf zeigt jedes Bild
+    // den Vertrauensdialog, und das Plugin fehlt im Renderer (Brücke README § Frisches Profil vorbereiten).
+    const vor = await bereiteInstanzVor(cdp, { pluginIds: [PLUGIN_ID], nurVault: REPO_NAME, sprache: "en" });
+    console.log(`Instanz: ${vor.hinweis}`);
 
     await setWindowSize(cdp, FENSTER_BREITE, FENSTER_HOEHE);
 
