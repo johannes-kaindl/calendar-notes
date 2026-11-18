@@ -13,7 +13,7 @@ const timers: TimeoutTimers = {
 /** Ein GET geht am HTTP-Cache des Wirts vorbei. `requestUrl` laeuft ueber den Netzwerk-Stack des Wirts (Chromium); Radicale
  *  liefert `Last-Modified` ohne `Cache-Control`, der Cache darf die Antwort dann heuristisch ein Zehntel der Zeit seit der
  *  letzten Aenderung frisch halten. Ein GET, das Sekundenbruchteile nach einem PUT derselben Adresse folgt, kam so mit dem alten
- *  Etag zurueck (Mikrotest GET-PUT-GET, Obsidian 1.12.4: 4 von 150 veraltet, mit `no-cache` 0 von 150); der Resync nach einem
+ *  Etag zurueck (Mikrotest GET-PUT-GET, Obsidian 1.12.4: 15 von 600 veraltet, mit `no-cache` 0 von 600); der Resync nach einem
  *  Kommando speicherte dann den alten Stand, der naechste Befehl lief in einen 412 (P11/P12-Flake). Der Server ist die Wahrheit:
  *  jedes GET fragt ihn. Eine vom Aufrufer gesetzte `Cache-Control`-Zeile bleibt unveraendert. */
 function ohneCache(req: DavRequest): Record<string, string> {

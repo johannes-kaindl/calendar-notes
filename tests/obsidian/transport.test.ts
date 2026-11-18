@@ -43,8 +43,8 @@ describe("obsidianTransport", () => {
     expect(res).toEqual({ status: 0, headers: {}, text: "network down" });
   });
 
-  // Befund Welle 36 (Mikrotest GET-PUT-GET, Obsidian 1.12.4): ein GET kurz nach einem PUT derselben Adresse kam in 4 von 150 Faellen aus dem
-  // HTTP-Cache des Wirts (gleicher `Date`-Header, altes Etag); mit `Cache-Control: no-cache` 0 von 150. Der Resync nach einem Kommando
+  // Befund Welle 36 (Mikrotest GET-PUT-GET, Obsidian 1.12.4): ein GET kurz nach einem PUT derselben Adresse kam in 15 von 600 Faellen (zwei Laeufe) aus dem
+  // HTTP-Cache des Wirts (gleicher `Date`-Header, altes Etag); mit `Cache-Control: no-cache` 0 von 600. Der Resync nach einem Kommando
   // speicherte dann das alte Etag (P11/P12-Flake).
   describe("GET geht am HTTP-Cache des Wirts vorbei", () => {
     async function sent(req: { method: string; headers?: Record<string, string> }): Promise<Record<string, string> | undefined> {
