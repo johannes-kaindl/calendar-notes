@@ -14,3 +14,4 @@ docs/dav/befunde/roh/
 .radicale-run/
 scripts/.dav-server.mjs
 docs/smoke/shots/
+.mikrotest.mjs
