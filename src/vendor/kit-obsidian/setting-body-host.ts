@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.92.0, src/obsidian/setting-body-host.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.95.0, src/obsidian/setting-body-host.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // obsidian-kit/src/obsidian/setting-body-host.ts
 //
 // Herausgelöst aus settings_walker.ts (Welle 34, Paket 6): wer nur eine Setting-Zeile zum leeren Block-Container

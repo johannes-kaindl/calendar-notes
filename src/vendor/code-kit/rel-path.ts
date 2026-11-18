@@ -1,4 +1,4 @@
-// vendored from code-kit@0.74.0, src/ts/pure/rel-path.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.75.0, src/ts/pure/rel-path.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** The segment rules of a relative path that must stay inside a root (a vault, a sync folder, an export folder): no `..`
  *  that leaves it, no absolute path, no empty or `.` segment that makes two spellings of one file, no `\` that one platform
  *  reads as a separator and another as a name, no NUL. String logic only — it never touches a file system and never decodes

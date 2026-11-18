@@ -1,4 +1,4 @@
-// vendored from code-kit@0.74.0, src/ts/pure/marker-zone.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.75.0, src/ts/pure/marker-zone.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** Finds, wraps and defends a **managed zone** in a note: a block between two marker lines that a sync or an importer owns and
  *  replaces, with text before and after it that belongs to the user.
  *

@@ -1,12 +1,12 @@
 {
   "source": "obsidian-kit",
-  "version": "0.92.0",
-  "sha": "be4994f",
+  "version": "0.95.0",
+  "sha": "3853245",
   "modules": "frontmatter.ts, vault-path.ts + secrets.ts@0.35.0",
   "note": "Verbatim snapshot aus festen Git-Refs (CORE-META-22: feste Ref, nicht Arbeitsstand); den Stand nennen `version` und die Einzelpins in `vendored`. Never hand-edit. Re-vendor via tools/sync-kit.sh. secrets.ts liegt in diesem Verzeichnis auf einer EIGENEN, neueren Ref: obsidian-kit@0.35.0 (e7e3e19) — s. eigener Datei-Header, nicht diese Basis-Version.",
   "vendored": "frontmatter.ts, vault-path.ts, tool-provider.ts",
-  "code_kit_version": "0.74.0",
-  "code_kit_sha": "cba4c6f",
+  "code_kit_version": "0.75.0",
+  "code_kit_sha": "e6cd8be",
   "code_kit_vendored": "secrets.ts, split-list.ts, filename-policy.ts, text-window.ts",
   "license": "AGPL-3.0-or-later"
 }
