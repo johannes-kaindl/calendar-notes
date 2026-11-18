@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- Alarm-Dauer über code-kit `ical-duration`: the check for the reminder offsets of `create_event` / `event.create` (`-P1D`, `-PT15M`) now comes from the shared building block instead of a private copy; the accepted offsets are the same.
+
 ## [0.9.0] — 2026-11-15
 
 ### Added

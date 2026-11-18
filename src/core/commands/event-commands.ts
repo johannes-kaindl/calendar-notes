@@ -3,6 +3,7 @@ import { applyMutation, newEventIcs, type EventMutation } from "../ical/mutate";
 import { newId } from "../settings";
 import type { CommandContext, CommandDescriptor, CommandPlan, CommandTarget } from "./types";
 import { CoreError } from "../errors";
+import { isIcalDuration } from "../../vendor/code-kit/ical-duration";
 
 export function hrefOfEventTarget(target: CommandTarget): string {
   return "href" in target ? target.href : "";
@@ -377,17 +378,7 @@ const eventCreate: CommandDescriptor = {
   },
 };
 
-/** Ein Dauer-Ausloeser nach RFC 5545 (`dur-value`), z. B. `-P1D` (einen Tag vorher) oder `-PT15M`
- *  (15 Minuten vorher). Ein positiver Wert loest NACH dem Beginn aus. Bewusst strenger als `ICAL.Duration.fromString`,
- *  das auch Unsinn wie `-PT` oder `P` still zu einer Null-Dauer macht: ein Alarm, der nie oder sofort klingelt, waere
- *  ein stiller Fehler. */
-const DURATION = /^[+-]?P(?:\d+W|\d+D(?:T(?:\d+H(?:\d+M(?:\d+S)?)?|\d+M(?:\d+S)?|\d+S))?|T(?:\d+H(?:\d+M(?:\d+S)?)?|\d+M(?:\d+S)?|\d+S))$/;
-
-function isAlarmTrigger(s: string): boolean {
-  return DURATION.test(s);
-}
-
-/** Die Erinnerungen aus der Eingabe: eine Liste von Dauer-Ausloesern; ein Eintrag, der keiner ist, bricht den Plan ab, statt zu
+/** Die Erinnerungen aus der Eingabe: eine Liste von Dauer-Ausloesern nach RFC 5545 (`dur-value`, z. B. `-P1D`; Pruefung: code-kit `ical-duration`); ein Eintrag, der keiner ist, bricht den Plan ab, statt zu
  *  verschwinden (ein Termin ohne die erbetene Erinnerung ist ein stiller Fehler). */
 function alarmsOf(v: unknown): string[] {
   if (v === undefined) return [];
@@ -395,7 +386,7 @@ function alarmsOf(v: unknown): string[] {
   const out: string[] = [];
   for (const raw of list) {
     const a = typeof raw === "string" ? raw.trim() : "";
-    if (!isAlarmTrigger(a)) throw new CoreError("alarmInvalid", `event.create: not an ISO 8601 duration: ${String(raw)}`, [String(raw)]);
+    if (!isIcalDuration(a)) throw new CoreError("alarmInvalid", `event.create: not an ISO 8601 duration: ${String(raw)}`, [String(raw)]);
     out.push(a);
   }
   return out;

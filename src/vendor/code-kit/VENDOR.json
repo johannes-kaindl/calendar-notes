@@ -4,6 +4,6 @@
   "sha": "e6cd8be",
   "modules": "timeout.ts, sha256.ts, filename-template.ts, settings.ts, i18n.ts",
   "note": "Verbatim snapshot aus festen Git-Refs (CORE-META-22: feste Ref, nicht Arbeitsstand); den Stand nennen `version` und die Einzelpins in `vendored`. Never hand-edit. Re-vendor via tools/sync-kit.sh.",
-  "vendored": "timeout.ts, sha256.ts, filename-template.ts, settings.ts, i18n.ts, busy-guard.ts, slug.ts, local-stamp.ts, marker-zone.ts, validate-input.ts, coded-error.ts, error-message.ts, rel-path.ts",
+  "vendored": "timeout.ts, sha256.ts, filename-template.ts, settings.ts, i18n.ts, busy-guard.ts, slug.ts, local-stamp.ts, marker-zone.ts, validate-input.ts, coded-error.ts, error-message.ts, rel-path.ts, ical-duration.ts (code-kit@0.77.0, a363d7d)",
   "license": "AGPL-3.0-or-later"
 }
