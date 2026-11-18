@@ -42,4 +42,35 @@ describe("obsidianTransport", () => {
     const res = await t({ method: "GET", url: "https://d/a/" });
     expect(res).toEqual({ status: 0, headers: {}, text: "network down" });
   });
+
+  // Befund Welle 36 (Mikrotest GET-PUT-GET, Obsidian 1.12.4): ein GET kurz nach einem PUT derselben Adresse kam in 4 von 150 Faellen aus dem
+  // HTTP-Cache des Wirts (gleicher `Date`-Header, altes Etag); mit `Cache-Control: no-cache` 0 von 150. Der Resync nach einem Kommando
+  // speicherte dann das alte Etag (P11/P12-Flake).
+  describe("GET geht am HTTP-Cache des Wirts vorbei", () => {
+    async function sent(req: { method: string; headers?: Record<string, string> }): Promise<Record<string, string> | undefined> {
+      let captured: RequestUrlParam | undefined;
+      const request = fakeRequestUrl(async (opts) => {
+        captured = opts;
+        return { status: 200, headers: {}, text: "", json: {}, arrayBuffer: new ArrayBuffer(0) };
+      });
+      await obsidianTransport({ timeoutMs: 1000, request })({ url: "https://d/a.ics", ...req });
+      return captured?.headers;
+    }
+
+    it("GET bekommt Cache-Control: no-cache", async () => {
+      expect(await sent({ method: "GET" })).toEqual({ "Cache-Control": "no-cache" });
+    });
+
+    it("bestehende Kopfzeilen bleiben erhalten", async () => {
+      expect(await sent({ method: "GET", headers: { Accept: "text/calendar" } })).toEqual({ Accept: "text/calendar", "Cache-Control": "no-cache" });
+    });
+
+    it("eine vom Aufrufer gesetzte Cache-Control-Zeile (auch klein geschrieben) bleibt unveraendert", async () => {
+      expect(await sent({ method: "GET", headers: { "cache-control": "max-age=0" } })).toEqual({ "cache-control": "max-age=0" });
+    });
+
+    it.each(["PUT", "DELETE", "PROPFIND", "REPORT"])("%s bleibt unveraendert (nur GET wird gecacht)", async (method) => {
+      expect(await sent({ method, headers: { Depth: "0" } })).toEqual({ Depth: "0" });
+    });
+  });
 });

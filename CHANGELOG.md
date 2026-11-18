@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- **A command could leave a note on the old state.** Right after a command (a move, an undo) the plugin reads the changed item back from the server. Obsidian's network layer could answer that read from its cache with the state from before the change; the note and the stored state then stayed on the old version, and the next command was refused with a conflict. Every read now asks the server (`Cache-Control: no-cache`). Measured with a read-write-read loop against Radicale: 4 stale answers in 150 without the header, 0 in 150 with it.
+
 ### Changed
 - Alarm-Dauer über code-kit `ical-duration`: the check for the reminder offsets of `create_event` / `event.create` (`-P1D`, `-PT15M`) now comes from the shared building block instead of a private copy; the accepted offsets are the same.
 
