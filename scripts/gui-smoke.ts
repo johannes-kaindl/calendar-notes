@@ -7,16 +7,11 @@
  * Default und fasst die regulaere Instanz nie an. Gemessen wird in einer ZWEITINSTANZ (eigenes Profil,
  * eigener Port) — nie in der Instanz, an der eine andere Session haengt, und nie mit `quit`:
  *
- * ```bash
- * UD=/tmp/obs-test-calendar-notes; mkdir -p "$UD"
- * lsof -nP -iTCP:9384 -sTCP:LISTEN; pgrep -f "user-data-dir=$UD"      # beides leer, sonst ausweichen
- * # (a) aktuelle Version statt gebuendelter (nachsehen: ls ~/Library/Application\ Support/obsidian/*.asar)
- * cp ~/Library/Application\ Support/obsidian/obsidian-<version>.asar "$UD"/
- * # Vault "$STAGING_VAULTS_DIR/calendar-notes" und "language":"en" in "$UD/obsidian.json" eintragen
- * OBSIDIAN_PLUGIN_DIR="$STAGING_VAULTS_DIR/calendar-notes/.obsidian/plugins/calendar-notes" npm run deploy
- * /Applications/Obsidian.app/Contents/MacOS/Obsidian --user-data-dir="$UD" --remote-debugging-port=9384 &
- * python3 ~/.claude/hooks/obsidian-cdp-lock.py acquire --label calendar-notes --intent "GUI-Smoke :9384" --exclusive focus --port 9384 --ttl 300
- * ```
+ * Lauf: `tools/obsidian-cdp/messlauf.sh` (Dach, README § Messlauf in einem Aufruf) startet die Zweitinstanz, hält den Lock (`--exclusive focus`, davor, mit `export`)
+ * und räumt auf; das Rezept steht nur dort. Für diesen Treiber: `REPO=calendar-notes PORT=9384` (Port als Vorschlag, jeder freie geht).
+ *
+ * Besonderheiten dieses Treibers (aus dem früheren Rezept übernommen):
+ *   OBSIDIAN_PLUGIN_DIR="$STAGING_VAULTS_DIR/calendar-notes/.obsidian/plugins/calendar-notes" npm run deploy
  *
  * Vertrauensdialog und Restricted Mode erledigt der Treiber selbst (`bereiteInstanzVor`); einen
  * Prozessneustart je Messlauf vorausgesetzt (eine Zweitinstanz altert). Bilanz in vier Zustaenden
