@@ -52,6 +52,7 @@ import {
 import { createBilanz, parseArgs, runDriver, type Bilanz } from "../../tools/obsidian-cdp/bilanz.js";
 import { buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
 import { capture, writeShot } from "../../tools/obsidian-cdp/shot.js";
+import { warteBisMitStand } from "../../tools/obsidian-cdp/warten.js";
 import { startRadicale, type RunningServer } from "./dav-server.js";
 
 const PLUGIN_ID = "calendar-notes";
@@ -1595,14 +1596,8 @@ async function warteAufServer(
   passt: (body: string) => boolean,
   timeoutMs = 30_000,
 ): Promise<string> {
-  const deadline = Date.now() + timeoutMs;
-  let body = "";
-  while (Date.now() < deadline) {
-    body = entfalte((await davGet(radicale, relPath)).body);
-    if (passt(body)) return body;
-    await new Promise((r2) => setTimeout(r2, 500));
-  }
-  return body;
+  const r = await warteBisMitStand(async () => entfalte((await davGet(radicale, relPath)).body), passt, timeoutMs, `Server ${relPath}`, { intervalMs: 500 });
+  return r.wert;
 }
 
 /** Die Ressourcen-Namen einer Sammlung, direkt vom Server (PROPFIND Depth: 1). Der Name der
