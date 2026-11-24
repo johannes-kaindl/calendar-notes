@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.9.2] — 2026-11-24
+
 ### Fixed
 - **Adoption could hang on a phone number made of very many blanks.** Normalising a phone number for the match scanned a long run of white space again from each of its positions (50 000 blanks took about 100 seconds on a loaded machine). The shared building block (code-kit `phone`) removes the cause and gives the same result for every input; 50 000 blanks now take a few milliseconds.
 
