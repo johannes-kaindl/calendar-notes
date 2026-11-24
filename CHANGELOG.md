@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- **Adoption could hang on a phone number made of very many blanks.** Normalising a phone number for the match scanned a long run of white space again from each of its positions (50 000 blanks took about 100 seconds on a loaded machine). The shared building block (code-kit `phone`) removes the cause and gives the same result for every input; 50 000 blanks now take a few milliseconds.
+
 ### Changed
 - Kit pins move to obsidian-kit 0.106.0 and code-kit 0.87.0. No visible change: the plugin writes front matter through Obsidian itself and uses the kit's front matter module only to compare values; the kit's fix for values with a line break (they no longer tear the block apart) therefore does not reach a path of this plugin.
 

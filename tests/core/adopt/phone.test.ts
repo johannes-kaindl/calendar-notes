@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizePhone } from "../../../src/core/adopt/phone";
+import { normalizePhone } from "../../../src/vendor/kit/phone";
 
 describe("normalizePhone", () => {
   it("normalizes a national number with the default country", () => {
@@ -42,5 +42,12 @@ describe("normalizePhone", () => {
     // Ohne Marker (x/ext/durchwahl) ist "-42" nicht von einer regulären Nummern-Fortsetzung zu
     // unterscheiden — bewusst NICHT als Durchwahl erkannt, die Ziffern fliessen einfach mit ein.
     expect(normalizePhone("0821 555 0-42")).not.toBe(normalizePhone("0821 555 0"));
+  });
+  it("laeuft auf einer langen Leerraum-Folge linear (50 000 Blanks; das fuehrende \\s* der alten Erweiterungs-Regex war quadratisch, rund 100 s)", () => {
+    const blanks = " ".repeat(50_000);
+    const t0 = performance.now();
+    expect(normalizePhone(`${blanks}!`)).toBeNull();
+    expect(normalizePhone(`0171 1234567${blanks}x`)).toBe("+491711234567");
+    expect(performance.now() - t0).toBeLessThan(1500);
   });
 });

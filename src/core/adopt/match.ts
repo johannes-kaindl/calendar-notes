@@ -1,7 +1,7 @@
 import type { ContactData } from "../vcard/contact";
 import type { EventData } from "../ical/event";
 import { fmKeyFor, type MappingProfile } from "../mirror/profile";
-import { normalizePhone } from "./phone";
+import { normalizePhone } from "../../vendor/kit/phone";
 
 export interface ServerItem {
   uid: string;

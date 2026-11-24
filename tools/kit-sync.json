@@ -6,7 +6,7 @@
   "targets": [
     { "dir": "src/vendor/code-kit", "source": "code-kit", "from": "src/ts/pure", "modules": ["timeout", "sha256", "filename-template", "settings", "i18n", "busy-guard", "slug", "local-stamp", "marker-zone", "validate-input", "frontmatter-field", "fold-case", "coded-error", "error-message", "rel-path", "ical-duration"] },
     { "dir": "src/vendor/kit", "source": "obsidian-kit", "from": "src/pure", "modules": ["frontmatter", "vault-path", "tool-provider"], "rewrite": [["../vendor/code-kit/pure/", "../code-kit/"]] },
-    { "dir": "src/vendor/kit", "source": "code-kit", "from": "src/ts/pure", "modules": ["secrets", "split-list", "filename-policy", "text-window"] },
+    { "dir": "src/vendor/kit", "source": "code-kit", "from": "src/ts/pure", "modules": ["secrets", "split-list", "filename-policy", "text-window", "phone"] },
     {
       "dir": "src/vendor/kit-obsidian", "source": "obsidian-kit", "from": "src/obsidian",
       "modules": ["settings_walker", "setting-body-host", "folder-suggest", "confirm", "secrets", "help-setting"],
