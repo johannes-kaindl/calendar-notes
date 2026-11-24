@@ -1,4 +1,4 @@
-// vendored from code-kit@0.75.0, src/ts/pure/filename-policy.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.87.0, src/ts/pure/filename-policy.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** Rules for one path segment (a file name or a folder name): which characters a name may not carry, what replaces them, and how
  *  long it may be. Obsidian-free and import-free (the module is vendored on its own).
  *

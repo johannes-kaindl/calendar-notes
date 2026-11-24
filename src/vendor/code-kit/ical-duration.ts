@@ -1,4 +1,4 @@
-// vendored from code-kit@0.77.0, src/ts/pure/ical-duration.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.87.0, src/ts/pure/ical-duration.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Origin: obsidian-plugins `calendar-notes/src/core/commands/event-commands.ts` (`DURATION` and `isAlarmTrigger`, calendar-notes@48cfd61, Welle 35:
 // the check for the alarms of `event.create`), generalised: the name says what it checks, and `parseIcalDuration` returns the parts. The grammar is
 // the same; the regular expression of the original became a plain walk over the string so the parts come out of it.

@@ -1,4 +1,4 @@
-// vendored from code-kit@0.75.0, src/ts/pure/text-window.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.87.0, src/ts/pure/text-window.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** A window of whole lines around a spot in a text, and the way back: put an edited window into the text again, byte for byte outside it.
  *
  *  Origin: json-editor `src/core/repair/window.ts` (`TextWindow`, `lineWindow`, `spliceWindow`, `eolOf`; Welle 27, part 4). There the

@@ -1,4 +1,4 @@
-// vendored from code-kit@0.75.0, src/ts/pure/coded-error.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.87.0, src/ts/pure/coded-error.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // New in code-kit (2026-11-15), lifted out of two plugins that carried the same pattern twice with drift for no reason:
 // json-editor (`CoreError`, src/core/errors.ts:23-33; `errorText`, src/obsidian/error-text.ts:8-11, prefix `err.`) and
 // calendar-notes (`CoreError`, src/core/errors.ts:21-26; `coreErrorOf`, :28-34; `describeError`, src/obsidian/error-i18n.ts:7-11,

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { managedHash, fmEquals } from "../../../src/core/mirror/hash";
+import { parseFrontmatter, serializeFrontmatter } from "../../../src/vendor/kit/frontmatter";
 describe("managedHash", () => {
   it("order-independent and block-sensitive", () => {
     expect(managedHash({ a: 1, b: "x" }, ["c"], "blk")).toBe(managedHash({ b: "x", a: 1 }, ["c"], "blk"));
@@ -48,5 +49,19 @@ describe("fmEquals mit linkAware (Rollout Teil B, Befund 2)", () => {
     expect(fmEquals(null, "")).toBe(false);
     expect(fmEquals({ a: 1 }, { a: 1 })).toBe(true);
     expect(fmEquals({ a: 1 }, { a: 2 })).toBe(false);
+  });
+});
+
+describe("vendortes frontmatter: Wert mit Zeilenumbruch (Datenfix obsidian-kit 0.96.0)", () => {
+  // Der Spiegel vergleicht Werte aus gelesenem Frontmatter (`fmEquals` -> `valueEquals`); ein Beschreibungstext mit Zeilenumbruch
+  // (VEVENT `DESCRIPTION`, vCard `NOTE`) darf beim Schreiben und Lesen weder zerreissen noch sich aendern, sonst meldet der Sync
+  // jede solche Notiz als geaendert. Geschrieben wird hier ueber Obsidians `processFrontMatter`; die Rundreise belegt den Kit-Stand.
+  it("serializeFrontmatter -> parseFrontmatter gibt den Wert mit Umbruch gleich zurueck", () => {
+    const value = "Zeile eins\nZeile zwei\r\nZeile drei";
+    const text = serializeFrontmatter({ title: "T", description: value }, ["title", "description"]) + "\nBody\n";
+    const back = parseFrontmatter(text);
+    expect(back.data.description).toBe(value);
+    expect(back.data.title).toBe("T");
+    expect(fmEquals(back.data.description, value)).toBe(true);
   });
 });

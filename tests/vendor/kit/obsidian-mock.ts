@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.95.0, src/testing/obsidian-mock.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.106.0, src/testing/obsidian-mock.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Self-contained Obsidian test double for obsidian-kit.
 // - Zero external imports (NOT from "obsidian", NOT from "vitest").
 // - Consumed via vitest `resolve.alias` as a drop-in for `import ... from "obsidian"`,
@@ -138,11 +138,15 @@ export function makeFakeEl(tagName = "DIV"): any {
      *  über die Reihenfolge der Kinder ist nur dort belastbar, wo kein Knoten umgehängt
      *  wurde (der Modell-Picker hängt seine Komponenten aus `controlEl` in den Slot um). */
     appendChild: (c: any) => { if (c && typeof c === "object") c.parentElement = el; children.push(c); return c; },
-    /** `ref === null` haengt ans Ende an, wie im echten DOM. Fehlt `ref` im eigenen
+    /** `ref === null` haengt ans Ende an, wie im echten DOM; ein schon vorhandenes Kind wird verschoben (Welle 36, k9u). Fehlt `ref` im eigenen
      *  Kinder-Array, wird ebenfalls ans Ende angehaengt statt zu werfen (Fake-Element
      *  ist tolerant, kein Spezifikations-Double). */
     insertBefore: (c: any, ref: any) => {
       if (c && typeof c === "object") c.parentElement = el;
+      // Ein Knoten, der schon ein Kind dieses Elements ist, wird umgehängt, nicht verdoppelt (wie im echten DOM; `appendChild` bleibt bewusst beim Anhängen).
+      if (c === ref) return c;
+      const alt = children.indexOf(c);
+      if (alt >= 0) children.splice(alt, 1);
       const i = ref === null || ref === undefined ? -1 : children.indexOf(ref);
       if (i < 0) children.push(c); else children.splice(i, 0, c);
       return c;

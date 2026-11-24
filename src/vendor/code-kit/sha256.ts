@@ -1,4 +1,4 @@
-// vendored from code-kit@0.75.0, src/ts/pure/sha256.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.87.0, src/ts/pure/sha256.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** FIPS-180-4-SHA-256, synchron und chunk-fähig — obsidian-frei, ohne jeden Import.
  *
  *  Warum überhaupt eine eigene Implementierung: `crypto.subtle.digest` ist asynchron
@@ -115,11 +115,8 @@ export class Sha256 {
     }
   }
 
-  /** Schließt den Hash ab und liefert 64 Hex-Zeichen in Kleinschreibung (wie Pythons
-   *  `hexdigest()`). Genau **einmal** aufrufbar.
-   *
-   *  @throws beim zweiten Aufruf. */
-  digestHex(): string {
+  /** Polsterung und letzte Blöcke; danach steht der Hash in `this.h`. Gemeinsamer Teil von {@link digestHex} und {@link digestBase64}. */
+  private finish(): void {
     if (this.done) throw new Error("Sha256: digest already taken");
     this.done = true;
     const bitLo = (this.lenLo << 3) >>> 0;
@@ -135,9 +132,40 @@ export class Sha256 {
     tail.set(this.block.subarray(0, this.blockLen), 0);
     tail.set(pad, this.blockLen);
     for (let off = 0; off < tail.length; off += 64) this.compress(tail, off);
+  }
+
+  /** Schließt den Hash ab und liefert 64 Hex-Zeichen in Kleinschreibung (wie Pythons
+   *  `hexdigest()`). Genau **einmal** aufrufbar (auch gemeinsam mit {@link digestBase64}: der Hash ist dann abgeschlossen).
+   *
+   *  @throws beim zweiten Aufruf. */
+  digestHex(): string {
+    this.finish();
     let hex = "";
     for (const word of this.h) hex += word.toString(16).padStart(8, "0");
     return hex;
+  }
+
+  /** Schließt den Hash ab und liefert ihn als Standard-Base64 mit `=` (RFC 4648 §4): immer 44 Zeichen, die letzte ist `=`.
+   *  Das ist die Schreibweise von `'sha256-…'` in einer Content-Security-Policy und von `integrity="sha256-…"`. Die 32 Byte werden hier
+   *  selbst kodiert, weil diese Datei keinen Import haben darf (siehe oben, ein `bytesToBase64` aus `data-url` wäre einer).
+   *  Genau **einmal** aufrufbar.
+   *
+   *  @throws beim zweiten Aufruf. */
+  digestBase64(): string {
+    this.finish();
+    const bytes = new Uint8Array(32);
+    const view = new DataView(bytes.buffer);
+    this.h.forEach((word, i) => view.setUint32(i * 4, word));
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let out = "";
+    let i = 0;
+    for (; i + 2 < 32; i += 3) {
+      const v = ((bytes[i] ?? 0) << 16) | ((bytes[i + 1] ?? 0) << 8) | (bytes[i + 2] ?? 0);
+      out += alphabet.charAt((v >> 18) & 63) + alphabet.charAt((v >> 12) & 63) + alphabet.charAt((v >> 6) & 63) + alphabet.charAt(v & 63);
+    }
+    // 32 = 10 * 3 + 2: two bytes remain → three characters and one `=`
+    const v = ((bytes[i] ?? 0) << 16) | ((bytes[i + 1] ?? 0) << 8);
+    return `${out}${alphabet.charAt((v >> 18) & 63)}${alphabet.charAt((v >> 12) & 63)}${alphabet.charAt((v >> 6) & 63)}=`;
   }
 
   private compress(buf: Uint8Array, off: number): void {
@@ -195,4 +223,17 @@ export function sha256Hex(bytes: Uint8Array): string {
  *  `hashlib.sha256(s.encode()).hexdigest()` überein. */
 export function sha256HexUtf8(text: string): string {
   return sha256Hex(new TextEncoder().encode(text));
+}
+
+/** SHA-256 über einen Puffer am Stück → 44 Zeichen Standard-Base64 mit `=` (die Schreibweise von `'sha256-…'` in einer Content-Security-Policy
+ *  und von `integrity="sha256-…"`). Dieselben Bytes wie {@link sha256Hex}, anders geschrieben. */
+export function sha256Base64(bytes: Uint8Array): string {
+  const h = new Sha256();
+  h.update(bytes);
+  return h.digestBase64();
+}
+
+/** SHA-256 über einen String, **UTF-8**-kodiert → 44 Zeichen Base64, wie `crypto.createHash("sha256").update(text, "utf8").digest("base64")`. */
+export function sha256Base64Utf8(text: string): string {
+  return sha256Base64(new TextEncoder().encode(text));
 }

@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- Kit pins move to obsidian-kit 0.106.0 and code-kit 0.87.0. No visible change: the plugin writes front matter through Obsidian itself and uses the kit's front matter module only to compare values; the kit's fix for values with a line break (they no longer tear the block apart) therefore does not reach a path of this plugin.
+
 ## [0.9.1] — 2026-11-18
 
 ### Fixed

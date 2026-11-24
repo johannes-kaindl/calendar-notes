@@ -1,13 +1,16 @@
-// vendored from obsidian-kit@0.95.0, src/pure/frontmatter.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.106.0, src/pure/frontmatter.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // frontmatter.ts — yaml_lite: flache Skalare + einfache Listen. Kein obsidian-Import.
 //
 // Gehoben aus vault-rag/src/frontmatter.ts (Serialisier-/Parse-Pfad); die smart-apply-
 // Domäne (mergeFrontmatter/diffFrontmatter) bleibt dort.
 //
-// TYP-ASYMMETRIE (bewusst): serializeFrontmatter akzeptiert `number` und emittiert ihn
-// bar (`seed: 199801046`), parseFrontmatter liefert dagegen IMMER Strings — yaml_lite
+// TYP-ASYMMETRIE (bewusst): serializeFrontmatter akzeptiert `number` und `boolean` und emittiert sie
+// bar (`seed: 199801046`, `done: true`), parseFrontmatter liefert dagegen IMMER Strings (`"true"`) — yaml_lite
 // macht keine Typinferenz. Deshalb normalisiert valueEquals Skalare über String(v),
-// sonst schlüge der Round-Trip-Selbstcheck für Zahlen fehl.
+// sonst schlüge der Round-Trip-Selbstcheck für Zahlen und Wahrheitswerte fehl. Ein TEXT `true`/`false`/`yes`/`no`
+// bleibt beim Schreiben gequotet (`needsQuoting`), ein Wahrheitswert nicht: so unterscheidet der Leser (Obsidian, js-yaml) beide.
+// Wer die Typen auseinanderhalten will (Zahl 2 ≠ Text "2", Wahrheitswert ≠ Text), vergleicht mit `valueEquals(a, b, { typed: true })`
+// und baut den Wert aus einem rohen Cache-Wert mit `rawToFmValue`.
 //
 // WAS IST BLOCK (Welle 34, Paket C1; gemessen 2026-11-14 in Obsidian 1.15.1, Pilot `pilot/frontmatter-leser.ts`, Lauf ohne Abweichung: `parseFrontmatter` stimmt in `exists` und Textbeginn mit `getFrontMatterInfo` in allen 17 Dokumenten überein):
 //   Zaun, Zaun, Text                      → Block (null Zeilen), Text ab 8        | mit späterer Trennlinie im Text: derselbe Block, die Trennlinie ist Text
@@ -24,7 +27,7 @@
 
 import { baseName } from "../code-kit/rel-path";
 
-export type FmValue = string | number | string[];
+export type FmValue = string | number | boolean | string[];
 export interface ParsedFrontmatter {
   data: Record<string, FmValue>;
   order: string[];
@@ -60,11 +63,22 @@ export function locateFrontmatter(text: string): FrontmatterSpan | null {
   }
 }
 
+const DOUBLE_ESCAPES: Record<string, string> = { n: "\n", r: "\r", t: "\t", "0": "\0", a: "\x07", b: "\b", e: "\x1b", f: "\f", v: "\v", N: "\u0085", L: "\u2028", P: "\u2029", _: "\u00a0", " ": " ", '"': '"', "/": "/", "\\": "\\" };
+
+/** Liest die Escapes eines doppelt gequoteten YAML-Skalars (`\n`, `\"`, `\\`, `\xNN`, `\uNNNN`) in einem Durchgang; ein unbekanntes Escape bleibt unverändert stehen. */
+function unescapeDouble(inner: string): string {
+  return inner.replace(/\\(?:x([0-9a-fA-F]{2})|u([0-9a-fA-F]{4})|([\s\S]))/g, (whole, x?: string, u?: string, c?: string) => {
+    if (x !== undefined) return String.fromCharCode(parseInt(x, 16));
+    if (u !== undefined) return String.fromCharCode(parseInt(u, 16));
+    return c !== undefined && Object.prototype.hasOwnProperty.call(DOUBLE_ESCAPES, c) ? (DOUBLE_ESCAPES[c] ?? whole) : whole;
+  });
+}
+
 function unquote(raw: string): string {
   const s = raw.trim();
   if (s.length >= 2 && ((s[0] === '"' && s[s.length - 1] === '"') || (s[0] === "'" && s[s.length - 1] === "'"))) {
     const inner = s.slice(1, -1);
-    return s[0] === '"' ? inner.replace(/\\"/g, '"').replace(/\\\\/g, "\\") : inner.replace(/''/g, "'");
+    return s[0] === '"' ? unescapeDouble(inner) : inner.replace(/''/g, "'");
   }
   return s;
 }
@@ -79,7 +93,8 @@ function parseInlineList(raw: string): string[] {
   let i = 0;
   while (i < inner.length) {
     const ch = inner[i];
-    if (ch === '"' || ch === "'") {
+    // Ein Anführungszeichen eröffnet nur am Anfang eines Eintrags; mitten im Eintrag (`don't`, `a"b`) ist es Text, wie in YAML.
+    if ((ch === '"' || ch === "'") && cur.trim() === "") {
       // Consume the entire quoted span including escape sequences.
       const q = ch;
       cur += ch;
@@ -180,7 +195,7 @@ export function parseFrontmatter(text: string, opts?: { comments?: boolean }): P
 }
 
 // Codepoints that YAML / our parser would mis-handle at scalar start.
-const NEEDS_QUOTE_LEADING = /^[\s>|@`%&*!?#\-[{'"]/u;
+const NEEDS_QUOTE_LEADING = /^[\s>|@`%&*!?#\-[\]{}'"]/u;
 
 function startsWithEmoji(s: string): boolean {
   const cp = s.codePointAt(0);
@@ -194,29 +209,59 @@ function startsWithEmoji(s: string): boolean {
   );
 }
 
-function needsQuoting(v: string): boolean {
-  if (v === "") return false; // empty scalar emitted bare (key:)
+// In einer Flow-Liste (`[a, b]`) enden Skalare an `] } ,` und beginnen nicht mit `[ {`; dort darf ein Eintrag keines dieser Zeichen bar tragen,
+// und ein leerer Eintrag (`[a, , b]`) ist kein Eintrag. Als Skalar oder Blocklisten-Eintrag sind `]` und `}` bar gültig und bleiben es (kein Diff-Lärm in bestehenden Notizen).
+const FLOW_BREAKERS = /[\][{}]/;
+
+// Was ein YAML-Leser (Kern-Schema, js-yaml und Obsidian) als Zahl liest: Ganzzahl, Gleitkomma mit Exponent (`1e3`), `0x…`, `0o…`, `.inf`, `.nan`. Als Text geschrieben, muss es in Anführungszeichen.
+const YAML_NUMBER_LIKE = /^(?:[+-]?(?:\d[\d_]*(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|0x[0-9a-fA-F_]+|0o[0-7_]+|[+-]?\.(?:inf|nan))$/i;
+
+// Zeilenumbruch (LF, CR, NEL, LS, PS) und Steuerzeichen außer dem Tabulator stehen in einem YAML-Skalar nur als Escape in doppelten Anführungszeichen; roh bräche ein Umbruch den Block, NUL und die übrigen lehnt ein Leser ab.
+const ESCAPE_BY_CHAR: Record<string, string> = { "\n": "\\n", "\r": "\\r", "\u0085": "\\N", "\u2028": "\\L", "\u2029": "\\P" };
+function isBreakOrControl(code: number): boolean {
+  return (code < 0x20 && code !== 0x09) || code === 0x7f || code === 0x85 || code === 0x2028 || code === 0x2029;
+}
+function hasBreakOrControl(v: string): boolean {
+  for (let i = 0; i < v.length; i++) if (isBreakOrControl(v.charCodeAt(i))) return true;
+  return false;
+}
+function escapeBreaksAndControls(v: string): string {
+  let out = "";
+  for (const c of v) {
+    out += isBreakOrControl(c.charCodeAt(0)) ? (ESCAPE_BY_CHAR[c] ?? "\\x" + c.charCodeAt(0).toString(16).padStart(2, "0")) : c;
+  }
+  return out;
+}
+
+function needsQuoting(v: string, flow: boolean): boolean {
+  if (v === "") return flow; // leerer Skalar bar (`key:`), leerer Flow-Eintrag nur gequotet (`""`)
+  if (flow && FLOW_BREAKERS.test(v)) return true;
+  if (hasBreakOrControl(v)) return true;
   if (v !== v.trim()) return true;
-  if (v.includes(": ") || v.endsWith(":")) return true;
+  if (/:(\s|$)/.test(v)) return true; // `: ` und `:` vor Tab oder am Ende ist ein Schlüssel-Trenner
   if (v.includes(" #") || v.includes("#")) return true;
   if (v.includes("[[") || v.includes("]]")) return true;
   if (v.includes(",")) return true; // comma would split inline-list tokenizer
   if (NEEDS_QUOTE_LEADING.test(v)) return true;
   if (startsWithEmoji(v)) return true;
   if (/^(true|false|null|yes|no|on|off|~)$/i.test(v)) return true;
-  if (/^[+-]?(\d+\.?\d*|\.\d+)$/.test(v)) return true;
+  if (YAML_NUMBER_LIKE.test(v)) return true;
   return false;
 }
 
 /** Ein Skalar so, wie `serializeFrontmatter` ihn schreibt: bei Bedarf in Anführungszeichen (auch für die Einträge einer Blockliste in `frontmatter-patch`). */
 export function quoteScalar(v: string): string {
-  if (!needsQuoting(v)) return v;
-  return '"' + v.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+  return quoteWith(v, false);
+}
+
+function quoteWith(v: string, flow: boolean): string {
+  if (!needsQuoting(v, flow)) return v;
+  return '"' + escapeBreaksAndControls(v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')) + '"';
 }
 
 function serializeValue(v: FmValue): string {
-  if (typeof v === "number") return String(v);
-  if (Array.isArray(v)) return "[" + v.map(quoteScalar).join(", ") + "]";
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  if (Array.isArray(v)) return "[" + v.map((x) => quoteWith(x, true)).join(", ") + "]";
   return v === "" ? "" : quoteScalar(v);
 }
 
@@ -287,6 +332,11 @@ export interface ValueEqualsOptions {
   /** Ein Wikilink und sein Klartext gelten als gleich (`[[Ordner/Ort|Ort]]` = `[[Ort]]` = `Ort`), verglichen über `wikilinkDisplayText` und
    *  ohne Rand-Leerraum. Ein anderer Anzeigetext bleibt eine Abweichung (`[[a|Ort]]` ≠ `Orte`). Default `false`. */
   linkAware?: boolean;
+  /** Typgenau vergleichen (Default `false`): eine Liste ist nie gleich einem Skalar (`"a"` ≠ `["a"]`), Zahl `2` ≠ Text `"2"`, Wahrheitswert `true` ≠ Text `"true"` ≠ Zahl.
+   *  Ohne `typed` vergleicht `valueEquals` Skalare über `String(v)` und setzt einen Skalar mit der Ein-Element-Liste gleich (der Rundreise-Selbstcheck braucht das, weil `parseFrontmatter` nur Texte liefert).
+   *  Mit `linkAware` zusammen gilt zuerst die Typgleichheit (gleiche Art, sonst `false`, auch bei einem Link), danach die Wertgleichheit wie ohne `typed`, dazu die Link-Gleichheit für Texte und Listen von Texten
+   *  (ein Link ist Text: `[[Ort]]` = `Ort`, aber `[[2]]` ≠ die Zahl `2`). Die Elemente einer Liste sind Texte; `typed` sieht nur die Art des Wertes, nicht die Art, die ein Listenelement VOR `rawToFmValue` hatte. */
+  typed?: boolean;
 }
 
 function strictEquals(a: FmValue, b: FmValue): boolean {
@@ -298,12 +348,19 @@ function strictEquals(a: FmValue, b: FmValue): boolean {
   return String(a) === String(b);
 }
 
+/** Die Art eines Wertes für den typgenauen Vergleich. */
+function fmKind(v: FmValue): "list" | "string" | "number" | "boolean" {
+  return Array.isArray(v) ? "list" : typeof v === "number" ? "number" : typeof v === "boolean" ? "boolean" : "string";
+}
+
 /** Wertgleichheit für FmValue. Skalare werden über String(v) verglichen — ein `number`
- *  199801046 gilt als gleich zum reparsten String "199801046" (siehe Typ-Asymmetrie).
+ *  199801046 gilt als gleich zum reparsten String "199801046" (siehe Typ-Asymmetrie), ein `boolean` `true` zum Text `"true"`.
  *  Mit `{ linkAware: true }` gilt zusätzlich ein Wikilink als gleich zu seinem Anzeigetext (`wikilinkDisplayText`); die strenge Gleichheit
- *  gilt weiter (sie ist die Vorbedingung, nie lockerer). */
+ *  gilt weiter (sie ist die Vorbedingung, nie lockerer). Mit `{ typed: true }` vergleicht sie typgenau (siehe `ValueEqualsOptions.typed`);
+ *  ohne `typed` ist das Ergebnis für jeden bisherigen Fall unverändert. */
 export function valueEquals(a: FmValue | undefined, b: FmValue | undefined, opts?: ValueEqualsOptions): boolean {
   if (a === undefined || b === undefined) return a === b;
+  if (opts?.typed === true && fmKind(a) !== fmKind(b)) return false;
   if (strictEquals(a, b)) return true;
   if (opts?.linkAware !== true) return false;
   const display = (v: string): string => wikilinkDisplayText(v).trim();
@@ -313,6 +370,40 @@ export function valueEquals(a: FmValue | undefined, b: FmValue | undefined, opts
     return aa.length === bb.length && aa.every((x, i) => display(x) === display(bb[i] ?? ""));
   }
   return display(String(a)) === display(String(b));
+}
+
+/** Ein roher Wert aus dem `metadataCache` (`frontmatter[key]`), ein geparstes YAML oder JSON als `FmValue`, sonst `null`. Wirft nie.
+ *  - Text → Text; endliche Zahl → Zahl; Wahrheitswert → Wahrheitswert (`NaN`, `Infinity`: `null`, der Serializer schriebe `NaN`).
+ *  - Liste → Liste von Texten, wenn jedes Element Text, endliche Zahl oder Wahrheitswert ist: Zahlen und Wahrheitswerte werden `String(x)`. Hat die Liste ein anderes Element (`null`, Objekt, verschachtelte Liste, `NaN`), ist
+ *    die GANZE Liste `null`: ein stilles Weglassen verfälschte sie, ein `JSON.stringify` machte einen Vergleich vom Zufall der Schreibweise abhängig.
+ *  - `null`, `undefined`, Objekt, Funktion, Symbol, `bigint` → `null`.
+ *  - `opts.skipEmpty`: `""` und `[]` sind dann `null` („nicht gesetzt“; Obsidian zeigt ein leeres Feld und liest `key:` als `null`). Ohne bleiben sie `""` und `[]`.
+ *  Die Zahl in einer Liste wird Text, damit eine Liste ein `string[]` bleibt (`FmValue`) und `[1, 2]` mit `["1", "2"]` vergleichbar ist; **wer diese Liste zurückschreibt, schreibt `["1", "2"]` (gequotet), nicht `[1, 2]`**.
+ *  Wer so nicht umwandeln darf (ein Aufrufer, der nur Listen aus Texten anfasst, wie `relinkValues` in mailstone), prüft `every(x => typeof x === "string")` selbst, bevor er schreibt.
+ *
+ *  Herkunft und begründete Unterschiede (Dach-AGENTS, Bibliothek ab Eins), gelesen am 2026-11-18:
+ *  - calendar-notes `src/core/mirror/hash.ts:15-40` (`toFmValue`): Boolean wurde dort zum Text `"true"` (das Kit kannte keinen Wahrheitswert; jetzt bleibt er `boolean`), ein Objekt zu `JSON.stringify` (hier `null`: ein JSON-Text ist kein Wert, den ein Leser je sähe), ein Listenelement außer Text, Zahl und Wahrheitswert ebenso (hier: die ganze Liste `null`);
+ *    Listenelemente Zahl und Wahrheitswert werden dort und hier zu Text. Beibehalten: `null` und `undefined` → „nicht gesetzt“.
+ *  - calendar-notes `src/core/mirror/profile.ts:140-146` (`onCreate`) und `profile-from-note.ts:166-172`: erlauben Text, Zahl, Wahrheitswert und Liste von Texten (profile.ts) bzw. nur nichtleeren Text und nichtleere Liste von Texten (profile-from-note.ts); das Letzte ist `skipEmpty`. Eine Liste mit Zahlen ist dort ein Fehler beziehungsweise „unmapped“ (sichtbar); hier eine Liste von Texten. Wer die Ablehnung braucht, ruft `rawToFmValue(x)` und prüft vorher `Array.isArray(x) && x.every(...)`.
+ *  - mailstone `src/core/commands/relink.ts:36-41` (`relinkValues`): nur Text und Liste von Texten, alles andere bleibt unangetastet (es schreibt zurück und darf nichts umtypen: dort bleibt die eigene Prüfung). protocol-droid `src/obsidian/vault-notes.ts:8-16` (`toPatchValue`): Text, Zahl, Liste von Texten wie hier; ein Wahrheitswert wird dort ein Literal (`{ literal: "true" }`) und `null` ein Literal `null`. Seit `FmValue` den Wahrheitswert trägt, schreibt `patchFrontmatter` ihn auch als `boolean` (dieselbe Zeile `key: true`); das Literal `null` bleibt (`FmValue` kennt kein `null`).
+ *  @example
+ *  rawToFmValue(true)           // → true
+ *  rawToFmValue([1, "a", true]) // → ["1", "a", "true"]
+ *  rawToFmValue([1, { a: 1 }])  // → null
+ *  rawToFmValue("", { skipEmpty: true }) // → null */
+export function rawToFmValue(raw: unknown, opts?: { skipEmpty?: boolean }): FmValue | null {
+  const skip = opts?.skipEmpty === true;
+  if (typeof raw === "string") return skip && raw === "" ? null : raw;
+  if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
+  if (typeof raw === "boolean") return raw;
+  if (!Array.isArray(raw)) return null;
+  const out: string[] = [];
+  for (const x of raw as unknown[]) {
+    if (typeof x === "string") out.push(x);
+    else if ((typeof x === "number" && Number.isFinite(x)) || typeof x === "boolean") out.push(String(x));
+    else return null;
+  }
+  return skip && out.length === 0 ? null : out;
 }
 
 export function assertParseable(fm: { data: Record<string, FmValue>; order: string[] }): void {

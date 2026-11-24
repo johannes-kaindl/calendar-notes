@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.95.0, src/obsidian/settings_walker.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.106.0, src/obsidian/settings_walker.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // obsidian-kit/src/obsidian/settings_walker.ts
 //
 // Der gemeinsame Fallback-Walker fuer zweigleisige deklarative Settings-Tabs
@@ -6,6 +6,24 @@
 // Host display(), das DIESELBE Struktur mit der klassischen Setting-API
 // nachzeichnet). Gehoben aus 9 unabhaengigen Kopien, REGISTRY „Zweigleisige
 // deklarative Settings — eine-Wahrheit-Walker".
+//
+// ## Zahlenfeld (`control.type === "number"`): nativ und Fallback gemessen (Welle 36, k9c; Obsidian 1.15.1, `pilot/settings-zahl.ts`, echte Eingabe)
+//
+// Das Kit baut den **nativen** Weg nicht: ab 1.13 liest Obsidian die Deklaration der Konsumenten (`getSettingDefinitions`) selbst und zeichnet `SettingNumberControl`; `renderSettingDefinitions` ist nur der Fallback darunter.
+// Das Kit kann am nativen Weg also nichts formen, nur den Fallback an ihn angleichen. Deklaration `{ min: 1, max: 10, defaultValue: 5 }`, gespeicherter Wert vorher 5; jede Zeile eine Eingabe im Feld, dann Blur:
+//
+// | Eingabe | nativ speichert | Fallback bis 0.95.0 | Fallback jetzt |
+// |---|---|---|---|
+// | 0, −3 (unter min) | nichts, Feld behält die Eingabe | 1 (geklemmt) | nichts |
+// | 11, 12 (über max) | nichts, Feld behält die Eingabe | 10 (geklemmt) | nichts |
+// | 1, 10 (die Grenzen), 2.5 | der Wert | der Wert | der Wert |
+// | leer, „abc“ (das Feld bleibt leer) | `defaultValue` (5), das Feld zeigt 5 | nichts | `defaultValue` (5), das Feld zeigt 5 |
+// | Feld ohne Schrittweite | `step="any"` | kein `step` | `step="any"` |
+//
+// **Was der Fallback nicht angleicht, mit Grund:** ohne `defaultValue` in der Deklaration speichert nativ ein leeres Feld `0` (Typdoku: „falls back to `defaultValue` (or `0`)“); der Fallback speichert dann nichts,
+// denn eine stille 0 ist der Fehler, den vault-crews meldete (Zeitlimit 0 bricht jeden Lauf ab). **Folgerung für Konsumenten:** jedes Zahlenfeld, dessen 0 kein gültiger Wert ist, deklariert `defaultValue`; nur dann ist das
+// Ergebnis auf beiden Wegen gleich. Gemessen ist der native Weg nur für Eingaben im Feld; ob er beim Tippen jeder Ziffer oder erst beim Übernehmen schreibt, ist nicht unterschieden (ein `change` je Eingabe, die Schreibaufrufe
+// stehen je Eingabe in der Tabelle des Piloten).
 import { Setting, type App, type PluginSettingTab, type SettingControl, type SettingDefinitionGroup, type SettingDefinitionItem } from "obsidian";
 import { FolderSuggest } from "./folder-suggest";
 
@@ -15,6 +33,19 @@ export interface SettingControlHost {
 }
 
 type RenderHatch = (setting: Setting) => void | (() => void);
+
+/** Der Wert eines Zahlenfelds für `save`, wie ihn Obsidians nativer `SettingNumberControl` (gemessen an 1.15.1, `pilot/settings-zahl.ts`) behandelt: eine Zahl innerhalb von `[min, max]` (die Grenzen selbst und Dezimalzahlen
+ *  gelten, eine fehlende Grenze entfällt) ist der Wert; **außerhalb der Grenzen ist es kein Wert** (`undefined`, es wird nichts gespeichert, das Feld behält die Eingabe: 0, −3, 11 und 12 bei `min: 1, max: 10`
+ *  speicherten nativ nichts; bis Welle 36 klemmte der Fallback hier auf die Grenze). Ein leeres Feld, nur Leerraum, `NaN` und eine unendliche Zahl sind ebenfalls kein Wert. Die Schrittweite `step` ist ein
+ *  Eingabehinweis des Feldes, hier wird nicht auf sie gerundet. */
+function parseNumberInput(raw: string, min?: number, max?: number): number | undefined {
+  if (raw.trim() === "") return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return undefined;
+  if (min !== undefined && n < min) return undefined;
+  if (max !== undefined && n > max) return undefined;
+  return n;
+}
 
 // `settingBodyHost` liegt seit 0.89.0 in setting-body-host.ts (Welle 34, Paket 6); der Re-Export haelt bestehende Importe und Vendorings dicht.
 export { settingBodyHost } from "./setting-body-host";
@@ -150,14 +181,33 @@ export function renderSettingDefinitions(
           new FolderSuggest(app, t.inputEl);
         });
         break;
-      case "number":
-        setting.addText((t) =>
-          t
-            .setPlaceholder((control as { placeholder?: string }).placeholder ?? "")
+      case "number": {
+        const c = control as { placeholder?: string; min?: number; max?: number; step?: number | "any"; defaultValue?: number };
+        setting.addText((t) => {
+          t.setPlaceholder(c.placeholder ?? "")
             .setValue(String(current))
-            .onChange((v) => save(Number(v))),
-        );
+            .onChange((v) => {
+              const n = parseNumberInput(v, c.min, c.max);
+              if (n !== undefined) save(n);
+            });
+          // Dieselben Grenzen wie der native Weg (1.13: `SettingNumberControl` bekommt `min`/`max`/`step` aus derselben Deklaration): das Feld ist ein Zahlenfeld mit den gesetzten Attributen.
+          t.inputEl.type = "number";
+          if (c.min !== undefined) t.inputEl.setAttribute("min", String(c.min));
+          if (c.max !== undefined) t.inputEl.setAttribute("max", String(c.max));
+          t.inputEl.setAttribute("step", String(c.step ?? "any"));   // ohne Deklaration trägt auch das native Feld step="any" (gemessen 1.15.1): Dezimalzahlen gelten, das Feld markiert 2.5 nicht als ungültig
+          // Beim Übernehmen (`change`, also Blur oder Enter) verhält sich der native Weg bei leerem oder unlesbarem Feld so: er speichert `defaultValue` und zeigt es an (gemessen 1.15.1: leer und „abc“ → 5 bei `defaultValue: 5`).
+          // Der Fallback tut dasselbe, wenn die Deklaration einen `defaultValue` nennt; ohne ihn speichert er nichts (nativ wäre es `0`, und eine stille 0 ist der Fehler, den vault-crews meldete: Zeitlimit 0 bricht jeden Lauf ab).
+          // Außerhalb der Grenzen speichern beide nichts und lassen die Eingabe stehen.
+          t.inputEl.addEventListener("change", () => {
+            const raw = String(t.inputEl.value ?? "");
+            if (raw.trim() !== "" && Number.isFinite(Number(raw))) return;   // eine Zahl (auch außerhalb der Grenzen): wie nativ nichts weiter
+            if (typeof c.defaultValue !== "number" || !Number.isFinite(c.defaultValue)) return;
+            save(c.defaultValue);
+            t.inputEl.value = String(c.defaultValue);
+          });
+        });
         break;
+      }
       case "text":
       default:
         setting.addText((t) =>

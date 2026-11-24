@@ -231,7 +231,7 @@ describe("describeIssue (Pruefbefund des Kits in der Sprache der Oberflaeche)", 
   });
 
   it("ein Befund ohne eigenen Satz bleibt der englische Kit-Text (Fehler im Schema, nicht in der Eingabe)", () => {
-    const kaputt = { type: "object", properties: { a: { type: "object" } } } as unknown as ObjectSchema;
+    const kaputt = { type: "object", properties: { a: { type: "zahlenpaar" } } } as unknown as ObjectSchema;
     const issue = inputIssues(kaputt, { a: 1 })[0]!;
     expect(describeIssue(kaputt, issue)).toBe(issue.message);
   });

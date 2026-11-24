@@ -1,4 +1,4 @@
-// vendored from code-kit@0.75.0, src/ts/pure/split-list.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.87.0, src/ts/pure/split-list.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** The list a person types into one settings field: items separated by a comma (or another separator), spaces around them
  *  ignored, empty items dropped. `" README , {{folder_name}},, "` is `["README", "{{folder_name}}"]`; `""` and `" , "` are `[]`.
  *
